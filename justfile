@@ -13,6 +13,9 @@ setup:
 dev:
     npm run dev
 
+kill:
+    kill -9 $(lsof -t -i:3000)
+
 # Preview any game directly with disposable sample players/prices (port 3001).
 preview game="all":
     node --import tsx scripts/preview.ts "$1"
