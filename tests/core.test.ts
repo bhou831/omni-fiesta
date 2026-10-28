@@ -315,3 +315,45 @@ test('unimplemented party stages are guarded rather than shown as working games'
   );
   assert.equal(f.store.room(f.room.id).phase, 'lobby');
 });
+
+test('host-assisted recovery replaces old credentials without another starting grant', (t) => {
+  const f = fixture();
+  t.after(() => f.store.close());
+  const token = f.store.issueRecovery(f.room.id, f.joined.playerId, 1000000);
+  const replacement = f.store.recover(f.room.id, token, 1000001);
+  assert.equal(f.store.authenticate(f.joined.token, 'player', 1000001, ''), null);
+  assert.equal(
+    f.store.authenticate(replacement, 'player', 1000001, '')?.playerId,
+    f.joined.playerId,
+  );
+  assert.equal(f.store.player(f.joined.playerId).spendable, 1000);
+  assert.equal(f.store.db.prepare('SELECT count(*) AS n FROM ledger').get()?.n, 1);
+  assert.throws(() => f.store.recover(f.room.id, token, 1000002), errorCode('RECOVERY_INVALID'));
+  const expired = f.store.issueRecovery(f.room.id, f.joined.playerId, 1000000);
+  assert.throws(() => f.store.recover(f.room.id, expired, 1600000), errorCode('RECOVERY_INVALID'));
+});
+
+test('party final ranking includes every player with shared tied ranks', (t) => {
+  const f = fixture();
+  t.after(() => f.store.close());
+  const other = f.store.join(
+    f.store.room(f.room.id),
+    { ...f.profile, name: 'Frog' },
+    randomUUID(),
+    1000001,
+  );
+  f.store.db
+    .prepare("UPDATE rooms SET mode='party',phase='finish',status='open' WHERE id=?")
+    .run(f.room.id);
+  const state = f.engine.snapshot({ role: 'display', roomId: f.room.id });
+  assert.equal(state.ranking?.length, 2);
+  assert.deepEqual(
+    state.ranking?.map((p) => p.rank),
+    [1, 1],
+  );
+  assert.deepEqual(
+    new Set(state.ranking?.map((p) => p.playerId)),
+    new Set([f.joined.playerId, other.playerId]),
+  );
+  assert.doesNotMatch(JSON.stringify(state), /example\.test|212 555/);
+});

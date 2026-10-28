@@ -8,7 +8,17 @@ import { EMOJIS, type Command, type Role } from '../shared/contracts.js';
 import { loadConfig, gameConfigSchema, type GameConfig } from './config.js';
 import { Store, hash, type Session } from './core/store.js';
 import { Engine, type Viewer } from './core/engine.js';
+import type { PhaseModule } from './core/phases.js';
 import { GameError, requireRule } from './core/errors.js';
+import { partyModules } from './games/modules.js';
+import { prepareMarket } from './games/prepare-market.js';
+import { createPartyModules } from './games/index.js';
+import {
+  coinGeckoProvider,
+  fixtureProvider,
+  validateSnapshot,
+  type MarketProvider,
+} from './games/market.js';
 
 const cookieNames = { host: 'of_host', player: 'of_player' };
 function cookies(header?: string): Record<string, string> {
@@ -43,7 +53,7 @@ const commandSchema = z
   .object({
     requestId: z.string().uuid(),
     phaseInstance: z.number().int().nonnegative(),
-    type: z.enum(['player.ready', 'phase.advance', 'phase.close', 'phase.action']),
+    type: z.enum(['player.ready', 'phase.advance', 'phase.close', 'phase.action', 'phase.host']),
     payload: z
       .object({
         ready: z.boolean().optional(),
@@ -62,6 +72,9 @@ export interface AppOptions {
   enableRehearsal?: boolean;
   publicOrigin?: string;
   production?: boolean;
+  marketProvider?: MarketProvider;
+  /** Explicit injection for isolated integration tests. */
+  modules?: PhaseModule[];
 }
 
 export function createApp(options: AppOptions) {
@@ -80,7 +93,7 @@ export function createApp(options: AppOptions) {
   const now = options.now ?? Date.now;
   const credentialHash = hash(options.hostPassword);
   const store = new Store(options.databasePath);
-  const engine = new Engine(store, now);
+  const engine = new Engine(store, now, options.modules ?? createPartyModules());
   engine.expireAll();
   const app = express();
   const httpServer = createServer(app);
@@ -100,6 +113,8 @@ export function createApp(options: AppOptions) {
       callback(null, allowedOrigin(req.headers.origin, req.headers.host)),
   });
   app.disable('x-powered-by');
+  // Only the local Caddy proxy may supply a forwarded client address.
+  if (options.production) app.set('trust proxy', 'loopback');
   app.use(express.json({ limit: '16kb', strict: true }));
   app.use('/api', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -182,7 +197,7 @@ export function createApp(options: AppOptions) {
   }
   const attempts = new Map<string, { count: number; until: number }>();
   app.post('/api/login', (req, res) => {
-    const key = req.socket.remoteAddress ?? 'unknown';
+    const key = req.ip ?? req.socket.remoteAddress ?? 'unknown';
     for (const [ip, entry] of attempts) if (entry.until <= now()) attempts.delete(ip);
     const entry = attempts.get(key) ?? { count: 0, until: now() + 60_000 };
     requireRule(
@@ -241,7 +256,11 @@ export function createApp(options: AppOptions) {
   app.post('/api/rooms', (req, res) => {
     needSession(req, 'host');
     const input = z
-      .object({ requestId: z.string().uuid(), mode: z.enum(['party', 'rehearsal']) })
+      .object({
+        requestId: z.string().uuid(),
+        mode: z.enum(['party', 'rehearsal']),
+        marketSource: z.enum(['live', 'fixture']).optional(),
+      })
       .strict()
       .parse(req.body);
     requireRule(
@@ -249,9 +268,14 @@ export function createApp(options: AppOptions) {
       'REHEARSAL_DISABLED',
       'Rehearsal is disabled on this server.',
     );
+    requireRule(
+      input.marketSource !== 'fixture' || (!!options.enableRehearsal && !options.production),
+      'FIXTURE_DISABLED',
+      'Fixture rooms are disabled.',
+    );
     const room = store.transaction(() =>
       store.once('host:room-create', input.requestId, input, () =>
-        store.createRoom(config, input.mode, now()),
+        store.createRoom(config, input.mode, now(), input.marketSource ?? 'live'),
       ),
     );
     res.status(201).json(room);
@@ -267,9 +291,44 @@ export function createApp(options: AppOptions) {
     broadcast(room.id);
     res.json({ roomId: room.id, playerId: joined.playerId, roomCode: room.code });
   });
+  app.post('/api/rooms/:code/recovery', (req, res) => {
+    needSession(req, 'host');
+    const room = store.roomByCode(codeSchema.parse(req.params.code));
+    const { playerId } = z.object({ playerId: z.string().uuid() }).strict().parse(req.body);
+    const token = store.issueRecovery(room.id, playerId, now());
+    res.json({ token, expiresAt: now() + 10 * 60_000 });
+  });
+  app.post('/api/rooms/:code/recover', (req, res) => {
+    const room = store.roomByCode(codeSchema.parse(req.params.code));
+    const { token } = z
+      .object({ token: z.string().min(32).max(128) })
+      .strict()
+      .parse(req.body);
+    const replacement = store.recover(room.id, token, now());
+    setSession(res, 'player', replacement);
+    broadcast(room.id);
+    res.json({ roomCode: room.code });
+  });
   app.get('/api/rooms/:code/state', (req, res) => {
     const room = store.roomByCode(codeSchema.parse(req.params.code));
     res.json(engine.snapshot(viewer(req, room.id)));
+  });
+  app.post('/api/rooms/:code/market/:kind', async (req, res) => {
+    needSession(req, 'host');
+    const kind = z.enum(['opening', 'closing']).parse(req.params.kind);
+    const room = store.roomByCode(codeSchema.parse(req.params.code));
+    const source =
+      (
+        store.db.prepare('SELECT source FROM room_market_modes WHERE room_id=?').get(room.id) as
+          { source: string } | undefined
+      )?.source ?? 'live';
+    const provider =
+      source === 'fixture'
+        ? fixtureProvider()
+        : (options.marketProvider ?? coinGeckoProvider(process.env.COINGECKO_API_KEY ?? ''));
+    await prepareMarket(store, room.id, kind, provider, now);
+    broadcast(room.id);
+    res.json({ prepared: true });
   });
   app.post('/api/rooms/:code/commands', (req, res) => {
     const room = store.roomByCode(codeSchema.parse(req.params.code));

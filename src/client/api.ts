@@ -8,17 +8,19 @@ export class RequestError extends Error {
 }
 export async function api<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   let response: Response;
+  let data: any;
   try {
     response = await fetch(path, {
       ...options,
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', ...options.headers },
     });
+    // A lost or truncated response leaves the command outcome uncertain.
+    data = await response.json();
   } catch (error) {
     if (retry) return api(path, options, false);
     throw new RequestError('Connection interrupted. Retry when you’re back online.', 'NETWORK');
   }
-  const data = await response.json();
   if (!response.ok)
     throw new RequestError(data.error ?? 'Please try again.', data.code ?? 'REQUEST_FAILED');
   return data as T;

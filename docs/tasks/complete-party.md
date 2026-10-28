@@ -28,7 +28,11 @@ Complete `investments.md` first. The integration owner establishes async prepara
 
 Use deterministic market fixtures for acceptance tests, add the live provider adapter, and keep fixture rooms visibly separate from live rooms. Verify opening/closing snapshot persistence, capped locked principal, edits, cancellation, decimal settlement, retry/restart safety, provider failure, and private portfolio data. Test investment selection and later review without enabling incomplete intervening party stages or exposing production skip controls.
 
-Gate: the investment slice, shared integration interfaces, and existing rehearsal pass applicable checks before parallel game implementation begins. If interfaces change later, the owner updates dependent modules before accepting them.
+Development gate: establish the shared interfaces and pass the checks that exercise authorization, transactions, idempotency, deadlines, and role projections before delegating modules that depend on them. The owner explicitly records which interfaces are stable. If interfaces change later, the owner updates dependent modules before accepting them. Independent rule logic and focused tests may proceed while remaining integration checks are pending.
+
+Readiness gate: investment-specific HTTP/WebSocket and three-view browser verification must pass before the investment slice is marked complete or enabled by default. Existing rehearsal transport tests do not establish investment transport coverage. An environment-blocked browser/network check must be recorded as pending, not treated as passed; it does not require stopping all unrelated implementation. Keep incomplete modules gated and continue work within the established interfaces.
+
+If local-server tests fail with `listen EPERM`, use the environment's supported permission mechanism to rerun the necessary checks with loopback access. Do not weaken tests or bind to a different address to evade the restriction. If access is unavailable, record the blocked checks and continue independent work. Treat outbound market DNS/access separately from loopback access; fixture-backed development does not require live quotes. Report an actual application failure separately from a permission or network restriction.
 
 ### 2. Implement the independent games in parallel
 

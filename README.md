@@ -2,7 +2,7 @@
 
 A host-led party game for phone browsers and a shared TV display.
 
-The shared foundation is runnable: player registration/readiness, private host controls, a public TV display, persistent token accounting, configuration snapshots, server-controlled countdowns, real-time updates, and reconnect/restart recovery. A clearly labeled **Sound check** rehearsal exercises these pieces without spending tokens. Actual party games and AWS deployment are still pending.
+The shared foundation and all game modules/role views are implemented. A disposable fixture harness has completed full-party network rehearsals with 15 and 100 players and a one-player host/player/TV browser walkthrough. The default server registers all party games; AWS deployment has not been performed. A separate **Sound check** rehearsal remains available.
 
 ## Approved design: Party notebook
 
@@ -18,7 +18,7 @@ Chrome verification covered all four routes and a complete host/player/TV Sound 
 
 Actual desktop viewports were 1728×940 and 1728×996, with no page overflow observed. A requested 390×844 override did **not** change the actual viewport; narrow-phone and physical iPhone/TV verification remain outstanding. Registration fields computed to 16px. Static decoration has no motion and can be disabled in the client; reduced-motion CSS disables future animation/transition styling, but an OS reduced-motion toggle was not exercised.
 
-Preview with `just dev`, then visit `/`, `/play`, `/host`, and the host-generated `/screen` link. Only the foundation and Sound check rehearsal work; real game modules, final balloons/confetti, and AWS deployment remain pending.
+Run the party app or Sound check with `just dev`, then visit `/`, `/play`, `/host`, and the host-generated `/screen` link. Use the disposable fixture harness below for isolated rehearsals. Final balloons/confetti and AWS deployment remain pending.
 
 ## Shortcuts
 
@@ -35,6 +35,7 @@ just build          # Build the application
 just start          # Start the built application
 just simulate       # Simulate 15 players; development server must be running
 just simulate 100   # Simulate 100 players
+just market-check   # Read-only live check of all five configured assets
 ```
 
 ## Run locally
@@ -71,7 +72,7 @@ npm run simulate -- 100
 
 Each simulator run creates a separate rehearsal and isolated player sessions, uses real HTTP/WebSocket connections, checks starting grants/readiness/check-ins, and finishes without spending tokens. Rehearsal requires `ENABLE_REHEARSAL=true`; it is disabled unless explicitly enabled. Set `BASE_URL` if testing another local server. Network integration tests need permission to bind loopback ports in restricted environments.
 
-`npm run build` writes `dist/client` and compiled server/shared files. `npm start` uses the environment in `.env`; for production, configure `NODE_ENV=production`, an HTTPS `PUBLIC_ORIGIN`, a private host password, persistent database storage, and `ENABLE_REHEARSAL=false`. Lightsail provisioning, HTTPS proxy, backups/restore procedures, and real game implementations remain deployment prerequisites.
+`npm run build` writes `dist/client` and compiled server/shared files. `npm start` uses the environment in `.env`; for production, configure `NODE_ENV=production`, an HTTPS `PUBLIC_ORIGIN`, a private host password, persistent database storage, and `ENABLE_REHEARSAL=false`. Complete readiness review, Lightsail provisioning, HTTPS proxy verification, and backup/restore rehearsal before deployment.
 
 ## Specifications and agent tasks
 
@@ -93,4 +94,14 @@ Each simulator run creates a separate rehearsal and isolated player sessions, us
 
 Target hosting: AWS Lightsail, `game.bowen-hou.com`. Implemented stack: TypeScript, React, Node.js/Socket.IO, SQLite. Caddy is the planned HTTPS proxy.
 
-Investment implementation has started with an isolated, tested exact-decimal payout calculation; it is not yet connected to a playable stage. See the latest entry in [the implementation plan](docs/plan.md) for the current verification and remaining work.
+## Integrated verification (2026-10-28)
+
+The permitted `just check` run passed all 46 tests, including investment HTTP/WebSocket coverage and a balance-visibility regression, plus formatting, type checking, and the production build. Full-party network simulations against the disposable harness completed all stages with 15 and 100 isolated HTTP/WebSocket player sessions. These simulator runs did not test process restart or reconnect during play.
+
+A desktop browser walkthrough exercised one fixture player with private host and public TV through investment selection/reload/settlement, an empty costume contest, a trivia buzz/team award, a slot spin, Powerball bet/draw/reveal, private phone selection/public award, and the final ranking. Fixed game panels exposing available tokens while the header balance was hidden, the TV's stale rehearsal footer, the settled-position label, and duplicate ranking numbers. [Screenshots](docs/verification/party-integration/) record review and completion. Physical iPhone/TV, narrow viewport, richer multiplayer browser cases, and full-party restart/backup restoration remain pending.
+
+The normal-startup registration issue was subsequently fixed: it previously loaded only Sound check, causing “Make your move is not implemented yet” even though the game existed. Normal startup and the fixture harness now share the full game registration. The investment transport test exercises normal defaults without module overrides and checks all stage registrations. All 46 checks/tests and complete 15/100-player network parties passed again using normal registration. Existing rooms/players are preserved. Refresh open pages after the development server reloads (or restart an unwatched server), then have the host prepare opening prices and open investments.
+
+The live `just market-check` request succeeded with HTTP 200 using the privately configured Demo key, and the application's adapter accepted fresh quotes for SOL, BTC, DOGE, SPYx, and PEPE. This is an observed weekday snapshot, not a guarantee of Saturday availability. The command sends the key only to CoinGecko, prints no credentials, and changes no room/database state. Restricted DNS failed with `ENOTFOUND`; the permitted network run succeeded.
+
+For a disposable browser/network rehearsal, `HOST_PASSWORD=fixture-test-password node --import tsx scripts/fixture-server.ts` starts an in-memory, non-production-only harness on port 3001 using the same default modules as the normal app. Select **Fixture party**; its data disappears when the process stops. Run the simulator with `BASE_URL=http://127.0.0.1:3001 HOST_PASSWORD=fixture-test-password npm run simulate -- 15 --party` (or 100). These observed commands require local-port permission. See [the plan](docs/plan.md) for remaining rehearsal work and [deployment preparation](docs/deployment.md) for future Lightsail/backup work. No public deployment was performed.

@@ -42,3 +42,7 @@ start:
 # Simulate players against a running development server (default: 15).
 simulate players="15":
     npm run simulate -- "$1"
+
+# Check all five live market quotes without exposing the configured API key.
+market-check:
+    node --env-file-if-exists=.env --import tsx scripts/check-market.ts

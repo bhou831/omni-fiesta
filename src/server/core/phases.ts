@@ -8,6 +8,8 @@ export interface PhaseContext {
   room: RoomRow;
   config: GameConfig;
   now: number;
+  /** Present while dispatching an idempotent command. */
+  requestId?: string;
 }
 /** All module callbacks execute inside the core transaction. Prepare external data separately. */
 export interface PhaseModule {

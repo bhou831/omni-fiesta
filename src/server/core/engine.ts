@@ -11,6 +11,16 @@ import { type GameConfig } from '../config.js';
 import { Store, type RoomRow, type Session } from './store.js';
 import { requireRule } from './errors.js';
 import { connectionCheck, type PhaseModule } from './phases.js';
+import { settleInvestments, snapshot as marketSnapshot, position } from '../games/investments.js';
+import { costumeHostAction, costumeProjection } from '../games/costume.js';
+import { triviaHostAction, triviaProjection } from '../games/trivia.js';
+import { slotsPlayerState, slotsHostState, slotsDisplayState } from '../games/slots.js';
+import { powerballHostAction, powerballProjection } from '../games/powerball.js';
+import {
+  callingHostAction,
+  callingHostState,
+  callingPublicState,
+} from '../games/somebody-calling.js';
 
 export type Viewer =
   | { role: 'host' | 'display'; roomId: string }
@@ -47,6 +57,14 @@ export class Engine {
       return 'Wait for at least one player to join.';
     if (room.phase !== 'lobby' && room.status !== 'closed')
       return 'Close this round before advancing.';
+    if (
+      next === 'finish' &&
+      room.mode === 'party' &&
+      this.store.players(room.id).some((p) => p.locked !== 0 || p.reserved !== 0)
+    )
+      return 'Settle all locked investments and reserved bets before finishing.';
+    if (next === 'investments' && !marketSnapshot(this.context(room), 'opening'))
+      return 'Prepare opening prices first.';
     if (next !== 'finish' && !this.modules.has(next))
       return `${STAGE_LABELS[next]} is not implemented yet.`;
     return null;
@@ -142,6 +160,25 @@ export class Engine {
             if (room.status === 'open') this.modules.get(room.phase)?.close?.(this.context(room));
             this.store.db.prepare("UPDATE rooms SET status='closed' WHERE id=?").run(roomId);
             result = { closed: true };
+          } else if (command.type === 'phase.host') {
+            requireRule(session.role === 'host', 'FORBIDDEN', 'Only the host can do that.', 403);
+            const context = { ...this.context(room), requestId: command.requestId };
+            const action = command.payload?.action ?? '';
+            if (room.phase === 'investment-review' && action === 'settle') {
+              settleInvestments(context);
+              result = { settled: true };
+            } else if (room.phase === 'costume') result = costumeHostAction(context, action);
+            else if (room.phase === 'trivia') {
+              requireRule(room.status === 'open', 'ROUND_CLOSED', 'Trivia is closed.');
+              result = triviaHostAction(
+                context,
+                action,
+                command.payload?.data ?? {},
+                command.requestId,
+              );
+            } else if (room.phase === 'powerball') result = powerballHostAction(context, action);
+            else if (room.phase === 'somebody-calling') result = callingHostAction(context, action);
+            else requireRule(false, 'INVALID_ACTION', 'That host action is unavailable.');
           } else {
             requireRule(
               session.role === 'player' && session.playerId,
@@ -158,7 +195,7 @@ export class Engine {
             const module = this.modules.get(room.phase);
             requireRule(module, 'INVALID_PHASE', 'There is no player action in this stage.');
             result = module.action(
-              this.context(room),
+              { ...this.context(room), requestId: command.requestId },
               session.playerId,
               command.payload?.action ?? '',
               command.payload?.data ?? {},
@@ -222,11 +259,27 @@ export class Engine {
         deadlineAt: room.deadline_at,
         title: STAGE_LABELS[room.phase],
         configHash: room.config_hash,
+        marketSource:
+          (
+            this.store.db
+              .prepare('SELECT source FROM room_market_modes WHERE room_id=?')
+              .get(room.id) as { source: 'live' | 'fixture' } | undefined
+          )?.source ?? 'live',
         canAdvance: blocker === null,
         advanceBlocker: blocker,
       },
       players,
     };
+    if (room.phase === 'finish' && room.mode === 'party') {
+      const sorted = [...rows].sort(
+        (a, b) => b.spendable - a.spendable || a.id.localeCompare(b.id),
+      );
+      let rank = 0;
+      base.ranking = sorted.map((p, index) => {
+        if (index === 0 || p.spendable !== sorted[index - 1].spendable) rank = index + 1;
+        return { rank, playerId: p.id, name: p.name, emoji: p.emoji, tokens: p.spendable };
+      });
+    }
     const hostState = viewers.some((viewer) => viewer.role === 'host')
       ? {
           players: rows.map((p, i) => ({
@@ -235,6 +288,9 @@ export class Engine {
             phone: p.phone,
             accounts: { spendable: p.spendable, locked: p.locked, reserved: p.reserved },
           })),
+          investments: this.store.db
+            .prepare('SELECT player_id,asset_id,principal,payout FROM investments WHERE room_id=?')
+            .all(room.id) as unknown as NonNullable<RoomSnapshot['host']>['investments'],
           ledger: this.store.db
             .prepare(
               'SELECT id,player_id AS playerId,reason,spendable,locked,reserved,created_at AS createdAt FROM ledger WHERE room_id=? ORDER BY id DESC LIMIT 100',
@@ -254,6 +310,55 @@ export class Engine {
           checkedIn: checked.has(p.id),
         };
       }
+      if (
+        room.phase === 'investments' ||
+        room.phase === 'investment-review' ||
+        (viewer.role === 'host' && room.phase === 'lobby' && room.mode === 'party')
+      ) {
+        const context = this.context(room);
+        const opening = marketSnapshot(context, 'opening');
+        const closing = marketSnapshot(context, 'closing');
+        snapshot.investments = {
+          opening,
+          closing: room.phase === 'investment-review' ? closing : null,
+          assets: context.config.investments.assets,
+          cap: context.config.investments.max_investment_tokens,
+          multiplier: context.config.investments.return_multiplier,
+          position: viewer.role === 'player' ? (position(context, viewer.playerId) ?? null) : null,
+        };
+      }
+      if (room.phase === 'costume')
+        snapshot.costume = {
+          ...costumeProjection(
+            this.context(room),
+            viewer.role,
+            viewer.role === 'player' ? viewer.playerId : undefined,
+          ),
+          allowSelfVote: this.context(room).config.costume.allow_self_vote,
+        };
+      if (room.phase === 'trivia')
+        snapshot.trivia = triviaProjection(
+          this.context(room),
+          viewer.role === 'player' ? viewer.playerId : undefined,
+        );
+      if (room.phase === 'slots')
+        snapshot.slots =
+          viewer.role === 'player'
+            ? { role: 'player', data: slotsPlayerState(this.context(room), viewer.playerId) }
+            : viewer.role === 'host'
+              ? { role: 'host', data: slotsHostState(this.context(room)) }
+              : { role: 'display', data: slotsDisplayState(this.context(room)) };
+      if (room.phase === 'powerball')
+        snapshot.powerball = powerballProjection(
+          this.context(room),
+          viewer.role,
+          viewer.role === 'player' ? viewer.playerId : undefined,
+        );
+      if (room.phase === 'somebody-calling')
+        snapshot.calling =
+          viewer.role === 'host'
+            ? { role: 'host', data: callingHostState(this.context(room)) }
+            : { role: 'public', data: callingPublicState(this.context(room)) };
       if (viewer.role === 'host') snapshot.host = hostState;
       return snapshot;
     });

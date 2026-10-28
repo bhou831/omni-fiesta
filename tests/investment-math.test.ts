@@ -9,6 +9,7 @@ test('investment returns use exact decimal arithmetic and cap losses at principa
   assert.equal(investmentPayout(600, 20, '100', '92'), 0);
   assert.equal(investmentPayout(600, 20, '0.00000001', '1.01e-8'), 720);
   assert.equal(investmentPayout(1, 20, '3', '3.01'), 1);
+  assert.equal(investmentPayout(600, 2.5, '100', '110'), 750);
 });
 
 test('investment payout rejects invalid prices and unsafe amounts', () => {

@@ -1,6 +1,6 @@
 # Shared system design
 
-Status: shared foundation implemented; game-specific preparation, settlement/reveal, recovery-link workflows, and deployment remain pending. Product decisions live in `../spec.md`.
+Status: foundation, game preparation/settlement/reveal, role views and recovery links implemented. Normal startup registers the full party sequence. Device/full-recovery rehearsal and deployment remain pending. Product decisions live in `../spec.md`; verification evidence lives in `plan.md`.
 
 ## Deployment and application boundaries
 

@@ -1,7 +1,7 @@
 # Omni Fiesta product specification
 
-Status: shared foundation implemented and locally runnable; actual party games and AWS deployment remain pending. See `docs/plan.md` for verification evidence.
-Updated: 2026-10-27. Confirmed user decisions override earlier conversation proposals.
+Status: foundation and all game modules/views implemented and registered for local play. See `docs/plan.md` for verification and remaining device/recovery/deployment work.
+Updated: 2026-10-28. Confirmed user decisions override earlier conversation proposals.
 
 ## Purpose and scope
 

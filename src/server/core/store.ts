@@ -5,6 +5,11 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import type { Accounts, Profile, Stage } from '../../shared/contracts.js';
 import { configHash, type GameConfig } from '../config.js';
 import { requireRule } from './errors.js';
+import { costumeSchema } from '../games/costume.js';
+import { slotsSchema } from '../games/slots.js';
+import { TRIVIA_SCHEMA } from '../games/trivia.js';
+import { somebodyCallingSchema } from '../games/somebody-calling.js';
+import { powerballSchema } from '../games/powerball.js';
 
 export const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 export interface RoomRow {
@@ -47,7 +52,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 1) {
+    if (schemaVersion > 7) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -62,8 +67,32 @@ export class Store {
       CREATE TABLE IF NOT EXISTS operations(scope TEXT NOT NULL,request_id TEXT NOT NULL,fingerprint TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(scope,request_id));
       CREATE TABLE IF NOT EXISTS ledger(id INTEGER PRIMARY KEY AUTOINCREMENT,room_id TEXT NOT NULL REFERENCES rooms(id),player_id TEXT NOT NULL REFERENCES players(id),operation_key TEXT NOT NULL,reason TEXT NOT NULL,spendable INTEGER NOT NULL,locked INTEGER NOT NULL,reserved INTEGER NOT NULL,created_at INTEGER NOT NULL,UNIQUE(player_id,operation_key));
       CREATE TABLE IF NOT EXISTS check_ins(room_id TEXT NOT NULL REFERENCES rooms(id),phase_instance INTEGER NOT NULL,player_id TEXT NOT NULL REFERENCES players(id),created_at INTEGER NOT NULL,PRIMARY KEY(room_id,phase_instance,player_id));
-      PRAGMA user_version=1;`);
+      `);
+    if (schemaVersion < 2)
+      this.db.exec(`
+      BEGIN IMMEDIATE;
+      CREATE TABLE IF NOT EXISTS market_snapshots(room_id TEXT NOT NULL REFERENCES rooms(id), kind TEXT NOT NULL CHECK(kind IN ('opening','closing')), payload TEXT NOT NULL, PRIMARY KEY(room_id,kind));
+      CREATE TABLE IF NOT EXISTS investments(room_id TEXT NOT NULL REFERENCES rooms(id), player_id TEXT NOT NULL REFERENCES players(id), asset_id TEXT NOT NULL, principal INTEGER NOT NULL CHECK(principal>0), payout INTEGER, PRIMARY KEY(room_id,player_id));
+      PRAGMA user_version=2;
+      COMMIT;`);
+    if (schemaVersion < 3)
+      this.db.exec(
+        `BEGIN IMMEDIATE; CREATE TABLE IF NOT EXISTS room_market_modes(room_id TEXT PRIMARY KEY REFERENCES rooms(id), source TEXT NOT NULL CHECK(source IN ('live','fixture'))); PRAGMA user_version=3; COMMIT;`,
+      );
+    if (schemaVersion < 4)
+      this.db.exec(
+        `BEGIN IMMEDIATE; CREATE TABLE IF NOT EXISTS recovery_tokens(token_hash TEXT PRIMARY KEY, room_id TEXT NOT NULL REFERENCES rooms(id), player_id TEXT NOT NULL REFERENCES players(id), expires_at INTEGER NOT NULL); PRAGMA user_version=4; COMMIT;`,
+      );
+    if (schemaVersion < 5)
+      this.db.exec(
+        `BEGIN IMMEDIATE; ${costumeSchema} ${slotsSchema} ${TRIVIA_SCHEMA} PRAGMA user_version=5; COMMIT;`,
+      );
+    if (schemaVersion < 6)
+      this.db.exec(`BEGIN IMMEDIATE; ${somebodyCallingSchema} PRAGMA user_version=6; COMMIT;`);
+    if (schemaVersion < 7)
+      this.db.exec(`BEGIN IMMEDIATE; ${powerballSchema} PRAGMA user_version=7; COMMIT;`);
   }
+
   transaction<T>(run: () => T): T {
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -125,6 +154,7 @@ export class Store {
     config: GameConfig,
     mode: 'party' | 'rehearsal',
     now: number,
+    marketSource: 'live' | 'fixture' = 'live',
   ): { id: string; code: string; displayToken: string } {
     const id = randomUUID();
     let code: string;
@@ -149,6 +179,9 @@ export class Store {
         hash(displayToken),
         now,
       );
+    this.db
+      .prepare('INSERT INTO room_market_modes(room_id,source) VALUES(?,?)')
+      .run(id, marketSource);
     return { id, code, displayToken };
   }
   session(
@@ -183,6 +216,39 @@ export class Store {
       | undefined;
     if (!row || (role === 'host' && row.credential_hash !== hostCredentialHash)) return null;
     return { role, playerId: row.player_id, roomId: row.room_id, tokenHash: row.token_hash };
+  }
+  issueRecovery(roomId: string, playerId: string, now: number): string {
+    const player = this.player(playerId);
+    requireRule(player.room_id === roomId, 'FORBIDDEN', 'Player belongs to another party.', 403);
+    const token = randomBytes(32).toString('base64url');
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM recovery_tokens WHERE player_id=?').run(playerId);
+      this.db
+        .prepare('INSERT INTO recovery_tokens VALUES(?,?,?,?)')
+        .run(hash(token), roomId, playerId, now + 600_000);
+    });
+    return token;
+  }
+  recover(roomId: string, token: string, now: number): string {
+    return this.transaction(() => {
+      const recovery = this.db
+        .prepare(
+          'SELECT player_id FROM recovery_tokens WHERE token_hash=? AND room_id=? AND expires_at>?',
+        )
+        .get(hash(token), roomId, now) as { player_id: string } | undefined;
+      requireRule(
+        recovery,
+        'RECOVERY_INVALID',
+        'This recovery link has expired or was already used.',
+        400,
+      );
+      this.db.prepare('DELETE FROM recovery_tokens WHERE player_id=?').run(recovery.player_id);
+      this.db
+        .prepare("DELETE FROM sessions WHERE role='player' AND player_id=?")
+        .run(recovery.player_id);
+      this.db.prepare('DELETE FROM joins WHERE player_id=?').run(recovery.player_id);
+      return this.session('player', now, null, recovery.player_id, roomId);
+    });
   }
   revoke(token: string): void {
     this.db.prepare('DELETE FROM sessions WHERE token_hash=?').run(hash(token));

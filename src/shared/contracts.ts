@@ -81,20 +81,51 @@ export interface RoomSnapshot {
     deadlineAt: number | null;
     title: string;
     configHash: string;
+    marketSource: 'live' | 'fixture';
     canAdvance: boolean;
     advanceBlocker: string | null;
   };
   players: PublicPlayer[];
+  ranking?: { rank: number; playerId: string; name: string; emoji: string; tokens: number }[];
   self?: { id: string; accounts: Accounts; ready: boolean; checkedIn: boolean };
+  investments?: {
+    opening: import('../server/games/market.js').MarketSnapshot | null;
+    closing: import('../server/games/market.js').MarketSnapshot | null;
+    assets: import('../server/config.js').GameConfig['investments']['assets'];
+    cap: number;
+    multiplier: number;
+    position: {
+      player_id: string;
+      asset_id: string;
+      principal: number;
+      payout: number | null;
+    } | null;
+  };
+  costume?: import('../server/games/costume.js').CostumeProjection & { allowSelfVote: boolean };
+  trivia?: import('../server/games/trivia.js').TriviaProjection;
+  slots?:
+    | { role: 'player'; data: import('../server/games/slots.js').SlotsPlayerState }
+    | { role: 'host'; data: import('../server/games/slots.js').SlotsHostState }
+    | { role: 'display'; data: import('../server/games/slots.js').SlotsDisplayState };
+  powerball?: import('../server/games/powerball.js').PowerballProjection;
+  calling?:
+    | { role: 'host'; data: import('../server/games/somebody-calling.js').CallingHostState }
+    | { role: 'public'; data: import('../server/games/somebody-calling.js').CallingPublicState };
   host?: {
     players: (PublicPlayer & { email: string; phone: string; accounts: Accounts })[];
     ledger: LedgerEntry[];
+    investments: {
+      player_id: string;
+      asset_id: string;
+      principal: number;
+      payout: number | null;
+    }[];
   };
 }
 export interface Command {
   requestId: string;
   phaseInstance: number;
-  type: 'player.ready' | 'phase.advance' | 'phase.close' | 'phase.action';
+  type: 'player.ready' | 'phase.advance' | 'phase.close' | 'phase.action' | 'phase.host';
   payload?: { ready?: boolean; action?: string; data?: Record<string, unknown> };
 }
 export interface CommandResult {

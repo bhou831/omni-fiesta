@@ -23,16 +23,18 @@ export function investmentPayout(
   if (
     !Number.isSafeInteger(principal) ||
     principal <= 0 ||
-    !Number.isSafeInteger(multiplier) ||
-    multiplier < 0
+    !Number.isFinite(multiplier) ||
+    multiplier <= 0
   )
     throw new Error('Invalid investment');
   const [openNumerator, openDenominator] = decimal(opening);
   const [closeNumerator, closeDenominator] = decimal(closing);
+  const [multiplierNumerator, multiplierDenominator] = decimal(String(multiplier));
   const denominator = closeDenominator * openNumerator;
   const change = closeNumerator * openDenominator - denominator;
-  const numerator = BigInt(principal) * (denominator + BigInt(multiplier) * change);
-  const payout = numerator <= 0n ? 0n : numerator / denominator;
+  const numerator =
+    BigInt(principal) * (denominator * multiplierDenominator + multiplierNumerator * change);
+  const payout = numerator <= 0n ? 0n : numerator / (denominator * multiplierDenominator);
   if (payout > BigInt(Number.MAX_SAFE_INTEGER))
     throw new Error('Investment payout exceeds safe token range');
   return Number(payout);

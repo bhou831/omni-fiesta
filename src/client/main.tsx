@@ -4,6 +4,16 @@ import QRCode from 'qrcode';
 import { EMOJIS, type RoomSnapshot } from '../shared/contracts.js';
 import { api, post, requestId } from './api.js';
 import { useRoom } from './useRoom.js';
+import { InvestmentPlayer } from './Investments.js';
+import { CostumePlayer, CostumeHost, CostumeDisplay } from './Costume.js';
+import { TriviaPlayer, TriviaHost, TriviaDisplay } from './Trivia.js';
+import { SlotsPlayer, SlotsHost, SlotsDisplay } from './Slots.js';
+import { PowerballPlayer, PowerballHost, PowerballDisplay } from './Powerball.js';
+import {
+  SomebodyCallingHost,
+  SomebodyCallingPlayer,
+  SomebodyCallingDisplay,
+} from './SomebodyCalling.js';
 import './style.css';
 
 // Optional decoration stays independent of navigation, forms, and room state.
@@ -309,6 +319,22 @@ function Player() {
   const { session, setSession, error } = useSession('player');
   const queryCode = new URLSearchParams(location.search).get('code')?.toUpperCase() ?? '';
   const [joinedCode, setJoinedCode] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState('');
+  const [recovering, setRecovering] = useState(
+    !!new URLSearchParams(location.hash.slice(1)).get('recover'),
+  );
+  useEffect(() => {
+    const token = new URLSearchParams(location.hash.slice(1)).get('recover');
+    if (!token || !queryCode) return;
+    history.replaceState(null, '', `/play?code=${queryCode}`);
+    post<{ roomCode: string }>(`/api/rooms/${queryCode}/recover`, { token })
+      .then((data) => {
+        setJoinedCode(data.roomCode);
+        setSession({ authenticated: true, roomCode: data.roomCode });
+      })
+      .catch((err) => setRecoveryError(err.message))
+      .finally(() => setRecovering(false));
+  }, []);
   const code =
     joinedCode ??
     (session?.authenticated && (!queryCode || queryCode === session.roomCode)
@@ -317,7 +343,8 @@ function Player() {
   const room = useRoom('player', code);
   const [reveal, setReveal] = useState(false);
   useEffect(() => setReveal(false), [room.state?.room.phaseInstance]);
-  if (!session) return <Loading error={error} />;
+  if (recovering || !session) return <Loading error={error} />;
+  if (recoveryError) return <Loading error={recoveryError} />;
   if (!code)
     return (
       <Join
@@ -362,6 +389,8 @@ function Player() {
             <>You’re in. Waiting for the host.</>
           ) : state.room.phase === 'connection-check' ? (
             <>Sound check</>
+          ) : state.room.mode === 'party' ? (
+            state.room.title
           ) : (
             <>Rehearsal complete</>
           )}
@@ -371,7 +400,9 @@ function Player() {
             ? 'Your host will take it from here. Let them know when you’re ready.'
             : state.room.phase === 'connection-check'
               ? 'Tap below to check your connection. No tokens are spent.'
-              : 'Sound check is complete. Waiting for the host.'}
+              : state.room.mode === 'party'
+                ? 'Follow the instructions below.'
+                : 'Sound check is complete. Waiting for the host.'}
         </p>
         {reveal && (
           <p className="fine-print">
@@ -402,13 +433,86 @@ function Player() {
                 : 'Time’s up — waiting for host'}
           </button>
         )}
+        {(state.room.phase === 'investments' || state.room.phase === 'investment-review') &&
+          state.investments && (
+            <InvestmentPlayer
+              state={state}
+              revealBalance={reveal}
+              command={room.command}
+              disabled={!open || !room.connected || room.busy}
+            />
+          )}
+        {state.costume && (
+          <CostumePlayer
+            state={state.costume}
+            players={state.players}
+            selfId={state.self.id}
+            open={open}
+            disabled={room.busy || !room.connected}
+            allowSelfVote={state.costume.allowSelfVote}
+            onVote={(candidateId) =>
+              void room.command('phase.action', { action: 'vote', data: { candidateId } })
+            }
+            onReveal={() => {}}
+          />
+        )}
+        {state.trivia && (
+          <TriviaPlayer
+            trivia={state.trivia}
+            command={room.command}
+            disabled={room.busy || !room.connected || !open}
+          />
+        )}
+        {state.slots?.role === 'player' && (
+          <SlotsPlayer
+            state={state.slots.data}
+            spendable={state.self.accounts.spendable}
+            revealBalance={reveal}
+            open={open}
+            disabled={room.busy || !room.connected}
+            command={room.command}
+          />
+        )}
+        {state.room.marketSource === 'fixture' && <p>Fixture prices · test party</p>}
+        {state.powerball && (
+          <PowerballPlayer
+            state={state.powerball}
+            players={state.players}
+            spendable={state.self.accounts.spendable}
+            revealBalance={reveal}
+            open={open}
+            disabled={room.busy || !room.connected}
+            onBet={(color, amount) =>
+              void room.command('phase.action', { action: 'bet', data: { color, amount } })
+            }
+            onCancel={() => void room.command('phase.action', { action: 'cancel' })}
+            onDraw={() => {}}
+            onReveal={() => {}}
+          />
+        )}
+        {state.calling?.role === 'public' && <SomebodyCallingPlayer state={state.calling.data} />}
+        <Ranking state={state} />
         <div className="player-footer">
-          {state.players.length} {state.players.length === 1 ? 'player' : 'players'} · Sound check
-          rehearsal
+          {state.players.length} {state.players.length === 1 ? 'player' : 'players'} ·{' '}
+          {state.room.mode === 'rehearsal' ? 'Sound check rehearsal' : 'Party'}
         </div>
       </main>
     </div>
   );
+}
+function Ranking({ state }: { state: RoomSnapshot }) {
+  return state.ranking ? (
+    <section>
+      <h2>Final ranking</h2>
+      <ol>
+        {state.ranking.map((p) => (
+          <li key={p.playerId} value={p.rank}>
+            {p.emoji} {p.name} · {p.tokens.toLocaleString()} tokens
+          </li>
+        ))}
+      </ol>
+    </section>
+  ) : null;
 }
 function Loading({ error }: { error?: string }) {
   return (
@@ -446,6 +550,7 @@ function Host() {
   const [code, setCode] = useState<string | null>(new URLSearchParams(location.search).get('code'));
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [recoveryLink, setRecoveryLink] = useState('');
   const createAttempt = useRef<string | null>(null);
   const [displayToken, setDisplayToken] = useState<string | undefined>(
     code ? (localStorage.getItem(`of_display_${code}`) ?? undefined) : undefined,
@@ -466,14 +571,15 @@ function Host() {
     setDisplayToken(localStorage.getItem(`of_display_${next}`) ?? undefined);
     history.replaceState(null, '', `/host?code=${next}`);
   }
-  async function create() {
+  async function create(mode: 'party' | 'rehearsal', marketSource: 'live' | 'fixture' = 'live') {
     setCreating(true);
     setError('');
     createAttempt.current ??= requestId();
     try {
       const data = await post<{ code: string; displayToken: string }>('/api/rooms', {
         requestId: createAttempt.current,
-        mode: 'rehearsal',
+        mode,
+        marketSource,
       });
       createAttempt.current = null;
       localStorage.setItem(`of_display_${data.code}`, data.displayToken);
@@ -539,20 +645,38 @@ function Host() {
             <button
               className="button primary"
               disabled={creating || !enabled}
-              onClick={() => void create()}
+              onClick={() => void create('rehearsal')}
             >
               {creating ? 'Creating…' : '+ New rehearsal'}
             </button>
+            <button
+              className="button secondary"
+              disabled={creating}
+              onClick={() => void create('party')}
+            >
+              + New party
+            </button>
+            {enabled && (
+              <button
+                className="button secondary"
+                disabled={creating}
+                onClick={() => void create('party', 'fixture')}
+              >
+                + Fixture party
+              </button>
+            )}
           </div>
         </div>
         <ErrorNote text={error || room.error} />
-        <div className="notice">
-          <span aria-hidden="true">🎈</span>
-          <div>
-            <strong>First, a sound check.</strong> This rehearsal tests the room, countdown, and
-            everyone’s connection. Game rounds are coming next. No tokens are spent.
+        {(!state || state.room.mode === 'rehearsal') && (
+          <div className="notice">
+            <span aria-hidden="true">🎈</span>
+            <div>
+              <strong>First, a sound check.</strong> This rehearsal tests the room, countdown, and
+              everyone’s connection. Game rounds are coming next. No tokens are spent.
+            </div>
           </div>
-        </div>
+        )}
         {!state ? (
           <section className="empty-state">
             <span aria-hidden="true">🎈</span>
@@ -569,7 +693,11 @@ function Host() {
               <section className="panel round-panel">
                 <div className="section-heading">
                   <span className="eyebrow">
-                    {state.room.phase === 'lobby' ? 'Up next: Sound check' : 'Current round'}
+                    {state.room.phase === 'lobby'
+                      ? state.room.mode === 'party'
+                        ? 'Up next: Investments'
+                        : 'Up next: Sound check'
+                      : 'Current round'}
                   </span>
                   <Connection connected={room.connected} />
                 </div>
@@ -577,7 +705,9 @@ function Host() {
                   {state.room.phase === 'lobby'
                     ? 'Waiting room'
                     : state.room.phase === 'finish'
-                      ? 'Rehearsal complete'
+                      ? state.room.mode === 'party'
+                        ? 'Party complete'
+                        : 'Rehearsal complete'
                       : state.room.title}
                   <span className="accent">.</span>
                 </h2>
@@ -586,9 +716,80 @@ function Host() {
                     ? 'Get everyone into the room. When you’re ready, start the shared countdown.'
                     : state.room.phase === 'connection-check'
                       ? `${state.players.filter((p) => p.checkedIn).length} of ${state.players.length} players have checked in. You decide when to move on.`
-                      : 'All connected. The rehearsal is complete.'}
+                      : state.room.mode === 'party'
+                        ? 'Manage this round below. Only the host advances the party.'
+                        : 'All connected. The rehearsal is complete.'}
                 </p>
                 <Timer state={state} offset={room.clockOffset} />
+                {state.room.marketSource === 'fixture' && <p>Fixture prices · test party</p>}
+                {state.room.mode === 'party' &&
+                  ((state.room.phase === 'lobby' && !state.investments?.opening) ||
+                    (state.room.phase === 'investment-review' && !state.investments?.closing)) && (
+                    <button
+                      className="button secondary"
+                      onClick={async () => {
+                        try {
+                          setError('');
+                          await post(
+                            `/api/rooms/${code}/market/${state.room.phase === 'lobby' ? 'opening' : 'closing'}`,
+                            {},
+                          );
+                        } catch (err) {
+                          setError((err as Error).message);
+                        }
+                      }}
+                    >
+                      Prepare {state.room.phase === 'lobby' ? 'opening' : 'closing'} prices
+                    </button>
+                  )}
+                {state.room.phase === 'investment-review' && state.investments?.closing && (
+                  <button
+                    className="button secondary"
+                    disabled={room.busy}
+                    onClick={() => void room.command('phase.host', { action: 'settle' })}
+                  >
+                    Settle investments
+                  </button>
+                )}
+                {state.costume && (
+                  <CostumeHost
+                    state={state.costume}
+                    players={state.players}
+                    open={state.room.status === 'open'}
+                    disabled={room.busy || !room.connected}
+                    allowSelfVote={state.costume.allowSelfVote}
+                    onVote={() => {}}
+                    onReveal={() => void room.command('phase.host', { action: 'reveal' })}
+                  />
+                )}
+                {state.trivia && (
+                  <TriviaHost
+                    trivia={state.trivia}
+                    command={room.command}
+                    disabled={room.busy || !room.connected || state.room.status !== 'open'}
+                  />
+                )}
+                {state.slots?.role === 'host' && <SlotsHost state={state.slots.data} />}
+                {state.powerball && (
+                  <PowerballHost
+                    state={state.powerball}
+                    players={state.players}
+                    spendable={0}
+                    open={state.room.status === 'open'}
+                    disabled={room.busy || !room.connected}
+                    onBet={() => {}}
+                    onCancel={() => {}}
+                    onDraw={() => void room.command('phase.host', { action: 'draw' })}
+                    onReveal={() => void room.command('phase.host', { action: 'reveal' })}
+                  />
+                )}
+                {state.calling?.role === 'host' && (
+                  <SomebodyCallingHost
+                    state={state.calling.data}
+                    disabled={room.busy || !room.connected}
+                    command={room.command}
+                  />
+                )}
                 <div className="actions">
                   {state.room.phase !== 'lobby' &&
                     state.room.phase !== 'finish' &&
@@ -607,9 +808,13 @@ function Host() {
                     onClick={() => void room.command('phase.advance')}
                   >
                     {state.room.phase === 'lobby'
-                      ? 'Start sound check →'
+                      ? state.room.mode === 'party'
+                        ? 'Open investments →'
+                        : 'Start sound check →'
                       : state.room.phase === 'finish'
-                        ? 'Rehearsal complete ✓'
+                        ? state.room.mode === 'party'
+                          ? 'Party complete ✓'
+                          : 'Rehearsal complete ✓'
                         : 'Next stage →'}
                   </button>
                 </div>
@@ -662,6 +867,7 @@ function Host() {
                         <th>Available</th>
                         <th>Invested</th>
                         <th>Reserved</th>
+                        <th>Recovery</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -684,6 +890,26 @@ function Host() {
                           <td>{p.accounts.spendable.toLocaleString()}</td>
                           <td>{p.accounts.locked.toLocaleString()}</td>
                           <td>{p.accounts.reserved.toLocaleString()}</td>
+                          <td>
+                            <button
+                              className="text-button"
+                              onClick={async () => {
+                                try {
+                                  const data = await post<{ token: string }>(
+                                    `/api/rooms/${code}/recovery`,
+                                    { playerId: p.id },
+                                  );
+                                  setRecoveryLink(
+                                    `${location.origin}/play?code=${code}#recover=${data.token}`,
+                                  );
+                                } catch (err) {
+                                  setError((err as Error).message);
+                                }
+                              }}
+                            >
+                              Recover
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -691,6 +917,30 @@ function Host() {
                 </div>
               )}
             </section>
+            {recoveryLink && (
+              <div className="notice">
+                <p>
+                  After verifying the guest’s identity, share this private one-use link directly
+                  with them. It expires in ten minutes and replaces their previous sessions.
+                </p>
+                <input readOnly value={recoveryLink} aria-label="Private recovery link" />
+                <button className="text-button" onClick={() => setRecoveryLink('')}>
+                  Hide link
+                </button>
+              </div>
+            )}
+            {state.room.mode === 'party' && (
+              <details className="ledger">
+                <summary>Private investment positions</summary>
+                {state.host?.investments.map((pos) => (
+                  <p key={pos.player_id}>
+                    {state.players.find((p) => p.id === pos.player_id)?.name}: {pos.asset_id},{' '}
+                    {pos.principal} tokens
+                    {pos.payout === null ? ' locked' : `, gross payout ${pos.payout}`}
+                  </p>
+                ))}
+              </details>
+            )}
             <details className="ledger">
               <summary>
                 Token activity <span>↗</span>
@@ -729,7 +979,14 @@ function Display() {
       <Header
         right={
           <div className="header-actions">
-            <span className="tag">{state.room.code} · Rehearsal</span>
+            <span className="tag">
+              {state.room.code} ·{' '}
+              {state.room.marketSource === 'fixture'
+                ? 'Fixture party'
+                : state.room.mode === 'party'
+                  ? 'Party'
+                  : 'Rehearsal'}
+            </span>
             <Connection connected={room.connected} />
           </div>
         }
@@ -738,13 +995,19 @@ function Display() {
         <div className="display-hero">
           <div>
             <span className="eyebrow">
-              {state.room.phase === 'lobby' ? 'Waiting room' : 'Sound check rehearsal'}{' '}
+              {state.room.phase === 'lobby'
+                ? 'Waiting room'
+                : state.room.mode === 'party'
+                  ? state.room.title
+                  : 'Sound check rehearsal'}{' '}
             </span>
             <h1>
               {state.room.phase === 'lobby' ? (
                 <>Tracy’s 10,000th day.</>
               ) : state.room.phase === 'connection-check' ? (
                 <>Sound check</>
+              ) : state.room.mode === 'party' ? (
+                state.room.title
               ) : (
                 <>Rehearsal complete</>
               )}
@@ -756,7 +1019,9 @@ function Display() {
                   ? state.room.status === 'closed'
                     ? 'Time’s up. Your host will take it from here.'
                     : 'Tap “Check in” on your phone.'
-                  : 'Sound check is complete. Waiting for the host.'}
+                  : state.room.mode === 'party'
+                    ? 'Follow along on your phone.'
+                    : 'Sound check is complete. Waiting for the host.'}
             </p>
           </div>
           {state.room.phase === 'lobby' ? (
@@ -768,6 +1033,20 @@ function Display() {
           )}
         </div>
         <ErrorNote text={room.error} />
+        <Ranking state={state} />
+        {state.powerball && <PowerballDisplay state={state.powerball} />}
+        {state.calling?.role === 'public' && <SomebodyCallingDisplay state={state.calling.data} />}
+        {state.costume && <CostumeDisplay state={state.costume} />}
+        {state.trivia && <TriviaDisplay trivia={state.trivia} />}
+        {state.slots?.role === 'display' && <SlotsDisplay state={state.slots.data} />}
+        {state.room.phase === 'investments' && (
+          <p>
+            Choose one asset and amount on your phone. Your investment remains locked until review.
+          </p>
+        )}
+        {state.room.phase === 'investment-review' && (
+          <p>The host will prepare closing prices and settle the investments.</p>
+        )}
         <div className="section-heading">
           <span className="eyebrow">Players</span>
           <span>
@@ -799,7 +1078,14 @@ function Display() {
         )}
       </main>
       <footer className="display-footer">
-        Tracy / 10,000 days <span>Sound check rehearsal · No tokens spent</span>
+        Tracy / 10,000 days{' '}
+        <span>
+          {state.room.mode === 'rehearsal'
+            ? 'Sound check rehearsal · No tokens spent'
+            : state.room.marketSource === 'fixture'
+              ? 'Fixture prices · test party'
+              : 'Party games'}
+        </span>
       </footer>
     </div>
   );

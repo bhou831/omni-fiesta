@@ -1,0 +1,25 @@
+[Unit]
+Description=Omni Fiesta party server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=omni-fiesta
+WorkingDirectory=/opt/omni-fiesta
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=PUBLIC_ORIGIN=https://game.bowen-hou.com
+Environment=DATABASE_PATH=/var/lib/omni-fiesta/party.sqlite
+Environment=ENABLE_REHEARSAL=false
+EnvironmentFile=/etc/omni-fiesta.env
+ExecStart=/usr/bin/node dist/server/index.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/omni-fiesta
+
+[Install]
+WantedBy=multi-user.target
