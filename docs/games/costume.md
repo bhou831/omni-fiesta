@@ -1,5 +1,7 @@
 # Costume contest
 
+The host starts the timer after advancing to this stage; submissions are unavailable until it starts.
+
 ## Voting and placement
 
 Each joined player is a candidate identified by name/emoji. Each player may cast/revise one vote before expiry; self-votes are disabled by current configuration. Zero-vote candidates remain in the results. No vote is automatically cast at expiry.

@@ -120,6 +120,19 @@ test('investment HTTP and sockets preserve role privacy and committed state', as
   );
   const [phoneState, tvState] = await Promise.all(updates);
   assert.equal(phoneState.room.marketSource, 'fixture');
+  assert.equal(phoneState.room.status, 'pending');
+  const startedPhone = next(phone, (s) => s.room.status === 'open');
+  assert.equal(
+    (
+      await request(
+        `/api/rooms/${room.code}/commands?role=host`,
+        { requestId: randomUUID(), phaseInstance: 1, type: 'phase.start' },
+        login.cookie,
+      )
+    ).status,
+    200,
+  );
+  const started = await startedPhone;
   assert.equal(tvState.room.deadlineAt, phoneState.room.deadlineAt);
   const investment = {
     requestId: randomUUID(),
@@ -151,7 +164,7 @@ test('investment HTTP and sockets preserve role privacy and committed state', as
     (await request(`/api/rooms/${room.code}/commands`, investment, joined.cookie)).status,
     200,
   );
-  now = phoneState.room.deadlineAt!;
+  now = started.room.deadlineAt!;
   assert.equal(
     (
       await request(

@@ -140,11 +140,37 @@ export class Engine {
             const now = this.now();
             this.store.db
               .prepare(
-                "UPDATE rooms SET phase=?,phase_instance=phase_instance+1,status='open',opened_at=?,deadline_at=? WHERE id=?",
+                'UPDATE rooms SET phase=?,phase_instance=phase_instance+1,status=?,opened_at=?,deadline_at=NULL WHERE id=?',
               )
-              .run(next, now, duration === null ? null : now + duration * 1000, roomId);
+              .run(
+                next,
+                duration === null ? 'open' : 'pending',
+                duration === null ? now : null,
+                roomId,
+              );
             module?.open?.(this.context(this.store.room(roomId)));
             result = { phase: next };
+          } else if (command.type === 'phase.start') {
+            requireRule(
+              session.role === 'host',
+              'FORBIDDEN',
+              'Only the host can start the timer.',
+              403,
+            );
+            const duration =
+              this.modules
+                .get(room.phase)
+                ?.durationSeconds(JSON.parse(room.config) as GameConfig) ?? null;
+            requireRule(
+              room.status === 'pending' && duration !== null,
+              'CANNOT_START',
+              'This timer is not waiting to start.',
+            );
+            const started = this.now();
+            this.store.db
+              .prepare("UPDATE rooms SET status='open',opened_at=?,deadline_at=? WHERE id=?")
+              .run(started, started + duration * 1000, roomId);
+            result = { startedAt: started, deadlineAt: started + duration * 1000 };
           } else if (command.type === 'phase.close') {
             requireRule(
               session.role === 'host',
@@ -185,6 +211,11 @@ export class Engine {
               'FORBIDDEN',
               'Only players can submit an action.',
               403,
+            );
+            requireRule(
+              room.status !== 'pending',
+              'ROUND_PENDING',
+              'Wait for the host to start the timer.',
             );
             requireRule(
               room.status === 'open' &&

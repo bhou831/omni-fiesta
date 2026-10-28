@@ -107,7 +107,10 @@ try {
     const action = async (name: string, data?: object) =>
       hostCommand('phase.host', { action: name, data });
     const close = async () => hostCommand('phase.close');
-    const advance = async () => hostCommand('phase.advance');
+    const advance = async () => {
+      await hostCommand('phase.advance');
+      if ((await state()).room.status === 'pending') await hostCommand('phase.start');
+    };
     await request(`/api/rooms/${room.code}/market/opening`, {}, host.cookie);
     await advance();
     await playerActions('invest', () => ({ assetId: 'bitcoin', amount: 100 }));
@@ -164,6 +167,11 @@ try {
     await request(
       `/api/rooms/${room.code}/commands?role=host`,
       { requestId: randomUUID(), phaseInstance: 0, type: 'phase.advance' },
+      host.cookie,
+    );
+    await request(
+      `/api/rooms/${room.code}/commands?role=host`,
+      { requestId: randomUUID(), phaseInstance: 1, type: 'phase.start' },
       host.cookie,
     );
     await Promise.all(

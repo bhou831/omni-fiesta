@@ -1,5 +1,7 @@
 # Investment selection and review
 
+The host starts the timer after advancing to this stage; submissions are unavailable until it starts.
+
 Read `../../spec.md` for the asset lineup/cards and `../../config/game.yaml` for settings.
 
 ## Selection

@@ -396,13 +396,15 @@ function Player() {
           )}
         </h1>
         <p>
-          {state.room.phase === 'lobby'
-            ? 'Your host will take it from here. Let them know when you’re ready.'
-            : state.room.phase === 'connection-check'
-              ? 'Tap below to check your connection. No tokens are spent.'
-              : state.room.mode === 'party'
-                ? 'Follow the instructions below.'
-                : 'Sound check is complete. Waiting for the host.'}
+          {state.room.status === 'pending'
+            ? 'Waiting for the host to start the timer.'
+            : state.room.phase === 'lobby'
+              ? 'Your host will take it from here. Let them know when you’re ready.'
+              : state.room.phase === 'connection-check'
+                ? 'Tap below to check your connection. No tokens are spent.'
+                : state.room.mode === 'party'
+                  ? 'Follow the instructions below.'
+                  : 'Sound check is complete. Waiting for the host.'}
         </p>
         {reveal && (
           <p className="fine-print">
@@ -430,7 +432,9 @@ function Player() {
               ? '✓ Checked in'
               : open
                 ? 'Check in ↗'
-                : 'Time’s up — waiting for host'}
+                : state.room.status === 'pending'
+                  ? 'Waiting for the host to start'
+                  : 'Time’s up — waiting for host'}
           </button>
         )}
         {(state.room.phase === 'investments' || state.room.phase === 'investment-review') &&
@@ -442,7 +446,7 @@ function Player() {
               disabled={!open || !room.connected || room.busy}
             />
           )}
-        {state.costume && (
+        {state.costume && state.room.status !== 'pending' && (
           <CostumePlayer
             state={state.costume}
             players={state.players}
@@ -463,7 +467,7 @@ function Player() {
             disabled={room.busy || !room.connected || !open}
           />
         )}
-        {state.slots?.role === 'player' && (
+        {state.room.status !== 'pending' && state.slots?.role === 'player' && (
           <SlotsPlayer
             state={state.slots.data}
             spendable={state.self.accounts.spendable}
@@ -474,7 +478,7 @@ function Player() {
           />
         )}
         {state.room.marketSource === 'fixture' && <p>Fixture prices · test party</p>}
-        {state.powerball && (
+        {state.powerball && state.room.status !== 'pending' && (
           <PowerballPlayer
             state={state.powerball}
             players={state.players}
@@ -721,6 +725,12 @@ function Host() {
                         : 'All connected. The rehearsal is complete.'}
                 </p>
                 <Timer state={state} offset={room.clockOffset} />
+                {state.room.status === 'pending' && (
+                  <p>
+                    Waiting to start. Players can prepare; their actions open when you start the
+                    timer.
+                  </p>
+                )}
                 {state.room.marketSource === 'fixture' && <p>Fixture prices · test party</p>}
                 {state.room.mode === 'party' &&
                   ((state.room.phase === 'lobby' && !state.investments?.opening) ||
@@ -751,7 +761,7 @@ function Host() {
                     Settle investments
                   </button>
                 )}
-                {state.costume && (
+                {state.costume && state.room.status !== 'pending' && (
                   <CostumeHost
                     state={state.costume}
                     players={state.players}
@@ -770,7 +780,7 @@ function Host() {
                   />
                 )}
                 {state.slots?.role === 'host' && <SlotsHost state={state.slots.data} />}
-                {state.powerball && (
+                {state.powerball && state.room.status !== 'pending' && (
                   <PowerballHost
                     state={state.powerball}
                     players={state.players}
@@ -791,9 +801,18 @@ function Host() {
                   />
                 )}
                 <div className="actions">
+                  {state.room.status === 'pending' && (
+                    <button
+                      className="button primary"
+                      disabled={room.busy || !room.connected}
+                      onClick={() => void room.command('phase.start')}
+                    >
+                      Start timer
+                    </button>
+                  )}
                   {state.room.phase !== 'lobby' &&
                     state.room.phase !== 'finish' &&
-                    state.room.status === 'open' && (
+                    (state.room.status === 'open' || state.room.status === 'pending') && (
                       <button
                         className="button secondary"
                         disabled={room.busy || !room.connected}
@@ -810,7 +829,7 @@ function Host() {
                     {state.room.phase === 'lobby'
                       ? state.room.mode === 'party'
                         ? 'Open investments →'
-                        : 'Start sound check →'
+                        : 'Open sound check →'
                       : state.room.phase === 'finish'
                         ? state.room.mode === 'party'
                           ? 'Party complete ✓'
@@ -1013,15 +1032,17 @@ function Display() {
               )}
             </h1>
             <p>
-              {state.room.phase === 'lobby'
-                ? 'Join on your phone. We’ll start when everyone’s here.'
-                : state.room.phase === 'connection-check'
-                  ? state.room.status === 'closed'
-                    ? 'Time’s up. Your host will take it from here.'
-                    : 'Tap “Check in” on your phone.'
-                  : state.room.mode === 'party'
-                    ? 'Follow along on your phone.'
-                    : 'Sound check is complete. Waiting for the host.'}
+              {state.room.status === 'pending'
+                ? 'Waiting for the host to start the timer.'
+                : state.room.phase === 'lobby'
+                  ? 'Join on your phone. We’ll start when everyone’s here.'
+                  : state.room.phase === 'connection-check'
+                    ? state.room.status === 'closed'
+                      ? 'Time’s up. Your host will take it from here.'
+                      : 'Tap “Check in” on your phone.'
+                    : state.room.mode === 'party'
+                      ? 'Follow along on your phone.'
+                      : 'Sound check is complete. Waiting for the host.'}
             </p>
           </div>
           {state.room.phase === 'lobby' ? (
@@ -1034,11 +1055,17 @@ function Display() {
         </div>
         <ErrorNote text={room.error} />
         <Ranking state={state} />
-        {state.powerball && <PowerballDisplay state={state.powerball} />}
+        {state.room.status !== 'pending' && state.powerball && (
+          <PowerballDisplay state={state.powerball} />
+        )}
         {state.calling?.role === 'public' && <SomebodyCallingDisplay state={state.calling.data} />}
-        {state.costume && <CostumeDisplay state={state.costume} />}
+        {state.room.status !== 'pending' && state.costume && (
+          <CostumeDisplay state={state.costume} />
+        )}
         {state.trivia && <TriviaDisplay trivia={state.trivia} />}
-        {state.slots?.role === 'display' && <SlotsDisplay state={state.slots.data} />}
+        {state.room.status !== 'pending' && state.slots?.role === 'display' && (
+          <SlotsDisplay state={state.slots.data} />
+        )}
         {state.room.phase === 'investments' && (
           <p>
             Choose one asset and amount on your phone. Your investment remains locked until review.

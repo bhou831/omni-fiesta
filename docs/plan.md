@@ -128,3 +128,9 @@ Latest restricted `just check` after integration: formatting passed and 41 tests
 At the user's request, normal app startup now registers all party modules through a shared factory while preserving explicit test module injection. API response-body failures use the same retry/NETWORK path as fetch failures, keeping the request ID available for an uncertain command outcome. Production trusts only the loopback reverse proxy and keys login throttling by Express's resolved client IP. README startup guidance reflects registration.
 
 Three new regression tests passed: default app registration and investment advancement, interrupted body reads retaining the identical command, and local-proxy trust/client-address resolution. Formatting, typecheck and production build passed. Full suite: 45 passed; four HTTP/WebSocket tests could not bind localhost (EPERM). No new browser/device or deployment verification is claimed.
+
+### Host-started timers (2026-10-28)
+
+Advancing to investments, costume, slots, Powerball, or the timed Sound check now persists a pending round with no deadline. A host-only Start timer command opens player actions and sets the deadline; a retry cannot extend it. Untimed stages open as before, and the host can close a pending round without an automatic action. The player and TV views show the waiting state, and simulations explicitly start timed rounds.
+
+Observed: targeted core, investment and 15/100-player in-process integration tests passed; a separate build and typecheck passed. `just format` passed. `just check` passed formatting and 46 non-network tests, but four HTTP/WebSocket tests could not bind loopback (`EPERM`); browser interaction and those updated transport tests remain unverified in this restricted session. The new fake-clock tests cover authorization, waiting without expiry, rejecting early actions, repeat starts and restart while pending.

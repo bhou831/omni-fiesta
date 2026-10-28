@@ -76,7 +76,7 @@ export interface RoomSnapshot {
     version: number;
     phase: Stage;
     phaseInstance: number;
-    status: 'open' | 'closed';
+    status: 'pending' | 'open' | 'closed';
     openedAt: number | null;
     deadlineAt: number | null;
     title: string;
@@ -125,7 +125,13 @@ export interface RoomSnapshot {
 export interface Command {
   requestId: string;
   phaseInstance: number;
-  type: 'player.ready' | 'phase.advance' | 'phase.close' | 'phase.action' | 'phase.host';
+  type:
+    | 'player.ready'
+    | 'phase.advance'
+    | 'phase.start'
+    | 'phase.close'
+    | 'phase.action'
+    | 'phase.host';
   payload?: { ready?: boolean; action?: string; data?: Record<string, unknown> };
 }
 export interface CommandResult {

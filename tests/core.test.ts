@@ -130,6 +130,7 @@ test('only host advances, stale commands fail, and request payloads cannot be re
     errorCode('REQUEST_CONFLICT'),
   );
   f.engine.execute(f.host, f.room.id, f.cmd('phase.advance'));
+  f.engine.execute(f.host, f.room.id, f.cmd('phase.start'));
   assert.throws(
     () => f.engine.execute(f.player, f.room.id, f.cmd('phase.action', 0, { action: 'check-in' })),
     errorCode('STALE_PHASE'),
@@ -139,6 +140,7 @@ test('deadline boundary closes submissions without creating actions, charges, or
   const f = fixture();
   t.after(() => f.store.close());
   f.engine.execute(f.host, f.room.id, f.cmd('phase.advance'));
+  f.engine.execute(f.host, f.room.id, f.cmd('phase.start'));
   const deadline = f.store.room(f.room.id).deadline_at!;
   f.setNow(deadline);
   assert.throws(
@@ -157,6 +159,7 @@ test('accepted action remains idempotent after expiry and advancement', (t) => {
   const f = fixture();
   t.after(() => f.store.close());
   f.engine.execute(f.host, f.room.id, f.cmd('phase.advance'));
+  f.engine.execute(f.host, f.room.id, f.cmd('phase.start'));
   const action = f.cmd('phase.action', 1, { action: 'check-in' });
   const result = f.engine.execute(f.player, f.room.id, action);
   f.setNow(f.store.room(f.room.id).deadline_at! + 1);
@@ -288,6 +291,11 @@ test('saved configuration, sessions, ledger, and expired deadline survive reopen
       phaseInstance: 0,
       requestId: randomUUID(),
     });
+    engine.execute(host, room.id, {
+      type: 'phase.start',
+      phaseInstance: 1,
+      requestId: randomUUID(),
+    });
     store.close();
     store = new Store(path);
     const reopened = new Engine(store, () => 4000);
@@ -356,4 +364,62 @@ test('party final ranking includes every player with shared tied ranks', (t) => 
     new Set([f.joined.playerId, other.playerId]),
   );
   assert.doesNotMatch(JSON.stringify(state), /example\.test|212 555/);
+});
+
+test('host starts a timed round once; waiting and retries never consume time', (t) => {
+  const f = fixture();
+  t.after(() => f.store.close());
+  f.engine.execute(f.host, f.room.id, f.cmd('phase.advance'));
+  assert.equal(f.store.room(f.room.id).status, 'pending');
+  assert.equal(f.store.room(f.room.id).deadline_at, null);
+  f.setNow(5_000_000);
+  assert.equal(f.engine.expire(f.room.id), false);
+  assert.throws(
+    () => f.engine.execute(f.player, f.room.id, f.cmd('phase.action', 1, { action: 'check-in' })),
+    errorCode('ROUND_PENDING'),
+  );
+  assert.throws(
+    () => f.engine.execute(f.player, f.room.id, f.cmd('phase.start')),
+    errorCode('FORBIDDEN'),
+  );
+  const start = f.cmd('phase.start');
+  const result = f.engine.execute(f.host, f.room.id, start);
+  assert.equal(f.store.room(f.room.id).deadline_at, 5_002_000);
+  f.setNow(5_001_000);
+  assert.deepEqual(f.engine.execute(f.host, f.room.id, start), result);
+  assert.throws(
+    () => f.engine.execute(f.host, f.room.id, f.cmd('phase.start')),
+    errorCode('CANNOT_START'),
+  );
+  assert.equal(f.store.room(f.room.id).deadline_at, 5_002_000);
+});
+
+test('pending timer survives restart without losing any of its duration', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'party-pending-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, 'party.sqlite');
+  let store = new Store(path);
+  const config = loadConfig();
+  config.timers.investment_selection_seconds = 2;
+  const room = store.transaction(() => store.createRoom(config, 'rehearsal', 1000));
+  store.join(
+    store.room(room.id),
+    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '2125550100' },
+    randomUUID(),
+    1000,
+  );
+  const host: Session = { role: 'host', roomId: null, playerId: null, tokenHash: '' };
+  new Engine(store, () => 1000).execute(host, room.id, {
+    type: 'phase.advance',
+    phaseInstance: 0,
+    requestId: randomUUID(),
+  });
+  store.close();
+  store = new Store(path);
+  assert.equal(store.room(room.id).status, 'pending');
+  assert.equal(store.room(room.id).deadline_at, null);
+  const engine = new Engine(store, () => 999999);
+  engine.execute(host, room.id, { type: 'phase.start', phaseInstance: 1, requestId: randomUUID() });
+  assert.equal(store.room(room.id).deadline_at, 1001999);
+  store.close();
 });

@@ -46,7 +46,7 @@ The private host view and TV display are separate so balances and the selected p
 | 7 | Somebody's Calling | Free entry; one private random player selection; host calls manually, then reveals and awards. | None |
 | 8 | Finish | Show the complete final ranking from first through last. | None |
 
-Only those four action sessions have countdowns. Display the same server-based countdown on phones, the TV, and optionally the host. Unsubmitted actions expire with no automatic choice, charge, vote, bet, or spin. Previously accepted actions remain valid and still settle. After expiry, show a waiting state until the host proceeds.
+Only those four action sessions have countdowns. Advancing to a timed stage places it in a waiting state; the host starts its timer explicitly, and player actions open at that moment. Display the same server-based countdown on phones, the TV, and optionally the host. Unsubmitted actions expire with no automatic choice, charge, vote, bet, or spin. Previously accepted actions remain valid and still settle. After expiry, show a waiting state until the host proceeds.
 
 ## Economy and confirmed settings
 

@@ -1,5 +1,7 @@
 # Slots
 
+The host starts the timer after advancing to this stage; submissions are unavailable until it starts.
+
 Optional paid independent spins, up to the configured count during the configured slots window. No fixed winner quotas, predetermined winning players, or bag of guaranteed prizes remains in this design.
 
 For current settings, atomically charge 200 and draw gross payouts of 500/300/100/0 with probabilities 10/20/30/40 percent. Use integer weights derived exactly from validated configuration, unbiased cryptographic sampling, and deterministic injected samples in tests. Do not use client-generated outcomes.

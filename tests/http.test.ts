@@ -139,6 +139,21 @@ test('HTTP and sockets enforce roles, synchronize players/TV, and preserve accep
   const [tvState, phoneState] = await Promise.all([tvRound, phoneRound]);
   assert.equal(tvState.room.deadlineAt, phoneState.room.deadlineAt);
   assert.equal(tvState.room.phaseInstance, 1);
+  assert.equal(tvState.room.status, 'pending');
+  const openPhone = stateWhere(phone, (s) => s.room.status === 'open');
+  const openTV = stateWhere(tv, (s) => s.room.status === 'open');
+  assert.equal(
+    (
+      await f.request(
+        `/api/rooms/${f.room.code}/commands?role=host`,
+        { requestId: randomUUID(), phaseInstance: 1, type: 'phase.start' },
+        f.hostCookie,
+      )
+    ).status,
+    200,
+  );
+  const [phoneStarted, tvStarted] = await Promise.all([openPhone, openTV]);
+  assert.equal(phoneStarted.room.deadlineAt, tvStarted.room.deadlineAt);
   assert.equal(JSON.stringify(tvState).includes('example.test'), false);
   assert.equal(JSON.stringify(tvState).includes('spendable'), false);
   const checkIn = {
@@ -149,7 +164,7 @@ test('HTTP and sockets enforce roles, synchronize players/TV, and preserve accep
   };
   const accepted = await f.request(`/api/rooms/${f.room.code}/commands`, checkIn, player.cookie);
   assert.equal(accepted.status, 200);
-  f.setNow(phoneState.room.deadlineAt!);
+  f.setNow(phoneStarted.room.deadlineAt!);
   const late = await f.request(
     `/api/rooms/${f.room.code}/commands`,
     { ...checkIn, requestId: randomUUID() },

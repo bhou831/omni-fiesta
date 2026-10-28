@@ -46,6 +46,7 @@ test('investment reservations and settlement are atomic and retry-safe', (t) => 
     payload,
   });
   engine.execute(host, room.id, command('phase.advance'));
+  engine.execute(host, room.id, command('phase.start'));
   const invest = command('phase.action', {
     action: 'invest',
     data: { amount: 600, assetId: 'bitcoin' },
@@ -143,6 +144,7 @@ test('additive migration and restart preserve old rooms and locked investments',
     phaseInstance: 0,
     type: 'phase.advance',
   });
+  engine.execute(host, room.id, { requestId: randomUUID(), phaseInstance: 1, type: 'phase.start' });
   engine.execute(player, room.id, {
     requestId: randomUUID(),
     phaseInstance: 1,

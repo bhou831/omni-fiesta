@@ -50,7 +50,10 @@ for (const count of [15, 100])
     const hostAction = (action: string, data?: Record<string, unknown>) =>
       execute(host, 'phase.host', { action, data });
     const close = () => execute(host, 'phase.close');
-    const advance = () => execute(host, 'phase.advance');
+    const advance = () => {
+      execute(host, 'phase.advance');
+      if (store.room(room.id).status === 'pending') execute(host, 'phase.start');
+    };
     await prepareMarket(store, room.id, 'opening', fixtureProvider(), () => now);
     advance();
     players.forEach((p) =>

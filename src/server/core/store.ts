@@ -20,7 +20,7 @@ export interface RoomRow {
   config_hash: string;
   phase: Stage;
   phase_instance: number;
-  status: 'open' | 'closed';
+  status: 'pending' | 'open' | 'closed';
   opened_at: number | null;
   deadline_at: number | null;
   version: number;

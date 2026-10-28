@@ -26,7 +26,7 @@ Clients receive versioned state. After reconnect, reload the authoritative snaps
 
 ## Timers
 
-Only investment selection, costume voting, slots, and Powerball betting use countdowns. Persist `opened_at` and `deadline_at` in server UTC. Start the countdown only after required preparation succeeds; investment quotes must be saved before the picking window opens.
+Only investment selection, costume voting, slots, and Powerball betting use countdowns. Persist `opened_at` and `deadline_at` in server UTC. Advancing to a timed stage persists a pending state without a deadline. Only an authenticated host start command opens input and starts its countdown, after required preparation succeeds; investment quotes must be saved before the picking window opens. Retried starts never extend the deadline. The Sound check rehearsal follows the same host-start behavior.
 
 Use a server-time handshake/offset to render remaining time on both phones and TV. Clients render locally; do not write the database or broadcast once per second. Recompute on focus/reconnect. Accept commands only when server acceptance time is strictly before the persisted deadline; equality is expired. Late queued submissions are rejected, including delayed buzzer commands from earlier rounds. Phone time is not authoritative.
 

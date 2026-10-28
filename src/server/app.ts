@@ -53,7 +53,14 @@ const commandSchema = z
   .object({
     requestId: z.string().uuid(),
     phaseInstance: z.number().int().nonnegative(),
-    type: z.enum(['player.ready', 'phase.advance', 'phase.close', 'phase.action', 'phase.host']),
+    type: z.enum([
+      'player.ready',
+      'phase.advance',
+      'phase.start',
+      'phase.close',
+      'phase.action',
+      'phase.host',
+    ]),
     payload: z
       .object({
         ready: z.boolean().optional(),
