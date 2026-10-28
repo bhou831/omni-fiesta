@@ -34,7 +34,7 @@ function BallMachine({
       aria-busy={animating}
     >
       <div className="ball-box" aria-hidden="true">
-        <span className="box-label">County fair draw</span>
+        <span className="box-label">Red or blue</span>
         <div className="mixing-balls">
           {BALL_POSITIONS.map(([x, y], i) => (
             <span
@@ -65,8 +65,8 @@ function BallMachine({
           : color
             ? `Result: ${color === 'red' ? 'Red' : 'Blue'}`
             : state.drawn
-              ? 'Ready for the host’s reveal.'
-              : 'Pick a color. Take a chance.'}
+              ? 'Ready to reveal.'
+              : 'Waiting for the draw.'}
       </p>
     </div>
   );

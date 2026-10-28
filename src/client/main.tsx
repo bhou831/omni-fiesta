@@ -8,7 +8,7 @@ import { InvestmentPlayer, InvestmentReviewDisplay } from './Investments.js';
 import { RoundDescription } from './RoundDescription.js';
 import { CostumePlayer, CostumeHost, CostumeDisplay } from './Costume.js';
 import { TriviaPlayer, TriviaHost, TriviaDisplay } from './Trivia.js';
-import { SlotsPlayer, SlotsHost, SlotsDisplay } from './Slots.js';
+import { SlotsPlayer, SlotsHost } from './Slots.js';
 import { PowerballPlayer, PowerballHost, PowerballDisplay } from './Powerball.js';
 import {
   SomebodyCallingHost,
@@ -1091,14 +1091,13 @@ function Display() {
               {state.room.phase === 'lobby' ? (
                 <>Tracy’s 10,000th day.</>
               ) : state.room.phase === 'connection-check' ? (
-                <>Sound check</>
+                <>Connection check</>
               ) : state.room.mode === 'party' ? (
                 state.room.title
               ) : (
                 <>Rehearsal complete</>
               )}
             </h1>
-            <RoundDescription state={state} />
           </div>
           {state.room.phase === 'lobby' ? (
             <div className="display-qr">
@@ -1121,60 +1120,68 @@ function Display() {
           )}
         </div>
         <ErrorNote text={room.error} />
-        <Ranking state={state} display />
-        {state.room.status !== 'pending' && state.powerball && (
-          <PowerballDisplay state={state.powerball} />
-        )}
-        {state.calling?.role === 'public' && <SomebodyCallingDisplay state={state.calling.data} />}
-        {state.room.status !== 'pending' && state.costume && (
-          <CostumeDisplay state={state.costume} />
-        )}
-        {state.trivia && <TriviaDisplay trivia={state.trivia} />}
-        {state.room.status !== 'pending' && state.slots?.role === 'display' && (
-          <SlotsDisplay state={state.slots.data} />
-        )}
-        {state.room.phase === 'investment-review' && state.investments && (
-          <InvestmentReviewDisplay data={state.investments} />
-        )}
-        {['lobby', 'connection-check'].includes(state.room.phase) && (
-          <div className="section-heading">
-            <span className="eyebrow">Players</span>
-            <span>
-              {state.players.length} in the room
-              {state.room.phase === 'connection-check'
-                ? ` · ${state.players.filter((p) => p.checkedIn).length} checked in`
-                : ''}
-            </span>
-          </div>
-        )}
         <div
-          className={`guest-grid ${state.room.phase !== 'lobby' && state.room.phase !== 'connection-check' ? 'roster-during-game' : ''}`}
+          className={`display-stage ${['lobby', 'connection-check', 'investments', 'slots'].includes(state.room.phase) ? 'is-intro' : ''}`}
         >
-          {state.players.slice(rosterPage * 8, rosterPage * 8 + 8).map((p) => (
-            <div key={p.id} className={`guest-chip ${p.checkedIn ? 'checked' : ''}`}>
-              <span>{p.emoji}</span>
-              <strong>{p.name}</strong>
-              <small>
-                {p.checkedIn
-                  ? '✓ Checked in'
-                  : p.ready
-                    ? '✓ Ready'
-                    : p.connected
-                      ? 'Connected'
-                      : 'Away for a moment'}
-              </small>
+          <aside className="display-instructions">
+            <RoundDescription state={state} />
+          </aside>
+          <div className="display-content">
+            <Ranking state={state} display />
+            {state.room.status !== 'pending' && state.powerball && (
+              <PowerballDisplay state={state.powerball} />
+            )}
+            {state.calling?.role === 'public' && (
+              <SomebodyCallingDisplay state={state.calling.data} />
+            )}
+            {state.room.status !== 'pending' && state.costume && (
+              <CostumeDisplay state={state.costume} />
+            )}
+            {state.trivia && <TriviaDisplay trivia={state.trivia} />}
+            {state.room.phase === 'investment-review' && state.investments && (
+              <InvestmentReviewDisplay data={state.investments} />
+            )}
+            {['lobby', 'connection-check'].includes(state.room.phase) && (
+              <div className="section-heading">
+                <span className="eyebrow">Players</span>
+                <span>
+                  {state.players.length} in the room
+                  {state.room.phase === 'connection-check'
+                    ? ` · ${state.players.filter((p) => p.checkedIn).length} checked in`
+                    : ''}
+                </span>
+              </div>
+            )}
+            <div
+              className={`guest-grid ${state.room.phase !== 'lobby' && state.room.phase !== 'connection-check' ? 'roster-during-game' : ''}`}
+            >
+              {state.players.slice(rosterPage * 8, rosterPage * 8 + 8).map((p) => (
+                <div key={p.id} className={`guest-chip ${p.checkedIn ? 'checked' : ''}`}>
+                  <span>{p.emoji}</span>
+                  <strong>{p.name}</strong>
+                  <small>
+                    {p.checkedIn
+                      ? '✓ Checked in'
+                      : p.ready
+                        ? '✓ Ready'
+                        : p.connected
+                          ? 'Connected'
+                          : 'Away for a moment'}
+                  </small>
+                </div>
+              ))}
             </div>
-          ))}
+            {!state.players.length && (
+              <p className="empty-copy">No players yet. Scan the code to join.</p>
+            )}
+          </div>
         </div>
-        {!state.players.length && (
-          <p className="empty-copy">No players yet. Scan the code to join.</p>
-        )}
       </main>
       <footer className="display-footer">
         Tracy / 10,000 days{' '}
         <span>
           {state.room.mode === 'rehearsal'
-            ? 'Sound check rehearsal · No tokens spent'
+            ? 'Connection check rehearsal · No tokens spent'
             : state.room.marketSource === 'fixture'
               ? 'Fixture prices · test party'
               : 'Party games'}

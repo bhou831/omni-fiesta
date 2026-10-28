@@ -4,6 +4,7 @@
 
 - Read `spec.md` for product decisions and `docs/system.md` for shared invariants.
 - Read `docs/design/party-notebook.md` before any UI work. The approved identity is Tracy's 10,000-day celebration: white background, black text, minimal notebook layout, and personal/task-focused copy. Future balloon/confetti motion is deferred.
+- The latest visual refinement is `docs/design/visual-system.md`; it supersedes older per-game decorative themes.
 - Read `config/game.yaml` and the relevant `docs/games/*.md` for the assigned feature.
 - Read and update `docs/plan.md` for implementation status. Documentation is not evidence that code exists or checks passed.
 - The foundation, clearly labeled rehearsal, game modules and role views exist. The normal app registers every game through `src/server/games/index.ts`; isolated tests can override modules. Do not restore the old rehearsal-only default. AWS deployment remains pending. See `README.md` and the latest `docs/plan.md` checkpoint for verification evidence.

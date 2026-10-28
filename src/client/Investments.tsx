@@ -8,7 +8,7 @@ type Props = {
   disabled: boolean;
   revealBalance?: boolean;
 };
-const assetMarks: Record<string, string> = { SOL: '≋', BTC: '₿', DOGE: 'Ð', SPYx: '↗', PEPE: '🐸' };
+const assetMarks: Record<string, string> = { SOL: '≋', BTC: '₿', DOGE: 'Ð', SPYx: '↗', PEPE: 'P' };
 const metric = (value: number | null | undefined) =>
   value == null ? 'Unavailable' : value.toLocaleString(undefined, { maximumSignificantDigits: 8 });
 const usd = (value: number | null | undefined) => {

@@ -199,3 +199,10 @@ Observed: focused recovery (including restart and replay boundaries), market fai
 # Archived player session follow-up
 
 - An archived party's player session no longer prevents the join screen from loading for another party. Added HTTP coverage for joining a new party and restoring the old session; the HTTP test could not bind loopback in this sandbox (EPERM), so it remains unverified here. The archive migration test, formatting, and production build passed.
+
+
+### Unified visual system (2026-10-28)
+
+At the user’s request, unified game typography and semantic color tokens; removed serif/monospace theme overrides, casino/fair/file metaphors and decorative instruction emoji. Slots use neutral geometric reel symbols, Powerball uses a neutral outlined chamber, and the calling reveal uses a simple phone illustration and prominent winner typography. Landscape display now separates the shared title/timer frame from instructions and dominant game content, with responsive introduction columns and result layouts. Consolidated superseded CSS declarations and documented the authoritative direction in `design/visual-system.md`. Game logic and motion timing are unchanged.
+
+Verified the exact staged tree independently of pre-existing workspace gameplay changes: formatting, typecheck and production build passed; 59 tests passed and seven HTTP/socket tests were blocked by localhost `EPERM`. The full working tree also built and passed formatting, with 62 tests passing and the same seven transport restrictions. Generated static fixture markup successfully; live browser review was unavailable, local preview binding was denied, and browser policy rejected file-based previews. No screenshot, physical-device or animation verification is claimed. Pre-existing gameplay changes remain outside this commit.

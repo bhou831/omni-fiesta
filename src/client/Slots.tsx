@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GAME_MOTION, useReducedMotion } from './game-motion.js';
 import type { Command } from '../shared/contracts.js';
-import type { SlotsDisplayState, SlotsHostState, SlotsPlayerState } from '../server/games/slots.js';
+import type { SlotsHostState, SlotsPlayerState } from '../server/games/slots.js';
 
 export interface SlotsPlayerProps {
   state: SlotsPlayerState;
@@ -78,10 +78,10 @@ export function SlotsPlayer({
     gross && gross >= 500
       ? ['7', '7', '7']
       : gross && gross >= 300
-        ? ['🔔', '🔔', '🔔']
+        ? ['◆', '◆', '◆']
         : gross && gross > 0
-          ? ['🍒', '🍒', '★']
-          : ['🍒', '🔔', '★'];
+          ? ['●', '●', '★']
+          : ['●', '◆', '★'];
   const revealing = latest?.id !== presented?.id;
   const netLabel = (net: number) => (net > 0 ? `+${net}` : net < 0 ? `−${Math.abs(net)}` : '0');
   return (
@@ -98,7 +98,7 @@ export function SlotsPlayer({
         aria-busy={spinning}
       >
         <div className="slot-cabinet">
-          <span className="eyebrow">The Venetian · tonight only</span>
+          <span className="eyebrow">Slots</span>
           <div className="slot-reels" aria-hidden="true">
             {[0, 1, 2].map((i) => {
               const stopped = revealing && landed.id === latest?.id && i < landed.count;
@@ -109,8 +109,8 @@ export function SlotsPlayer({
                   {rolling ? (
                     <div className="slot-strip">
                       <span>7</span>
-                      <span>🔔</span>
-                      <span>🍒</span>
+                      <span>◆</span>
+                      <span>●</span>
                       <span>7</span>
                     </div>
                   ) : (
@@ -180,7 +180,7 @@ export function SlotsPlayer({
       </button>
       <div className="slot-status" role="status" aria-live="polite" aria-atomic="true">
         {spinning ? (
-          'Good luck…'
+          'Spinning…'
         ) : presented ? (
           <div
             key={presented.id}
@@ -192,7 +192,7 @@ export function SlotsPlayer({
             <span>Net {netLabel(presented.net)} tokens</span>
           </div>
         ) : (
-          'Ready when you are. Playing is optional.'
+          'Playing is optional.'
         )}
       </div>
       {!open ? (
@@ -222,20 +222,6 @@ export function SlotsHost({ state }: { state: SlotsHostState }) {
         per player.
       </p>
       <p>Each result is saved immediately. Close the round or wait for the timer.</p>
-    </section>
-  );
-}
-export function SlotsDisplay({ state }: { state: SlotsDisplayState }) {
-  return (
-    <section className="slots-display" aria-label="Casino night">
-      <div className="casino-marquee" aria-hidden="true">
-        <span>🍒</span>
-        <span>🔔</span>
-        <span>★</span>
-      </div>
-      <p>
-        {state.cost} tokens per spin · {state.limit} chances to make an entrance.
-      </p>
     </section>
   );
 }
