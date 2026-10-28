@@ -11,6 +11,18 @@ export const EMOJIS = [
   '🌵',
   '🐙',
   '🦖',
+  '🐨',
+  '🐻',
+  '🐰',
+  '🐱',
+  '🐶',
+  '🦁',
+  '🐧',
+  '🦉',
+  '🐝',
+  '🌈',
+  '⭐',
+  '🍕',
 ] as const;
 export const PARTY_STAGES = [
   'lobby',

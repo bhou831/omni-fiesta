@@ -9,3 +9,7 @@ The landscape display has a consistent event header, title/timer frame, and a st
 Use direct, personal copy: “Joining is optional”, “Bets are in”, “Investment results”, and “Keep your phone’s ringer on”. Remove invented casino slogans, spy-file metaphors and commentary that judges participation. Preserve game names, configured values, settlement rules and privacy boundaries.
 
 Consolidate existing component rules when refining visuals. Avoid accumulating successive overrides for the same machine or display heading. Presentation motion remains driven by saved outcomes and retains reduced-motion behavior.
+
+The TV waiting room may use a subtle animated balloon and fireworks background behind its content. Keep it non-interactive, pause it in hidden tabs, and suppress motion for reduced-motion preferences.
+
+The costume display may show a friendly ghost before results, and the slots display may use a decorative slot-machine illustration alongside the existing rules. These are visual accents and do not introduce additional game copy or results.

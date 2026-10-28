@@ -2258,3 +2258,267 @@ td {
     grid-template-columns: 1fr;
   }
 }
+
+/* Quiet celebration behind the TV waiting room. */
+.display-page {
+  position: relative;
+  isolation: isolate;
+}
+.lobby-celebration {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+.lobby-balloon {
+  position: absolute;
+  bottom: -130px;
+  width: 44px;
+  height: 55px;
+  border-radius: 50% 50% 46% 46%;
+  background: #f2bcae;
+  opacity: 0.35;
+  animation: lobby-float 18s linear infinite;
+}
+.lobby-balloon::after {
+  content: '';
+  position: absolute;
+  top: 54px;
+  left: 50%;
+  width: 1px;
+  height: 65px;
+  background: #987d78;
+}
+.balloon-0 {
+  left: 4%;
+  animation-delay: -3s;
+}
+.balloon-1 {
+  left: 19%;
+  animation-delay: -11s;
+  background: #d9c5a3;
+}
+.balloon-2 {
+  left: 36%;
+  animation-delay: -6s;
+  background: #b8cfbf;
+}
+.balloon-3 {
+  left: 62%;
+  animation-delay: -15s;
+}
+.balloon-4 {
+  left: 80%;
+  animation-delay: -9s;
+  background: #bdcbe0;
+}
+.balloon-5 {
+  left: 94%;
+  animation-delay: -1s;
+  background: #d9c5a3;
+}
+.lobby-firework {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  opacity: 0;
+  background: repeating-conic-gradient(from 0deg, #c78777 0deg 3deg, transparent 3deg 30deg);
+  mask: radial-gradient(circle, transparent 0 38%, #000 40% 46%, transparent 48%);
+  animation: lobby-burst 5s ease-out infinite;
+}
+.firework-0 {
+  left: 8%;
+  top: 15%;
+}
+.firework-1 {
+  left: 38%;
+  top: 30%;
+  animation-delay: -1.25s;
+}
+.firework-2 {
+  right: 14%;
+  top: 12%;
+  animation-delay: -2.5s;
+}
+.firework-3 {
+  right: 30%;
+  top: 52%;
+  animation-delay: -3.75s;
+}
+.lobby-celebration.is-paused * {
+  animation-play-state: paused;
+}
+@keyframes lobby-float {
+  from {
+    transform: translateY(0) rotate(-5deg);
+  }
+  to {
+    transform: translateY(-120vh) rotate(8deg);
+  }
+}
+@keyframes lobby-burst {
+  0%,
+  65%,
+  100% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  72% {
+    opacity: 0.3;
+  }
+  90% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lobby-celebration {
+    display: none;
+  }
+}
+
+/* Playful illustrations on the public display. */
+.display-ghost {
+  position: relative;
+  margin: 20px auto 50px;
+  width: clamp(120px, 15vw, 210px);
+  aspect-ratio: 2 / 2.7;
+  border: 3px solid #333;
+  border-bottom: 0;
+  border-radius: 50% 50% 0 0 / 38% 38% 0 0;
+  background: linear-gradient(110deg, #fff 60%, #f0efeb);
+  box-shadow:
+    inset -12px -5px 0 #f1f1ee,
+    0 18px 0 -10px #e8e8e5;
+  animation: ghost-float 3s ease-in-out infinite;
+}
+.ghost-face {
+  position: absolute;
+  top: 38%;
+  left: 28%;
+  right: 28%;
+  display: flex;
+  justify-content: space-between;
+}
+.ghost-face i {
+  width: 12px;
+  height: 18px;
+  border-radius: 50%;
+  background: #292929;
+  box-shadow: inset 3px 3px 0 #777;
+}
+.ghost-arm {
+  position: absolute;
+  top: 53%;
+  width: 28%;
+  height: 12%;
+  border: 3px solid #333;
+  border-radius: 50%;
+  background: #f9f8f5;
+}
+.ghost-arm-left {
+  left: -18%;
+  transform: rotate(-30deg);
+}
+.ghost-arm-right {
+  right: -18%;
+  transform: rotate(30deg);
+}
+.ghost-cheeks {
+  position: absolute;
+  top: 49%;
+  left: 20%;
+  right: 20%;
+  height: 10%;
+}
+.ghost-cheeks::before,
+.ghost-cheeks::after {
+  content: '';
+  position: absolute;
+  width: 20%;
+  height: 70%;
+  border-radius: 50%;
+  background: #efc5bd;
+}
+.ghost-cheeks::after {
+  right: 0;
+}
+.ghost-smile {
+  position: absolute;
+  top: 53%;
+  left: 43%;
+  width: 14%;
+  height: 9%;
+  border-bottom: 3px solid #292929;
+  border-radius: 50%;
+}
+.ghost-bow {
+  position: absolute;
+  top: 69%;
+  left: 38%;
+  width: 24%;
+  height: 10%;
+  background: #bd8172;
+  clip-path: polygon(0 0, 50% 38%, 100% 0, 100% 100%, 50% 62%, 0 100%);
+}
+.ghost-hem {
+  position: absolute;
+  display: flex;
+  left: -3px;
+  right: -3px;
+  bottom: -12px;
+}
+.ghost-hem i {
+  flex: 1;
+  height: 25px;
+  background: #f9f8f5;
+  border: 3px solid #333;
+  border-top: 0;
+  border-radius: 0 0 50% 50%;
+}
+.ghost-hem i + i {
+  border-left: 0;
+}
+@keyframes ghost-float {
+  50% {
+    transform: translateY(-12px);
+  }
+}
+.display-slot-art {
+  width: min(100%, 460px);
+  margin: 20px auto;
+  padding: 48px 32px 28px;
+  border: 3px solid #333;
+  border-radius: 36px 36px 20px 20px;
+  background: #f8f7f4;
+  box-shadow: inset 0 8px 0 #fff;
+}
+.display-slot-reels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.display-slot-reels span {
+  display: grid;
+  place-items: center;
+  height: 130px;
+  border: 2px solid #cccac4;
+  border-radius: 10px;
+  background: white;
+  color: #bd8172;
+  font-size: clamp(42px, 5vw, 72px);
+}
+.display-slot-base {
+  width: 40%;
+  height: 8px;
+  margin: 28px auto 0;
+  border-radius: 8px;
+  background: #d4d1ca;
+}
+@media (prefers-reduced-motion: reduce) {
+  .display-ghost {
+    animation: none;
+  }
+}

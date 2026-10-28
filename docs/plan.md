@@ -224,3 +224,13 @@ Verified the exact staged tree independently of pre-existing workspace gameplay 
 # Lightsail deployment commands
 
 - Added server-side `just pull` and `just deploy` recipes with staged builds, stopped-service SQLite backup, release replacement and local health check. Shell syntax and recipe dry runs passed; the workflow has not been exercised on Lightsail, and schema rollback and off-instance backups remain manual.
+
+### Waiting room celebration (2026-10-28)
+
+Added a decorative, non-interactive balloon and fireworks background to the TV lobby only. Motion pauses in hidden tabs and is suppressed for reduced motion. Formatting and production build (including typecheck) passed. Browser and physical TV verification remain outstanding; this change has not been deployed.
+
+### Display and registration refinement (2026-10-28)
+
+Enlarged and sped up lobby fireworks, removed the registration call spoiler, added twelve profile emoji, and added decorative costume ghost and slots illustrations to the TV. Formatting, production build/typecheck, and all 69 tests passed (with local port access). Browser and TV visual verification and deployment remain outstanding.
+
+- Refined the costume display ghost with arms, cheeks, a bow tie, shaded eyes and a scalloped hem. Formatting and production build/typecheck passed; browser/TV visual verification and deployment remain outstanding.

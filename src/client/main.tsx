@@ -303,9 +303,7 @@ function Join({
               onChange={(e) => setPhone(e.target.value)}
             />
           </label>
-          <p className="fine-print">
-            Contact details stay private. Your number is for the final lucky call.
-          </p>
+          <p className="fine-print">Contact details stay private.</p>
           <ErrorNote text={error} />
           <button className="button primary" disabled={busy}>
             {busy ? 'Joining…' : 'Join the games ↗'}
@@ -1065,6 +1063,24 @@ function useRotatingPage(count: number, size: number) {
   }, [pages]);
   return page % pages;
 }
+function LobbyCelebration() {
+  const [hidden, setHidden] = useState(document.hidden);
+  useEffect(() => {
+    const update = () => setHidden(document.hidden);
+    document.addEventListener('visibilitychange', update);
+    return () => document.removeEventListener('visibilitychange', update);
+  }, []);
+  return (
+    <div className={`lobby-celebration ${hidden ? 'is-paused' : ''}`} aria-hidden="true">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <span key={`balloon-${i}`} className={`lobby-balloon balloon-${i}`} />
+      ))}
+      {[0, 1, 2, 3].map((i) => (
+        <span key={`firework-${i}`} className={`lobby-firework firework-${i}`} />
+      ))}
+    </div>
+  );
+}
 function Display() {
   const code = new URLSearchParams(location.search).get('code')?.toUpperCase() ?? null;
   const token = location.hash.slice(1);
@@ -1078,6 +1094,7 @@ function Display() {
   if (!state) return <Loading error={room.error} />;
   return (
     <div className="page display-page">
+      {state.room.phase === 'lobby' && <LobbyCelebration />}
       <Header
         right={
           <div className="header-actions">
@@ -1133,12 +1150,41 @@ function Display() {
         </div>
         <ErrorNote text={room.error} />
         <div
-          className={`display-stage ${['lobby', 'connection-check', 'investments', 'slots'].includes(state.room.phase) ? 'is-intro' : ''}`}
+          className={`display-stage ${['lobby', 'connection-check', 'investments'].includes(state.room.phase) ? 'is-intro' : ''}`}
         >
           <aside className="display-instructions">
             <RoundDescription state={state} />
           </aside>
           <div className="display-content">
+            {state.room.phase === 'slots' && (
+              <div className="display-slot-art" aria-hidden="true">
+                <div className="display-slot-reels">
+                  <span>◆</span>
+                  <span>●</span>
+                  <span>◆</span>
+                </div>
+                <div className="display-slot-base" />
+              </div>
+            )}
+            {state.room.phase === 'costume' && !state.costume?.revealed && (
+              <div className="display-ghost" aria-hidden="true">
+                <span className="ghost-arm ghost-arm-left" />
+                <span className="ghost-arm ghost-arm-right" />
+                <span className="ghost-face">
+                  <i />
+                  <i />
+                </span>
+                <span className="ghost-cheeks" />
+                <span className="ghost-smile" />
+                <span className="ghost-bow" />
+                <span className="ghost-hem">
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </div>
+            )}
             <Ranking state={state} display />
             {state.room.status !== 'pending' && state.powerball && (
               <PowerballDisplay state={state.powerball} />
