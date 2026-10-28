@@ -10,6 +10,7 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
   const [clockOffset, setClockOffset] = useState(0);
   const [busy, setBusy] = useState(false);
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
+  const sending = useRef(false);
   const pending = useRef<{ key: string; command: Command } | null>(null);
   useEffect(() => {
     setState(null);
@@ -77,7 +78,8 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
   }, [role, code, displayToken]);
   const command = useCallback(
     async (type: Command['type'], payload?: Command['payload']) => {
-      if (!state || !code || role === 'display' || busy || !connected) return;
+      if (!state || !code || role === 'display' || sending.current || !connected) return;
+      sending.current = true;
       const key = JSON.stringify({ code, phaseInstance: state.room.phaseInstance, type, payload });
       if (!pending.current || pending.current.key !== key)
         pending.current = {
@@ -92,17 +94,19 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
       setBusy(true);
       setError('');
       try {
-        await post<CommandResult>(
+        const response = await post<CommandResult>(
           `/api/rooms/${code}/commands?role=${role}`,
           pending.current.command,
         );
         pending.current = null;
         socketRef.current?.emit('sync');
+        return response;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Please try again.');
         if (!(err instanceof RequestError) || err.code !== 'NETWORK') pending.current = null;
         socketRef.current?.emit('sync');
       } finally {
+        sending.current = false;
         setBusy(false);
       }
     },

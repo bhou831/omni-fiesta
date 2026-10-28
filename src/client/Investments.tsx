@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import type { Command, RoomSnapshot } from '../shared/contracts.js';
+import type { CommandSender, RoomSnapshot } from '../shared/contracts.js';
 import { investmentPayout } from '../server/games/investment-math.js';
 
 type Props = {
   state: RoomSnapshot;
-  command: (type: Command['type'], payload?: Command['payload']) => Promise<void>;
+  command: CommandSender;
   disabled: boolean;
   revealBalance?: boolean;
 };
@@ -109,9 +109,15 @@ export function InvestmentPlayer({ state, command, disabled, revealBalance = fal
   return (
     <section className="game-panel">
       <h2>Choose one investment</h2>
+      <div className="investment-cap">
+        <span>Investment limit</span>
+        <strong>
+          {data.cap.toLocaleString()} <small>tokens max</small>
+        </strong>
+      </div>
       <p>
-        Up to {data.cap} tokens are locked until review. Returns are multiplied by {data.multiplier}
-        ×; your maximum loss is your investment.
+        Returns are multiplied by {data.multiplier}×. Your stake is locked until review; you can’t
+        lose more than you invest.
       </p>
       <div className="investment-order">
         {' '}

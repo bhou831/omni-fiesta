@@ -383,7 +383,7 @@ function Player() {
         }
       />
       <main
-        className={`player-main phase-${state.room.phase} ${state.room.status !== 'pending' && ['slots', 'powerball'].includes(state.room.phase) ? 'game-interaction' : ''}`}
+        className={`player-main phase-${state.room.phase} ${state.room.status !== 'pending' && ['investments', 'trivia', 'slots', 'powerball'].includes(state.room.phase) ? 'game-interaction' : ''}`}
       >
         <div className="player-meta">
           <span className="tag">
@@ -408,7 +408,9 @@ function Player() {
           {state.room.status === 'pending'
             ? 'Waiting for the host to start the timer.'
             : state.room.phase === 'lobby'
-              ? 'Your host will take it from here. Let them know when you’re ready.'
+              ? state.self.ready
+                ? 'Your host will start the games.'
+                : 'Let the host know you’re ready.'
               : state.room.phase === 'connection-check'
                 ? 'Tap below to check your connection. No tokens are spent.'
                 : state.room.mode === 'party'
@@ -424,11 +426,12 @@ function Player() {
         <ErrorNote text={room.error} />
         {state.room.phase === 'lobby' && (
           <button
-            className={`button ${state.self.ready ? 'secondary' : 'primary'}`}
+            className={`button ready-button ${state.self.ready ? 'success' : 'primary'}`}
+            aria-pressed={state.self.ready}
             disabled={!room.connected || room.busy}
             onClick={() => void room.command('player.ready', { ready: !state.self!.ready })}
           >
-            {state.self.ready ? '✓ Ready' : 'I’m ready ↗'}
+            {state.self.ready ? '✓ Ready — you’re all set' : 'I’m ready ↗'}
           </button>
         )}
         {state.room.phase === 'connection-check' && (
@@ -683,26 +686,35 @@ function Host() {
               </label>
               <button
                 className="button primary"
-                disabled={creating || !enabled}
-                onClick={() => void create('rehearsal')}
-              >
-                {creating ? 'Creating…' : '+ New rehearsal'}
-              </button>
-              <button
-                className="button secondary"
                 disabled={creating}
                 onClick={() => void create('party')}
               >
                 + New party
               </button>
               {enabled && (
-                <button
-                  className="button secondary"
-                  disabled={creating}
-                  onClick={() => void create('party', 'fixture')}
-                >
-                  + Fixture party
-                </button>
+                <details className="test-tools">
+                  <summary>Test tools</summary>
+                  <p>
+                    Connection check: lobby, timer and check-in only. Full test party: all games
+                    with sample prices.
+                  </p>
+                  <div className="actions">
+                    <button
+                      className="button secondary"
+                      disabled={creating}
+                      onClick={() => void create('rehearsal')}
+                    >
+                      + Connection check
+                    </button>
+                    <button
+                      className="button secondary"
+                      disabled={creating}
+                      onClick={() => void create('party', 'fixture')}
+                    >
+                      + Full test party
+                    </button>
+                  </div>
+                </details>
               )}
               {code && (
                 <button

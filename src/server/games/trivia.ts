@@ -9,6 +9,21 @@ CREATE TABLE IF NOT EXISTS trivia_members(room_id TEXT NOT NULL REFERENCES rooms
 CREATE TABLE IF NOT EXISTS trivia_exclusions(room_id TEXT NOT NULL REFERENCES rooms(id),phase_instance INTEGER NOT NULL,question INTEGER NOT NULL,team INTEGER NOT NULL,PRIMARY KEY(room_id,phase_instance,question,team));
 CREATE TABLE IF NOT EXISTS trivia_awards(room_id TEXT NOT NULL REFERENCES rooms(id),phase_instance INTEGER NOT NULL,request_id TEXT NOT NULL,team INTEGER NOT NULL,amount INTEGER NOT NULL,PRIMARY KEY(room_id,phase_instance,request_id));`;
 
+/** Additive metadata preserves earlier award rows and the append-only ledger. */
+export const TRIVIA_RECEIPTS_SCHEMA = `CREATE TABLE IF NOT EXISTS trivia_award_receipts(
+room_id TEXT NOT NULL,phase_instance INTEGER NOT NULL,award_id TEXT NOT NULL,
+question INTEGER,created_at INTEGER,undone_at INTEGER,
+PRIMARY KEY(room_id,phase_instance,award_id),
+FOREIGN KEY(room_id,phase_instance,award_id) REFERENCES trivia_awards(room_id,phase_instance,request_id));`;
+
+export type TriviaAward = {
+  id: string;
+  teamId: number;
+  amount: number;
+  question: number | null;
+  undone: boolean;
+};
+
 type State = {
   question: number;
   window: number;
@@ -32,6 +47,8 @@ export type TriviaProjection = {
   winner: { playerId: string; teamId: number } | null;
   ownTeamId: number | null;
   defaultTeamCount: number;
+  /** Included only in authenticated host snapshots. */
+  awardHistory?: TriviaAward[];
 };
 const colors = [
   '#8d2727',
@@ -232,7 +249,7 @@ export function triviaHostAction(
         'This award request was already used differently.',
         409,
       );
-      return { awarded: true, teamId: team, amount };
+      return { awarded: true, teamId: team, amount, awardId: requestId };
     }
     for (const member of teamMembers)
       c.store.adjust(
@@ -247,15 +264,63 @@ export function triviaHostAction(
       .prepare('INSERT INTO trivia_awards VALUES(?,?,?,?,?)')
       .run(room, phase, requestId, team, amount);
     c.store.db
+      .prepare('INSERT INTO trivia_award_receipts VALUES(?,?,?,?,?,NULL)')
+      .run(room, phase, requestId, current.question, c.now);
+    c.store.db
       .prepare('UPDATE trivia_state SET awards=awards+1 WHERE room_id=? AND phase_instance=?')
       .run(room, phase);
-    return { awarded: true, teamId: team, amount };
+    return { awarded: true, teamId: team, amount, awardId: requestId };
+  }
+  if (action === 'undo-award') {
+    const awardId = data.awardId;
+    requireRule(
+      typeof awardId === 'string' && awardId.length <= 100,
+      'INVALID_AWARD',
+      'Choose a saved award to undo.',
+    );
+    const award = c.store.db
+      .prepare(
+        `SELECT a.team,a.amount,r.undone_at
+      FROM trivia_awards a LEFT JOIN trivia_award_receipts r
+      ON r.room_id=a.room_id AND r.phase_instance=a.phase_instance AND r.award_id=a.request_id
+      WHERE a.room_id=? AND a.phase_instance=? AND a.request_id=?`,
+      )
+      .get(room, phase, awardId) as
+      { team: number; amount: number; undone_at: number | null } | undefined;
+    requireRule(
+      award,
+      'AWARD_NOT_FOUND',
+      'This award does not belong to the current trivia round.',
+    );
+    if (award.undone_at !== null) return { undone: true, awardId };
+    const recipients = members(c).filter((m) => m.team === award.team);
+    requireRule(recipients.length > 0, 'INVALID_TEAM', 'The original team is unavailable.');
+    for (const member of recipients)
+      c.store.adjust(
+        room,
+        member.player_id,
+        `trivia-undo:${phase}:${awardId}`,
+        'Undo trivia team award',
+        { spendable: -award.amount, locked: 0, reserved: 0 },
+        c.now,
+      );
+    c.store.db
+      .prepare(
+        `INSERT INTO trivia_award_receipts(room_id,phase_instance,award_id,undone_at)
+      VALUES(?,?,?,?) ON CONFLICT(room_id,phase_instance,award_id) DO UPDATE SET undone_at=excluded.undone_at`,
+      )
+      .run(room, phase, awardId, c.now);
+    return { undone: true, awardId };
   }
   requireRule(false, 'UNKNOWN_ACTION', 'That host action is not part of trivia.');
 }
 
 /** Public-only projection: callers may send it to any room role. */
-export function triviaProjection(c: PhaseContext, playerId?: string): TriviaProjection {
+export function triviaProjection(
+  c: PhaseContext,
+  playerId?: string,
+  includeAwards = false,
+): TriviaProjection {
   const current = state(c);
   const all = members(c);
   const players = c.store.players(c.room.id);
@@ -291,5 +356,20 @@ export function triviaProjection(c: PhaseContext, playerId?: string): TriviaProj
         : null,
     ownTeamId: playerId ? (all.find((m) => m.player_id === playerId)?.team ?? null) : null,
     defaultTeamCount: Math.min(c.config.trivia.default_team_count, players.length),
+    ...(includeAwards ? { awardHistory: triviaAwardHistory(c) } : {}),
   };
+}
+
+function triviaAwardHistory(c: PhaseContext): TriviaAward[] {
+  const rows = c.store.db
+    .prepare(
+      `SELECT a.request_id AS id,a.team AS teamId,a.amount,r.question,r.undone_at
+    FROM trivia_awards a LEFT JOIN trivia_award_receipts r
+    ON r.room_id=a.room_id AND r.phase_instance=a.phase_instance AND r.award_id=a.request_id
+    WHERE a.room_id=? AND a.phase_instance=? ORDER BY a.rowid DESC`,
+    )
+    .all(c.room.id, c.room.phase_instance) as unknown as (Omit<TriviaAward, 'undone'> & {
+    undone_at: number | null;
+  })[];
+  return rows.map(({ undone_at, ...award }) => ({ ...award, undone: undone_at !== null }));
 }

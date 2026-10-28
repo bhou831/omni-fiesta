@@ -42,6 +42,8 @@ Use conditional debits/transactions so simultaneous requests cannot overspend. G
 
 Investment payout is `floor(max(0, principal * (1 + multiplier * (close/open - 1))))`, computed with decimal arithmetic, credited after releasing the locked position exactly once. Preserve input prices, timestamps, multiplier, and principal so results can be explained.
 
+Trivia award correction appends a uniquely keyed negative spendable ledger entry per original frozen teammate and marks the specific award receipt undone in the same transaction. Preserve the original award and freeze state. Repeated reversals are harmless; insufficient spendable funds roll back the whole correction without touching locked/reserved funds. Host-only award history includes persistent question/undo metadata, with nullable question metadata for pre-migration awards. Only the open trivia stage accepts these corrections.
+
 ## Data model (logical entities)
 
 - Rooms: phase instance/status/deadline, state version, configuration snapshot, host ownership.

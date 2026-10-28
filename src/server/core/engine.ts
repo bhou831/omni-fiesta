@@ -388,6 +388,7 @@ export class Engine {
         snapshot.trivia = triviaProjection(
           this.context(room),
           viewer.role === 'player' ? viewer.playerId : undefined,
+          viewer.role === 'host',
         );
       if (room.phase === 'slots')
         snapshot.slots =

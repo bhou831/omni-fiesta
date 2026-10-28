@@ -129,3 +129,10 @@ Use subtle hedge-fund green/serif investment accents, Venetian brass/warm casino
 The public closing bell shows all configured assets with opening/closing quotes, directional market returns and game returns per 100 tokens invested. The player sees a large personal token gain/loss, stake, returned amount and settlement state, with prices/timestamps/math in a disclosure. Pending estimates must say they are not yet credited. Public cards never expose individual positions or private balances.
 
 Show the invite QR in the lobby only. New registrations remain closed once the party starts. Disconnection never removes a player, tokens, a team or an accepted action; reconnect with the existing session or use the host-assisted recovery link. Keep TV access and connection help available to the host during play.
+
+
+## Action clarity and trivia corrections (2026-10-28)
+
+Show the configured investment cap prominently and make Ready green after saving. Player trivia has a large centered buzzer; TV rules are separate concise emoji-led lines. Host success feedback requires a committed acknowledgment, never only a click. While trivia is open, provide host-only Undo for individual team awards, using an atomic append-only reversal and persistent history; the host can then re-award correctly. Repeated undo/retries never repeat debits; corrections never spend locked/reserved funds. Close/advance ends this correction window. Disable accidental repeats of the same question/team/amount in the host UI while keeping intentional distinct awards supported.
+
+The optional Connection check is a short connectivity rehearsal. Full test party uses sample prices across all games for manual practice; both sit under host Test tools and are distinct from automated test/simulator coverage.

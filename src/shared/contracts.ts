@@ -142,3 +142,8 @@ export interface ApiError {
   error: string;
   code: string;
 }
+
+export type CommandSender = (
+  type: Command['type'],
+  payload?: Command['payload'],
+) => Promise<CommandResult | void>;

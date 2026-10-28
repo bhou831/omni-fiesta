@@ -1,11 +1,11 @@
 import React from 'react';
-import type { Command } from '../shared/contracts.js';
+import type { CommandSender } from '../shared/contracts.js';
 import type { CallingHostState, CallingPublicState } from '../server/games/somebody-calling.js';
 
 type HostProps = {
   state: CallingHostState;
   disabled: boolean;
-  command: (type: Command['type'], payload?: Command['payload']) => Promise<void>;
+  command: CommandSender;
 };
 export function SomebodyCallingHost({ state, disabled, command }: HostProps) {
   return (

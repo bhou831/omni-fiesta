@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GAME_MOTION, useReducedMotion } from './game-motion.js';
-import type { Command } from '../shared/contracts.js';
+import type { CommandSender } from '../shared/contracts.js';
 import type { SlotsHostState, SlotsPlayerState } from '../server/games/slots.js';
 
 export interface SlotsPlayerProps {
@@ -9,7 +9,7 @@ export interface SlotsPlayerProps {
   revealBalance?: boolean;
   open: boolean;
   disabled: boolean;
-  command: (type: Command['type'], payload?: Command['payload']) => Promise<void>;
+  command: CommandSender;
 }
 /** Every displayed result is a committed server result, including after a reload. */
 export function SlotsPlayer({

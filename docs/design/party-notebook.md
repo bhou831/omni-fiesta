@@ -117,3 +117,12 @@ TV: one title, one large playful rules block, then useful state/results. No repe
 Host: separate trivia team assignment, question/buzzer and awards using labeled groups, 20px field/action gaps and 24–32px group spacing. Use a three-column group layout on wide screens and a stacked portrait layout. Keep the invite QR in the lobby; during play show connection/recovery help in a disclosure and keep the TV link available.
 
 Player: confirm saved investments and bets from the server snapshot with a persistent checked button/status. Editing should make unsaved changes clear. Closing-bell results lead with signed token P/L and settlement state, with calculation details expandable. TV market cards show public price movements only. Motion remains presentation-only: spaced pull handle, staggered reel stops, varied ball orbits and a short drop/bounce; preserve reduced-motion behavior and saved results on reload.
+
+
+## Scannable rules and confident actions (2026-10-28)
+
+TV rules are a short emoji-led list, one rule per line, rather than a prose paragraph. Slots uses exactly cost per spin, maximum spins and optional participation, with no extra marquee. Costume uses separate choice, vote restriction, prize and tie rows; its existing penalty stays in a quieter line. Trivia uses separate team, buzz and answer rows. Keep all values sourced from the saved room settings.
+
+Make the investment limit a prominent green-tinted numeric panel (currently 600 tokens max). A saved lobby-ready state is a green checked button. Trivia uses a large centered team-color buzzer with deliberate space around status and team lists; compact the player header to keep the action visible. Host commands have pending/checked-green feedback after acknowledgment, and an awarded form stays green/disabled for the same question/team/amount. Award corrections are explicit history entries with Undo, not silent balance edits.
+
+Rehearsal is labeled **Connection check** and lives inside **Manage parties → Test tools** beside **Full test party**. Explain that the former exercises the lobby/timer/check-in only; the latter is manual full-game practice using fixture prices. Neither label claims an automated complete end-to-end test. Test tools remain unavailable when rehearsal/fixture support is disabled.

@@ -7,7 +7,7 @@ import { configHash, type GameConfig } from '../config.js';
 import { requireRule } from './errors.js';
 import { costumeSchema } from '../games/costume.js';
 import { slotsSchema } from '../games/slots.js';
-import { TRIVIA_SCHEMA } from '../games/trivia.js';
+import { TRIVIA_SCHEMA, TRIVIA_RECEIPTS_SCHEMA } from '../games/trivia.js';
 import { somebodyCallingSchema } from '../games/somebody-calling.js';
 import { powerballSchema } from '../games/powerball.js';
 
@@ -52,7 +52,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 9) {
+    if (schemaVersion > 10) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -99,6 +99,8 @@ export class Store {
       this.db.exec(
         `BEGIN IMMEDIATE; CREATE TABLE IF NOT EXISTS recovery_receipts(token_hash TEXT PRIMARY KEY, request_id TEXT NOT NULL, room_id TEXT NOT NULL REFERENCES rooms(id), player_id TEXT NOT NULL REFERENCES players(id), expires_at INTEGER NOT NULL); PRAGMA user_version=9; COMMIT;`,
       );
+    if (schemaVersion < 10)
+      this.db.exec(`BEGIN IMMEDIATE; ${TRIVIA_RECEIPTS_SCHEMA} PRAGMA user_version=10; COMMIT;`);
   }
 
   transaction<T>(run: () => T): T {

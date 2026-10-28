@@ -2,6 +2,18 @@
 
 Status: shared foundation, Party notebook UI, and all game modules/role views implemented and registered in the normal app. Permitted checks and fixture-party network/browser rehearsals have passed as detailed below. AWS deployment and physical-device/full-recovery rehearsals remain pending.
 
+## Action feedback, visual rules and trivia undo (2026-10-28)
+
+Implemented the follow-up UI requests: the saved room's investment cap is a large green-tinted numeric panel; Ready becomes a green checked button; trivia's player buzzer is a large centered team-color target with generous spacing and a compact header. TV instructions are separate emoji-led list rows. Slots is only title, per-spin cost, maximum spins and optional participation (plus the shared countdown); costume and trivia use the same scannable structure. Removed the extra TV slot marquee.
+
+Host trivia commands now show pending/green acknowledgment feedback. The transport hook returns the acknowledged result and has a synchronous in-flight guard. Matching active question/team/amount awards stay green and disabled from persisted host history, including after reload; editing the form or advancing to another question permits an intentional distinct award. Failed requests never create a local success state.
+
+Added host-only **Awards & corrections → Undo award** while trivia remains open. Additive schema version 10 creates `trivia_award_receipts` with question/time/undo metadata and preserves all old awards. Undo atomically appends negative spendable ledger entries for each frozen original teammate and marks the award undone. Repeated undo with the same or a new request ID, original-award replay and restart cannot duplicate debits/credits. Teams remain frozen and locked/reserved accounts are untouched. If any reversal fails, the whole correction rolls back. Old awards with unknown question remain visible and reversible; history is absent from player/TV projections. Close/advance ends the correction window; arbitrary balance editing is outside this feature.
+
+Moved optional rehearsal/fixture creation into **Manage parties → Test tools**. Renamed the short rehearsal **Connection check** and fixture play **Full test party**, with an explanation that only the latter covers every game with sample prices. These are manual tools, not claims of complete automated end-to-end coverage; existing non-production/rehearsal enablement remains enforced.
+
+Observed: all **69 tests passed**, including HTTP/WebSocket tests with permitted loopback, migration/restart, authorization, reversal idempotency, original-award replay, role privacy and whole-team rollback coverage. Format check, typecheck and production build passed. An in-memory preview at port 3002 verified green Ready; cap prominence; large buzzer acceptance/locking; host award acknowledgment/disabled state after reload; a failed zero-token award with no false success; undo followed by re-award; question/arm confirmations; Test tools labels; and scannable costume/slot TV rules at 1280×720. Screenshots: [slot rules](verification/action-feedback/slot-rules.png), [costume rules](verification/action-feedback/costume-rules.png), [ready](verification/action-feedback/ready-player.png), [buzzer](verification/action-feedback/buzzer-player.png), [cap](verification/action-feedback/investment-cap.png), [corrections](verification/action-feedback/award-corrections.png). No saved-party balances or external services were changed during verification. Physical iPhone/TV testing remains pending.
+
 ## Round UI refinement (2026-10-28)
 
 Completed the user's consolidated UI pass without delegating shared routing, contracts or styling to separate workers:
