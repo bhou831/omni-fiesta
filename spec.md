@@ -1,0 +1,112 @@
+# Omni Fiesta product specification
+
+Status: shared foundation implemented and locally runnable; actual party games and AWS deployment remain pending. See `docs/plan.md` for verification evidence.
+Updated: 2026-10-27. Confirmed user decisions override earlier conversation proposals.
+
+## Purpose and scope
+
+A host-led party web application for about 15 people in one room, designed for 1–100 players. Players use iPhone browsers in portrait orientation. A private host console controls the party; a separate landscape display is projected on a TV. Tokens have game value only. Hosting target: AWS Lightsail at `game.bowen-hou.com`.
+
+The event celebrates **Tracy's 10,000th day**. The user-approved **Party notebook** direction governs all interfaces: minimal white pages, black text, personal/task-focused copy, and restrained celebration details. See [design guidance](docs/design/party-notebook.md); the static refresh is implemented across all four routes, with optional floating balloons/celebration animation deferred.
+
+Only the host can advance stages. Deadlines close submissions; they never advance the party. Support joining, reconnecting, and restoring persisted state without granting initial tokens twice.
+
+## Sources of truth
+
+- This file owns the product scope, confirmed decisions, investment-card content, and source references.
+- [Configuration](config/game.yaml) owns adjustable amounts, durations, probabilities, provider IDs, and research links. Prose examples explain those values rather than defining additional defaults.
+- [System design](docs/system.md) owns shared contracts, authorization, accounting, persistence, and timer behavior.
+- [Design direction](docs/design/party-notebook.md) owns the approved identity, visual language, wording, cross-view consistency, and future decorative-motion constraints.
+- [Game specifications](docs/games/) own each game's behavior and acceptance criteria.
+- [Implementation plan](docs/plan.md) owns delivery order, progress, and verification requirements.
+
+## Experiences
+
+| View | Route | Behavior |
+| --- | --- | --- |
+| Player | `/play` | Portrait; profile emoji/name; current stage; confirmed submissions; personal balance hidden initially, tap to toggle. |
+| Host | `/host` | Authenticated private console; joined/ready/disconnected roster; every player's balance and transactions; game controls and configurable scoring. |
+| Display | `/screen` | Landscape; join QR/room code, instructions, applicable countdown, public results, and host-triggered reveals. Receives no phone numbers or private host data. |
+
+The lobby lists actual joined players only. There is no expected guest list or missing-guest comparison. Profiles collect name, email, phone, and an emoji from a provided set; email/SMS verification is not required for this version. Persistent player sessions support rejoining. Use an authenticated host session; knowing `/host` is not authorization.
+
+The private host view and TV display are separate so balances and the selected phone number stay private until intentional reveals. A host browser uses an extended screen or a separate control device. Trivia questions remain in external PowerPoint slides.
+
+## Stage sequence
+
+| Order | Stage | Behavior | Session countdown |
+| --- | --- | --- | --- |
+| 0 | Lobby | Join, choose profile, mark ready; host starts. | None |
+| 1 | Investment selection | One asset per player; starting grant, investment cap, locked stake, amplified return. | Configuration: `timers.investment_selection_seconds` |
+| 2 | Costume contest | One vote per player; award top three distinct vote groups; penalize lowest group when outside prize places. | Configuration: `timers.costume_voting_seconds` |
+| 3 | Trivia | Host assigns balanced teams, arms buzzer, judges answers, and awards each teammate. | None |
+| 4 | Slots | Optional paid spins with immediate independent results, up to configured limit. | Configuration: `timers.slots_seconds` |
+| 5 | Powerball | Red/blue proportional pool betting; host locks, draws, and reveals. | Configuration: `timers.powerball_betting_seconds` |
+| 6 | Investment review | Fetch one closing snapshot and settle all locked investments once. | None |
+| 7 | Somebody's Calling | Free entry; one private random player selection; host calls manually, then reveals and awards. | None |
+| 8 | Finish | Show the complete final ranking from first through last. | None |
+
+Only those four action sessions have countdowns. Display the same server-based countdown on phones, the TV, and optionally the host. Unsubmitted actions expire with no automatic choice, charge, vote, bet, or spin. Previously accepted actions remain valid and still settle. After expiry, show a waiting state until the host proceeds.
+
+## Economy and confirmed settings
+
+Current configuration grants each player 1,000 tokens once, allows an investment of at most 600, and locks the invested amount. Apply a configurable return multiplier, initially 20. Investment payout cannot fall below zero; maximum loss is the amount actually invested. Gains are uncapped.
+
+Each slot spin costs 200. Independent gross payouts are 500 with 10% probability, 300 with 20%, 100 with 30%, and zero with 40%. There are no winner quotas. At most three accepted spins per player; a player must afford each spin at the time of purchase.
+
+Costume prizes are 1,000, 800, and 500 **per player** in the top three **distinct vote totals**. Every player tied in a prize group receives that place's full award; prizes are never divided by group size. For example, five players tied for first each receive 1,000, and a single player in the next distinct vote group receives 800. The lowest group still splits a 500-token penalty using `floor(500 / group_size)` only if that group receives no top-three prize. Cap each person's deduction at their spendable balance; locked investments are untouched. Penalty division remainder and uncollectible penalties are not redistributed.
+
+For trivia, a host award of 100 to a team credits 100 to every team member. Somebody's Calling has free entry and awards 500 to one player.
+
+These are examples of values owned by `config/game.yaml`; game modules read the room's saved configuration rather than hard-coding numbers.
+
+## Investment lineup and research cards
+
+Use SOL, BTC, DOGE, SPYx, and PEPE, all quoted in USD through CoinGecko's market-data API. PEPE is the selected speculative meme-themed fifth asset. This is a game-design selection, not a claim that PEPE will outperform or be the most volatile asset during the party.
+
+Show the S&P 500 choice as **S&P 500 proxy — SPYx**. It is a tokenized ETF proxy, not the live cash S&P 500 index. Its weekend token price can differ from the underlying ETF's last regular-session price. Never relabel a frozen traditional SPY/index quote as live weekend data.
+
+The provider change from the earlier Twelve Data candidate is an implementation choice to cover all five instruments through one documented API. Documentation and provider pages establish the intended coverage; authenticated endpoint access, account entitlements, freshness, and Saturday behavior still require integration verification. Do not silently replace an instrument or change providers between opening and settlement.
+
+| Asset / provider ID | Short player-facing description | Research links |
+| --- | --- | --- |
+| Solana (SOL) / `solana` | SOL powers the Solana network, which supports payments and applications. Compare its recent price movement and trading activity before choosing. | [Market and chart](https://www.coingecko.com/en/coins/solana), [Project](https://solana.com/) |
+| Bitcoin (BTC) / `bitcoin` | Bitcoin is a peer-to-peer digital currency. Use its recent movement as a reference when comparing the other crypto choices. | [Market and chart](https://www.coingecko.com/en/coins/bitcoin), [Project](https://bitcoin.org/en/) |
+| Dogecoin (DOGE) / `dogecoin` | Dogecoin is a dog-themed peer-to-peer cryptocurrency. Compare its price range and trading activity with the other choices. | [Market and chart](https://www.coingecko.com/en/coins/dogecoin), [Project](https://dogecoin.com/) |
+| S&P 500 proxy (SPYx) / `sp500-xstock` | SPYx is a tokenized proxy for an ETF tracking large US companies. This game uses the token's USD quote, including weekend token-market movements. | [Market and chart](https://www.coingecko.com/en/coins/sp500-xstock) |
+| Pepe (PEPE) / `pepe` | PEPE is a frog-themed meme token. It adds a speculative choice; use the price range and volume to judge its recent activity. | [Market and chart](https://www.coingecko.com/en/coins/pepe) |
+
+Each compact portrait card must contain:
+
+- Name, symbol, category, and the short description above.
+- Opening USD price, 24-hour percentage change, 24-hour high/low, and reported 24-hour USD trading volume, when supplied by the provider.
+- A labeled recent-range indicator `(high_24h - low_24h) / opening_price`, if those inputs exist. Label it **24h price range**, never statistical volatility or predicted return.
+- Source and provider timestamp, with missing optional metrics shown as unavailable rather than zero.
+- A market/chart research link and optional project link. External links open separately; returning restores the same player and timer. Opening a link does not pause the round.
+- Selection and amount controls, available tokens, cap, locked-stake explanation, the 20x game multiplier, and loss limit.
+
+Use one opening `/coins/markets` response, requested for the five exact IDs, to provide both entry prices and research facts. Freeze that snapshot for all players. Use one further market snapshot at investment review for closing prices. Transport retries are allowed; once the complete validated snapshot is accepted, persist and reuse it. Do not embed polling third-party charts or periodically fetch extra prices inside the app. External research pages may show their own newer data; settlement always uses the saved game snapshots.
+
+## Rankings and privacy
+
+The host can inspect all players in a complete ordered balance list. Public results are host-revealed. The final screen lists every participant, first through last, with final tokens. Equal balances share rank; use a stable secondary order for display without claiming a tied player earned a lower place. Costume results likewise include every candidate and vote count on reveal, including zero-vote candidates.
+
+Personal phone numbers/emails are not public. Balances are sent only to their owner and the authenticated host until an intentional leaderboard reveal. Hide the player's balance again on stage change. Reveal phone-draw selection and its reward publicly only when the host chooses.
+
+## Implementation choices and remaining verification
+
+- Proposed single-instance stack: TypeScript, React, Node.js/Socket.IO, SQLite on durable disk, and Caddy HTTPS on Lightsail. This is a design, not an already deployed environment.
+- Session durations currently default to 120/60/90/60 seconds; all four are editable in configuration before starting a party.
+- Red/blue draw uses 50/50 server randomness, stakes on one side, proportional payouts, and a refund if the selected side has no bettors.
+- No accepted costume ballots means no awards or penalties. With one player, no self-voting is possible; host can close or skip the empty contest.
+- Confirmed submissions may be revised before expiry; the server adjusts reservations atomically. Spins are final when accepted.
+- Exact profile identifiers, guest recovery procedure, API access, and deployment commands will be established during implementation and rehearsal, not reported as complete here.
+
+## Market-data references
+
+Reviewed 2026-10-27; recheck live integration before the party.
+
+- [CoinGecko Demo market-data endpoint](https://docs.coingecko.com/demo/reference/coins-markets): authenticated multi-ID market snapshots and market metrics.
+- [CoinGecko simple-price reference](https://docs.coingecko.com/reference/simple-price): exact IDs and provider timestamp support.
+- [CoinGecko tokenized-asset guide](https://www.coingecko.com/learn/track-tokenized-stocks-rwa-data): includes the `sp500-xstock` API ID.
+- Asset and project pages are linked in the research-card table above. No current market numbers have been copied into configuration or treated as party opening quotes.

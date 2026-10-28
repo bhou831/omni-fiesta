@@ -1,0 +1,142 @@
+version: 1
+
+party:
+  max_players: 100
+  initial_tokens: 1000
+
+# Only these action sessions have countdowns. Expiry never advances a stage.
+timers:
+  investment_selection_seconds: 120
+  costume_voting_seconds: 60
+  slots_seconds: 90
+  powerball_betting_seconds: 60
+
+investments:
+  max_investment_tokens: 600
+  return_multiplier: 20
+  loss_limit: invested_amount
+  payout_rounding: floor
+  quote_currency: usd
+  market_data:
+    provider: coingecko
+    api_tier: demo
+    opening_endpoint: /coins/markets
+    closing_endpoint: /coins/markets
+    # Implementation default; verify against actual provider cache behavior.
+    max_snapshot_age_seconds: 300
+    max_asset_timestamp_spread_seconds: 300
+  assets:
+    - symbol: SOL
+      name: Solana
+      provider_id: solana
+      category: network_token
+      description: >-
+        SOL powers the Solana network, which supports payments and applications.
+        Compare its recent price movement and trading activity before choosing.
+      research_links:
+        - label: Market and chart
+          url: https://www.coingecko.com/en/coins/solana
+        - label: Project
+          url: https://solana.com/
+    - symbol: BTC
+      name: Bitcoin
+      provider_id: bitcoin
+      category: digital_currency
+      description: >-
+        Bitcoin is a peer-to-peer digital currency. Use its recent movement
+        as a reference when comparing the other crypto choices.
+      research_links:
+        - label: Market and chart
+          url: https://www.coingecko.com/en/coins/bitcoin
+        - label: Project
+          url: https://bitcoin.org/en/
+    - symbol: DOGE
+      name: Dogecoin
+      provider_id: dogecoin
+      category: meme_currency
+      description: >-
+        Dogecoin is a dog-themed peer-to-peer cryptocurrency. Compare its
+        price range and trading activity with the other choices.
+      research_links:
+        - label: Market and chart
+          url: https://www.coingecko.com/en/coins/dogecoin
+        - label: Project
+          url: https://dogecoin.com/
+    - symbol: SPYx
+      name: S&P 500 proxy
+      provider_id: sp500-xstock
+      category: tokenized_etf_proxy
+      description: >-
+        SPYx is a tokenized proxy for an ETF tracking large US companies.
+        This game uses the token's USD quote, including weekend token-market movements.
+      research_links:
+        - label: Market and chart
+          url: https://www.coingecko.com/en/coins/sp500-xstock
+    - symbol: PEPE
+      name: Pepe
+      provider_id: pepe
+      category: meme_token
+      description: >-
+        PEPE is a frog-themed meme token. It adds a speculative choice;
+        use the price range and volume to judge its recent activity.
+      research_links:
+        - label: Market and chart
+          url: https://www.coingecko.com/en/coins/pepe
+
+costume:
+  allow_self_vote: false
+  ranking_method: distinct_vote_totals
+  tie_award_policy: full_prize_per_player
+  prizes_per_player:
+    - place: 1
+      tokens: 1000
+    - place: 2
+      tokens: 800
+    - place: 3
+      tokens: 500
+  last_place_penalty_pool_tokens: 500
+  last_place_tie_policy: split_penalty_pool
+  last_place_penalty_split_rounding: floor
+  penalize_prize_winners: false
+  penalty_limit: spendable_balance
+  no_votes_policy: no_awards_or_penalties
+
+trivia:
+  default_team_count: 4
+  award_scope: each_team_member
+  buzzer_policy: first_server_accepted
+  exclude_incorrect_teams_for_question: true
+
+slots:
+  cost_per_spin_tokens: 200
+  max_spins_per_player: 3
+  draw_mode: independent
+  outcomes:
+    - gross_payout_tokens: 500
+      probability: 0.10
+    - gross_payout_tokens: 300
+      probability: 0.20
+    - gross_payout_tokens: 100
+      probability: 0.30
+    - gross_payout_tokens: 0
+      probability: 0.40
+
+powerball:
+  colors:
+    - color: red
+      probability: 0.50
+    - color: blue
+      probability: 0.50
+  payout_method: proportional_losing_pool
+  no_winning_bettors_policy: refund_all
+  rounding_method: largest_remainder
+
+somebody_calling:
+  entry_cost_tokens: 0
+  winner_award_tokens: 500
+  selection_visibility: host_only_until_reveal
+
+leaderboard:
+  show_all_players: true
+  equal_balances_share_rank: true
+  public_visibility: host_reveal

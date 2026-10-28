@@ -1,0 +1,107 @@
+export const EMOJIS = [
+  '🦊',
+  '🐸',
+  '🦄',
+  '🐼',
+  '🐯',
+  '👻',
+  '🎃',
+  '🦋',
+  '🪩',
+  '🌵',
+  '🐙',
+  '🦖',
+] as const;
+export const PARTY_STAGES = [
+  'lobby',
+  'investments',
+  'costume',
+  'trivia',
+  'slots',
+  'powerball',
+  'investment-review',
+  'somebody-calling',
+  'finish',
+] as const;
+export type Stage = (typeof PARTY_STAGES)[number] | 'connection-check';
+export type Role = 'host' | 'player' | 'display';
+export const STAGE_LABELS: Record<Stage, string> = {
+  lobby: 'The gathering',
+  investments: 'Make your move',
+  costume: 'Best dressed',
+  trivia: 'Team trivia',
+  slots: 'Feeling lucky?',
+  powerball: 'Red or blue',
+  'investment-review': 'The closing bell',
+  'somebody-calling': 'Somebody’s calling',
+  finish: 'That’s a wrap',
+  'connection-check': 'Sound check',
+};
+export interface Profile {
+  name: string;
+  email: string;
+  phone: string;
+  emoji: string;
+}
+export interface Accounts {
+  spendable: number;
+  locked: number;
+  reserved: number;
+}
+export interface PublicPlayer {
+  id: string;
+  name: string;
+  emoji: string;
+  ready: boolean;
+  connected: boolean;
+  checkedIn: boolean;
+}
+export interface LedgerEntry {
+  id: number;
+  playerId: string;
+  reason: string;
+  spendable: number;
+  locked: number;
+  reserved: number;
+  createdAt: number;
+}
+export interface RoomSnapshot {
+  serverInstance: string;
+  snapshotSequence: number;
+  serverTime: number;
+  room: {
+    id: string;
+    code: string;
+    mode: 'party' | 'rehearsal';
+    version: number;
+    phase: Stage;
+    phaseInstance: number;
+    status: 'open' | 'closed';
+    openedAt: number | null;
+    deadlineAt: number | null;
+    title: string;
+    configHash: string;
+    canAdvance: boolean;
+    advanceBlocker: string | null;
+  };
+  players: PublicPlayer[];
+  self?: { id: string; accounts: Accounts; ready: boolean; checkedIn: boolean };
+  host?: {
+    players: (PublicPlayer & { email: string; phone: string; accounts: Accounts })[];
+    ledger: LedgerEntry[];
+  };
+}
+export interface Command {
+  requestId: string;
+  phaseInstance: number;
+  type: 'player.ready' | 'phase.advance' | 'phase.close' | 'phase.action';
+  payload?: { ready?: boolean; action?: string; data?: Record<string, unknown> };
+}
+export interface CommandResult {
+  version: number;
+  result: Record<string, unknown>;
+}
+export interface ApiError {
+  error: string;
+  code: string;
+}
