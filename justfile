@@ -13,6 +13,10 @@ setup:
 dev:
     npm run dev
 
+# Preview any game directly with disposable sample players/prices (port 3001).
+preview game="all":
+    node --import tsx scripts/preview.ts "$1"
+
 # Format the source files.
 format:
     npm run format

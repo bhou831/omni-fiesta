@@ -11,6 +11,8 @@ The event celebrates **Tracy's 10,000th day**. The user-approved **Party noteboo
 
 Only the host can advance stages. Deadlines close submissions; they never advance the party. Support joining, reconnecting, and restoring persisted state without granting initial tokens twice.
 
+For local UI development, `just preview [game]` opens an isolated, in-memory gallery linking directly to player/host/TV screens with sample players and fixture data, including result variants. It is unavailable in production and cannot modify saved parties. For normal host room management, Archive/Restore hides unused rooms reversibly while preserving all scores/history; archiving is blocked while any player is connected. Archived rooms cannot be joined or played until restored, and restoration never resets elapsed deadlines.
+
 ## Sources of truth
 
 - This file owns the product scope, confirmed decisions, investment-card content, and source references.
@@ -78,6 +80,8 @@ The provider change from the earlier Twelve Data candidate is an implementation 
 
 Each compact portrait card must contain:
 
+Present the five assets as collapsed, expandable cards. The cover shows a symbol/mark, name, opening price and 24h change. Opening a card reveals the description, facts, source/time and research links below. A separate Choose action changes the draft selection; the amount and Save investment action commit it. Researching a card alone never moves tokens.
+
 - Name, symbol, category, and the short description above.
 - Opening USD price, 24-hour percentage change, 24-hour high/low, and reported 24-hour USD trading volume, when supplied by the provider.
 - A labeled recent-range indicator `(high_24h - low_24h) / opening_price`, if those inputs exist. Label it **24h price range**, never statistical volatility or predicted return.
@@ -86,6 +90,10 @@ Each compact portrait card must contain:
 - Selection and amount controls, available tokens, cap, locked-stake explanation, the 20x game multiplier, and loss limit.
 
 Use one opening `/coins/markets` response, requested for the five exact IDs, to provide both entry prices and research facts. Freeze that snapshot for all players. Use one further market snapshot at investment review for closing prices. Transport retries are allowed; once the complete validated snapshot is accepted, persist and reuse it. Do not embed polling third-party charts or periodically fetch extra prices inside the app. External research pages may show their own newer data; settlement always uses the saved game snapshots.
+
+## Game presentation
+
+Slots has a downward-pull handle with tap/keyboard alternatives and rolling reels. Animate the committed server outcome for about 2.4 seconds, block repeat pulls during presentation, and show gross returned tokens and net change. Reloading shows saved results immediately. Powerball uses a red/blue mixing box; host reveal starts a five-second presentation on connected host/player/display views, then the winning ball drops out and payouts are shown. Reveal still settles once immediately on the server; the animation is presentation, not another betting window or a guarantee of secrecy after public reveal. Late join/reload shows the saved result immediately. Timings live in client presentation settings (`src/client/game-motion.ts`), separate from authoritative session timers and room economy. Reduced motion skips the wait; hidden pages finish presentation rather than running background loops.
 
 ## Rankings and privacy
 

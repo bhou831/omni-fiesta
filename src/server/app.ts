@@ -20,7 +20,6 @@ import {
   type MarketProvider,
 } from './games/market.js';
 
-const cookieNames = { host: 'of_host', player: 'of_player' };
 function cookies(header?: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const part of (header ?? '').split(';')) {
@@ -82,9 +81,14 @@ export interface AppOptions {
   marketProvider?: MarketProvider;
   /** Explicit injection for isolated integration tests. */
   modules?: PhaseModule[];
+  /** Isolate the standalone preview server from other apps on the same loopback host. */
+  cookiePrefix?: string;
 }
 
 export function createApp(options: AppOptions) {
+  const cookiePrefix = options.cookiePrefix ?? 'of';
+  if (!/^[a-z_]{1,32}$/.test(cookiePrefix)) throw new Error('Invalid cookie prefix');
+  const cookieNames = { host: `${cookiePrefix}_host`, player: `${cookiePrefix}_player` };
   requireRule(
     options.hostPassword.length >= 12,
     'HOST_PASSWORD_REQUIRED',
@@ -227,9 +231,9 @@ export function createApp(options: AppOptions) {
     res.json({ ok: true });
   });
   app.post('/api/logout', (req, res) => {
-    const token = cookies(req.headers.cookie).of_host;
+    const token = cookies(req.headers.cookie)[cookieNames.host];
     if (token) store.revoke(token);
-    res.clearCookie('of_host', { path: '/' });
+    res.clearCookie(cookieNames.host, { path: '/' });
     for (const socket of io.sockets.sockets.values())
       if (token && socket.data.sessionHash === hash(token)) socket.disconnect();
     res.json({ ok: true });
@@ -254,7 +258,7 @@ export function createApp(options: AppOptions) {
     res.json({
       rooms: store.db
         .prepare(
-          'SELECT id,code,mode,phase,created_at AS createdAt FROM rooms ORDER BY created_at DESC,id DESC LIMIT 50',
+          'SELECT id,code,mode,phase,created_at AS createdAt, EXISTS(SELECT 1 FROM archived_rooms WHERE room_id=rooms.id) AS archived FROM rooms ORDER BY archived,created_at DESC,id DESC',
         )
         .all(),
       rehearsalEnabled: !!options.enableRehearsal,
@@ -286,6 +290,34 @@ export function createApp(options: AppOptions) {
       ),
     );
     res.status(201).json(room);
+  });
+  app.post('/api/rooms/:code/archive', (req, res) => {
+    needSession(req, 'host');
+    const code = codeSchema.parse(req.params.code);
+    const { archived } = z.object({ archived: z.boolean() }).strict().parse(req.body);
+    if (archived) {
+      const row = store.db.prepare('SELECT id FROM rooms WHERE code=?').get(code) as
+        { id: string } | undefined;
+      requireRule(row, 'ROOM_NOT_FOUND', 'Party not found.', 404);
+      requireRule(
+        !store.players(row.id).some((player) => engine.isConnected(player.id)),
+        'PLAYERS_CONNECTED',
+        'Players are still connected. Ask them to leave the room before archiving.',
+        409,
+      );
+    }
+    const roomId = store.setArchived(code, archived, now());
+    if (archived) {
+      for (const socket of io.sockets.sockets.values()) {
+        if (socket.data.viewer?.roomId !== roomId) continue;
+        socket.emit('room-archived');
+        socket.disconnect();
+      }
+    } else {
+      engine.expire(roomId);
+      broadcast(roomId);
+    }
+    res.json({ code, archived });
   });
   app.post('/api/rooms/:code/join', (req, res) => {
     const room = store.roomByCode(codeSchema.parse(req.params.code));
@@ -380,6 +412,7 @@ export function createApp(options: AppOptions) {
         .parse(socket.handshake.auth);
       const room = store.roomByCode(auth.code);
       const authorize = (): Viewer => {
+        store.room(room.id);
         if (auth.role === 'display') {
           requireRule(
             auth.displayToken && store.displayAuthorized(room.id, auth.displayToken),

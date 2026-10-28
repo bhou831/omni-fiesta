@@ -84,7 +84,7 @@ export class Engine {
   expireAll(): string[] {
     const due = this.store.db
       .prepare(
-        "SELECT id FROM rooms WHERE status='open' AND deadline_at IS NOT NULL AND deadline_at<=?",
+        "SELECT id FROM rooms WHERE status='open' AND deadline_at IS NOT NULL AND deadline_at<=? AND NOT EXISTS (SELECT 1 FROM archived_rooms WHERE room_id=rooms.id)",
       )
       .all(this.now()) as { id: string }[];
     return due.filter((room) => this.expire(room.id)).map((room) => room.id);
@@ -242,6 +242,9 @@ export class Engine {
     const next = Math.max(0, (this.connections.get(playerId) ?? 0) + change);
     if (next) this.connections.set(playerId, next);
     else this.connections.delete(playerId);
+  }
+  isConnected(playerId: string): boolean {
+    return this.connections.has(playerId);
   }
   snapshot(viewer: Viewer): RoomSnapshot {
     return this.snapshots([viewer])[0];

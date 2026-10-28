@@ -9,6 +9,7 @@
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "dev": "node --env-file-if-exists=.env --watch --import tsx src/server/index.ts",
+    "preview": "node --import tsx scripts/preview.ts",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write src tests scripts vite.config.ts package.json tsconfig*.json index.html",
     "format:check": "prettier --check src tests scripts vite.config.ts package.json tsconfig*.json index.html",

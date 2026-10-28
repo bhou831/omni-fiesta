@@ -10,6 +10,8 @@ The party celebrates **Tracy's 10,000th day**. The approved direction is a minim
 
 See the [design guide](docs/design/party-notebook.md) and [portable visual reference](docs/design/party-notebook-reference.html). The running app now applies this design across `/`, `/play`, `/host`, and `/screen`, including forms, waiting states, errors, countdowns, and rehearsal completion. Shared client tokens and system fonts keep the views coherent. The static balloon marker is an optional client component; no animation library or game configuration changes were added. Optional floating balloons and other celebration effects are reserved for a later iteration; keep their decorative layer separate from core layout and game logic.
 
+Game interactions now include a pull/tap slot handle with rolling reels, a five-second red/blue ball reveal, and five expandable investment research cards. Presentation timings live in `src/client/game-motion.ts`; reduced motion skips the wait and reloads show saved results immediately. These effects do not change game odds, accounting or session timers.
+
 ## UI verification (2026-10-27–28)
 
 `just format` and `just check` passed: formatting, all 14 rule/HTTP/WebSocket tests, TypeScript checks, and the production build. The first sandboxed check could not bind loopback ports; repeating with local-port permission passed. The development watch command hit an environment file-watcher limit, so browser verification used `node --import tsx src/server/index.ts` against an isolated temporary database and test credential, without changing `.env` or saved parties.
@@ -36,6 +38,9 @@ just start          # Start the built application
 just simulate       # Simulate 15 players; development server must be running
 just simulate 100   # Simulate 100 players
 just market-check   # Read-only live check of all five configured assets
+just preview        # Gallery of every game, including result screens
+just preview slots  # Focus the gallery on slots; print direct player/host/TV links
+just preview stock  # Investment cards (alias for investments)
 ```
 
 ## Run locally
@@ -53,6 +58,20 @@ Open `http://localhost:3000`. The setup command creates an ignored `.env` with a
 The TV link contains only a public-display capability in its URL fragment; it grants no host access. Use an extended screen for the TV so private host information is not projected.
 
 State is saved in `data/party.sqlite` by default. Stop/restart the server with the same `.env` and database to resume. Editing `config/game.yaml` affects newly created rooms; saved parties keep their original settings. For phones on the same local network, open the computer's LAN address on port 3000 and create/share links through that address, or use HTTPS in deployment. Physical iPhone rehearsal is still required.
+
+## Preview individual games
+
+Run `just preview` and open [the preview gallery](http://127.0.0.1:3001/preview). You can keep `just dev` running on port 3000. `just preview slots`, `just preview investments` (or `stock`), and `just preview powerball` highlight a game and print its direct player/host/TV links. `npm run preview -- slots` is equivalent. Other choices include `lobby`, `costume`, `costume-results`, `trivia`, `powerball-results`, `investment-review`, `somebody-calling`, and `finish`.
+
+Each screen uses the actual game views and commands with six sample players and clearly labeled fixture prices/research facts. You do not need to register or play earlier rounds. Host links sign in automatically on this local preview server; use the host controls to trigger draws/reveals and watch animations. Opening a result preview shows an already-settled result. Timed previews allow 15 minutes; stop with Ctrl+C and restart the command to reset all sample rooms. Source/CSS edits refresh through Vite; changes to server code or seeds require restarting the command.
+
+The preview server binds only to loopback, stores everything in memory, uses separate `of_preview_*` cookies, and disables live market requests. It does not use the saved party database or configured host password. These routes are not mounted by normal startup and the preview script refuses production mode. Player tabs share a sample-player session within the preview server, so inspect one room at a time or use separate browser profiles. Use `PREVIEW_PORT=3002 just preview` if port 3001 is occupied. Real-device/LAN rehearsal uses the normal server, not this loopback preview.
+
+## Clean up unused rooms
+
+In `/host`, open **Manage parties**, select the unused room, then **Archive party**. All player tabs must disconnect first; the server also enforces this. Archived rooms disappear from the active selector, stop accepting commands/joins and disconnect their host/TV views. Expand **Archived parties** and choose **Restore** to reopen one.
+
+Archiving is reversible and preserves profiles, scores, saved draws, locked/reserved tokens, sessions and the ledger. It does not permanently erase data or pause/reset deadlines; a restored round whose deadline has passed is closed. No rooms are archived automatically or by the preview command.
 
 ## Check and simulate
 

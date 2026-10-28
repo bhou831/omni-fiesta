@@ -7,6 +7,7 @@ type Props = {
   disabled: boolean;
   revealBalance?: boolean;
 };
+const assetMarks: Record<string, string> = { SOL: '≋', BTC: '₿', DOGE: 'Ð', SPYx: '↗', PEPE: '🐸' };
 const metric = (value: number | null | undefined) =>
   value == null ? 'Unavailable' : value.toLocaleString(undefined, { maximumSignificantDigits: 8 });
 export function InvestmentPlayer({ state, command, disabled, revealBalance = false }: Props) {
@@ -47,7 +48,7 @@ export function InvestmentPlayer({ state, command, disabled, revealBalance = fal
     );
   }
   return (
-    <section>
+    <section className="game-panel">
       <h2>Choose one investment</h2>
       <p>
         Up to {data.cap} tokens are locked until review. Returns are multiplied by {data.multiplier}
@@ -55,89 +56,135 @@ export function InvestmentPlayer({ state, command, disabled, revealBalance = fal
       </p>
       {data.position && (
         <p>
-          Saved: {data.position.principal} tokens in {data.position.asset_id}.
+          Saved: {data.position.principal} tokens in{' '}
+          {data.assets.find((a) => a.provider_id === data.position?.asset_id)?.symbol ??
+            data.position.asset_id}
+          .
         </p>
       )}
-      {data.assets.map((a) => {
-        const q = data.opening?.quotes.find((q) => q.id === a.provider_id);
-        const range =
-          q?.high24h != null && q.low24h != null
-            ? ((q.high24h - q.low24h) / Number(q.price)) * 100
-            : null;
-        return (
-          <article key={a.provider_id} className="panel">
-            <h3>
-              {a.name} — {a.symbol}
-            </h3>
-            <p>{a.category.replaceAll('_', ' ')}</p>
-            <p>{a.description}</p>
-            <p>
-              Opening USD: ${q?.price ?? 'Unavailable'} · 24h change: {metric(q?.change24h)}%
-            </p>
-            <p>
-              24h high / low: {metric(q?.high24h)} / {metric(q?.low24h)} · Volume USD:{' '}
-              {metric(q?.volume24h)}
-            </p>
-            <p>24h price range: {range === null ? 'Unavailable' : `${metric(range)}%`}</p>
-            <p>CoinGecko · {q ? new Date(q.timestamp).toLocaleString() : 'Unavailable'}</p>
-            {a.research_links.map((link) => (
-              <a key={link.url} href={link.url} target="_blank" rel="noreferrer">
-                {link.label} ↗{' '}
-              </a>
-            ))}
-            <p>
-              <label>
-                <input
-                  type="radio"
-                  name="asset"
-                  checked={asset === a.provider_id}
-                  onChange={() => setAsset(a.provider_id)}
-                  disabled={disabled}
-                />{' '}
-                Choose {a.symbol}
-              </label>
-            </p>
-          </article>
-        );
-      })}
-      <label>
-        Tokens to invest{' '}
-        <input
-          type="number"
-          min="1"
-          max={data.cap}
-          step="1"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          disabled={disabled}
-        />
-      </label>
-      <p>
-        {revealBalance
-          ? `Available: ${state.self?.accounts.spendable} tokens${data.position ? ` plus ${data.position.principal} currently locked` : ''}.`
-          : 'Available balance hidden. Tap Tokens to reveal it.'}
-      </p>
-      <button
-        className="button primary"
-        disabled={disabled}
-        onClick={() =>
-          void command('phase.action', {
-            action: 'invest',
-            data: { assetId: asset, amount: Number(amount) },
-          })
-        }
-      >
-        Save investment
-      </button>
-      {data.position && (
+      <div className="investment-order">
+        {' '}
+        <label>
+          Tokens to invest in {data.assets.find((a) => a.provider_id === asset)?.symbol}{' '}
+          <input
+            type="number"
+            min="1"
+            max={data.cap}
+            step="1"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            disabled={disabled}
+          />
+        </label>
+        <p>
+          {revealBalance
+            ? `Available: ${state.self?.accounts.spendable} tokens${data.position ? ` plus ${data.position.principal} currently locked` : ''}.`
+            : 'Available balance hidden. Tap Tokens to reveal it.'}
+        </p>
         <button
-          className="button secondary"
+          className="button primary"
           disabled={disabled}
-          onClick={() => void command('phase.action', { action: 'cancel' })}
+          onClick={() =>
+            void command('phase.action', {
+              action: 'invest',
+              data: { assetId: asset, amount: Number(amount) },
+            })
+          }
         >
-          Cancel investment
+          Save investment
         </button>
-      )}
+        {data.position && (
+          <button
+            className="button secondary"
+            disabled={disabled}
+            onClick={() => void command('phase.action', { action: 'cancel' })}
+          >
+            Cancel investment
+          </button>
+        )}
+      </div>{' '}
+      <p className="fine-print">Tap a card to explore. Choose one, then save your amount above.</p>
+      <div className="investment-cards">
+        {data.assets.map((a) => {
+          const q = data.opening?.quotes.find((q) => q.id === a.provider_id);
+          const range =
+            q?.high24h != null && q.low24h != null
+              ? ((q.high24h - q.low24h) / Number(q.price)) * 100
+              : null;
+          const selected = asset === a.provider_id;
+          return (
+            <details
+              key={a.provider_id}
+              className={`investment-card ${selected ? 'is-selected' : ''}`}
+            >
+              <summary>
+                <span className="asset-mark" aria-hidden="true">
+                  {assetMarks[a.symbol] ?? a.symbol[0]}
+                </span>
+                <span className="asset-identity">
+                  <strong>{a.symbol}</strong>
+                  <span>{a.name}</span>
+                </span>
+                <span className="asset-quote">
+                  <strong>{q ? `$${metric(Number(q.price))}` : 'Price pending'}</strong>
+                  <span className={q?.change24h != null && q.change24h >= 0 ? 'market-up' : ''}>
+                    {q?.change24h == null
+                      ? '24h unavailable'
+                      : `${q.change24h > 0 ? '+' : ''}${metric(q.change24h)}% · 24h`}
+                  </span>
+                </span>
+                <span className="card-chevron" aria-hidden="true">
+                  ⌄
+                </span>
+                {selected && <span className="asset-selected">✓ Selected</span>}
+              </summary>
+              <div className="asset-facts">
+                <span className="eyebrow">{a.category.replaceAll('_', ' ')}</span>
+                <p>{a.description}</p>
+                <dl className="market-facts">
+                  <div>
+                    <dt>Opening price · USD</dt>
+                    <dd>{q ? `$${metric(Number(q.price))}` : 'Unavailable'}</dd>
+                  </div>
+                  <div>
+                    <dt>24h high / low · USD</dt>
+                    <dd>
+                      {metric(q?.high24h)} / {metric(q?.low24h)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>24h volume · USD</dt>
+                    <dd>{metric(q?.volume24h)}</dd>
+                  </div>
+                  <div>
+                    <dt>24h price range</dt>
+                    <dd>{range === null ? 'Unavailable' : `${metric(range)}%`}</dd>
+                  </div>
+                </dl>
+                <p className="fine-print">
+                  Opening snapshot · CoinGecko ·{' '}
+                  {q ? new Date(q.timestamp).toLocaleString() : 'Not prepared yet'}
+                </p>
+                <div className="research-links">
+                  {a.research_links.map((link) => (
+                    <a key={link.url} href={link.url} target="_blank" rel="noreferrer">
+                      {link.label} ↗
+                    </a>
+                  ))}
+                </div>
+                <button
+                  className={`button ${selected ? 'secondary' : 'primary'}`}
+                  disabled={disabled}
+                  aria-pressed={selected}
+                  onClick={() => setAsset(a.provider_id)}
+                >
+                  {selected ? `✓ ${a.symbol} selected` : `Choose ${a.symbol}`}
+                </button>
+              </div>
+            </details>
+          );
+        })}
+      </div>
     </section>
   );
 }

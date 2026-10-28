@@ -133,7 +133,7 @@ function Home() {
           <p>Investments, costumes, trivia &amp; a little luck.</p>
         </div>
         <p className="fine-print">
-          For now, try Sound check — a rehearsal. Party games are coming next.
+          Your phone is your controller. Follow the big screen between rounds.
         </p>
       </main>
       <footer className="landing-footer">10,000 days. One Tracy.</footer>
@@ -375,7 +375,9 @@ function Player() {
           </button>
         }
       />
-      <main className="player-main">
+      <main
+        className={`player-main ${state.room.status !== 'pending' && ['slots', 'powerball'].includes(state.room.phase) ? 'game-interaction' : ''}`}
+      >
         <div className="player-meta">
           <span className="tag">
             {state.room.mode === 'rehearsal' ? 'Rehearsal' : 'Party'} · {state.room.code}
@@ -395,7 +397,7 @@ function Player() {
             <>Rehearsal complete</>
           )}
         </h1>
-        <p>
+        <p className="round-instruction">
           {state.room.status === 'pending'
             ? 'Waiting for the host to start the timer.'
             : state.room.phase === 'lobby'
@@ -504,12 +506,13 @@ function Player() {
     </div>
   );
 }
-function Ranking({ state }: { state: RoomSnapshot }) {
+function Ranking({ state, display = false }: { state: RoomSnapshot; display?: boolean }) {
+  const page = useRotatingPage(state.ranking?.length ?? 0, 6);
   return state.ranking ? (
     <section>
       <h2>Final ranking</h2>
       <ol>
-        {state.ranking.map((p) => (
+        {(display ? state.ranking.slice(page * 6, page * 6 + 6) : state.ranking).map((p) => (
           <li key={p.playerId} value={p.rank}>
             {p.emoji} {p.name} · {p.tokens.toLocaleString()} tokens
           </li>
@@ -546,6 +549,7 @@ interface RoomListItem {
   code: string;
   mode: 'party' | 'rehearsal';
   phase: string;
+  archived: number;
 }
 function Host() {
   const { session, setSession, error: sessionError } = useSession('host');
@@ -554,6 +558,7 @@ function Host() {
   const [code, setCode] = useState<string | null>(new URLSearchParams(location.search).get('code'));
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [recoveryLink, setRecoveryLink] = useState('');
   const createAttempt = useRef<string | null>(null);
   const [displayToken, setDisplayToken] = useState<string | undefined>(
@@ -570,10 +575,25 @@ function Host() {
   useEffect(() => {
     if (session?.authenticated) void loadRooms();
   }, [session?.authenticated]);
-  function selectRoom(next: string) {
+  function selectRoom(next: string | null) {
     setCode(next);
-    setDisplayToken(localStorage.getItem(`of_display_${next}`) ?? undefined);
-    history.replaceState(null, '', `/host?code=${next}`);
+    setRecoveryLink('');
+    setDisplayToken(next ? (localStorage.getItem(`of_display_${next}`) ?? undefined) : undefined);
+    history.replaceState(null, '', next ? `/host?code=${next}` : '/host');
+  }
+  async function archiveRoom(target: string, archived: boolean) {
+    setArchiving(true);
+    setError('');
+    try {
+      await post(`/api/rooms/${target}/archive`, { archived });
+      if (archived && code === target) selectRoom(null);
+      await loadRooms();
+      if (!archived) selectRoom(target);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setArchiving(false);
+    }
   }
   async function create(mode: 'party' | 'rehearsal', marketSource: 'live' | 'fixture' = 'live') {
     setCreating(true);
@@ -630,54 +650,102 @@ function Host() {
         <div className="host-heading">
           <div>
             <span className="eyebrow">Private host view</span>
-            <h1>Waiting room</h1>
+            <h1>
+              {state?.room.phase && state.room.phase !== 'lobby'
+                ? state.room.title
+                : 'Waiting room'}
+            </h1>
           </div>
-          <div className="room-selector">
-            <label>
-              Your parties
-              <select value={code ?? ''} onChange={(e) => selectRoom(e.target.value)}>
-                <option value="" disabled>
-                  Select a party
-                </option>
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.code}>
-                    {r.code} · {r.mode} · {r.phase}
+          <details className="party-management">
+            <summary>Manage parties</summary>
+            <div className="room-selector">
+              <label>
+                Your parties
+                <select value={code ?? ''} onChange={(e) => selectRoom(e.target.value)}>
+                  <option value="" disabled>
+                    Select a party
                   </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="button primary"
-              disabled={creating || !enabled}
-              onClick={() => void create('rehearsal')}
-            >
-              {creating ? 'Creating…' : '+ New rehearsal'}
-            </button>
-            <button
-              className="button secondary"
-              disabled={creating}
-              onClick={() => void create('party')}
-            >
-              + New party
-            </button>
-            {enabled && (
+                  {rooms
+                    .filter((r) => !r.archived)
+                    .map((r) => (
+                      <option key={r.id} value={r.code}>
+                        {r.code} · {r.mode} · {r.phase}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <button
+                className="button primary"
+                disabled={creating || !enabled}
+                onClick={() => void create('rehearsal')}
+              >
+                {creating ? 'Creating…' : '+ New rehearsal'}
+              </button>
               <button
                 className="button secondary"
                 disabled={creating}
-                onClick={() => void create('party', 'fixture')}
+                onClick={() => void create('party')}
               >
-                + Fixture party
+                + New party
               </button>
-            )}
-          </div>
+              {enabled && (
+                <button
+                  className="button secondary"
+                  disabled={creating}
+                  onClick={() => void create('party', 'fixture')}
+                >
+                  + Fixture party
+                </button>
+              )}
+              {code && (
+                <button
+                  className="button secondary"
+                  disabled={
+                    archiving || room.busy || !state || state.players.some((p) => p.connected)
+                  }
+                  onClick={() => void archiveRoom(code, true)}
+                >
+                  Archive party
+                </button>
+              )}
+            </div>
+          </details>
         </div>
+        {code && state?.players.some((p) => p.connected) && (
+          <p className="fine-print">Archiving is available once all players disconnect.</p>
+        )}
+        {rooms.some((r) => r.archived) && (
+          <details className="archived-parties">
+            <summary>Archived parties ({rooms.filter((r) => r.archived).length})</summary>
+            <p className="fine-print">
+              Scores and history are preserved. Restore a party to reopen it; elapsed timers stay
+              expired.
+            </p>
+            {rooms
+              .filter((r) => r.archived)
+              .map((r) => (
+                <div className="archived-party" key={r.id}>
+                  <span>
+                    <strong>{r.code}</strong> · {r.mode} · {r.phase}
+                  </span>
+                  <button
+                    className="button secondary"
+                    disabled={archiving}
+                    onClick={() => void archiveRoom(r.code, false)}
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+          </details>
+        )}
         <ErrorNote text={error || room.error} />
         {(!state || state.room.mode === 'rehearsal') && (
           <div className="notice">
             <span aria-hidden="true">🎈</span>
             <div>
               <strong>First, a sound check.</strong> This rehearsal tests the room, countdown, and
-              everyone’s connection. Game rounds are coming next. No tokens are spent.
+              everyone’s connection. No tokens are spent.
             </div>
           </div>
         )}
@@ -800,7 +868,7 @@ function Host() {
                     command={room.command}
                   />
                 )}
-                <div className="actions">
+                <div className="actions round-actions">
                   {state.room.status === 'pending' && (
                     <button
                       className="button primary"
@@ -877,62 +945,38 @@ function Host() {
               {!state.players.length ? (
                 <p className="empty-copy">Waiting for your first guest. Share the code above.</p>
               ) : (
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Player</th>
-                        <th>Status</th>
-                        <th>Available</th>
-                        <th>Invested</th>
-                        <th>Reserved</th>
-                        <th>Recovery</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {state.host?.players.map((p) => (
-                        <tr key={p.id}>
-                          <td>
-                            <span className="avatar-small">{p.emoji}</span>
-                            <strong>{p.name}</strong>
-                          </td>
-                          <td>
-                            <span className={`status-dot ${p.connected ? 'is-online' : ''}`} />
-                            {!p.connected
-                              ? 'Away'
-                              : p.checkedIn
-                                ? 'Checked in'
-                                : p.ready
-                                  ? 'Ready'
-                                  : 'Getting settled'}
-                          </td>
-                          <td>{p.accounts.spendable.toLocaleString()}</td>
-                          <td>{p.accounts.locked.toLocaleString()}</td>
-                          <td>{p.accounts.reserved.toLocaleString()}</td>
-                          <td>
-                            <button
-                              className="text-button"
-                              onClick={async () => {
-                                try {
-                                  const data = await post<{ token: string }>(
-                                    `/api/rooms/${code}/recovery`,
-                                    { playerId: p.id },
-                                  );
-                                  setRecoveryLink(
-                                    `${location.origin}/play?code=${code}#recover=${data.token}`,
-                                  );
-                                } catch (err) {
-                                  setError((err as Error).message);
-                                }
-                              }}
-                            >
-                              Recover
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="mobile-roster">
+                  {state.host?.players.map((p) => (
+                    <details key={p.id}>
+                      <summary>
+                        {p.emoji} <strong>{p.name}</strong>
+                        <span>{p.connected ? 'Connected' : 'Away'}</span>
+                      </summary>
+                      <div className="account-details">
+                        <p>Available: {p.accounts.spendable.toLocaleString()}</p>
+                        <p>Invested: {p.accounts.locked.toLocaleString()}</p>
+                        <p>Reserved: {p.accounts.reserved.toLocaleString()}</p>{' '}
+                        <button
+                          className="text-button"
+                          onClick={async () => {
+                            try {
+                              const data = await post<{ token: string }>(
+                                `/api/rooms/${code}/recovery`,
+                                { playerId: p.id },
+                              );
+                              setRecoveryLink(
+                                `${location.origin}/play?code=${code}#recover=${data.token}`,
+                              );
+                            } catch (err) {
+                              setError((err as Error).message);
+                            }
+                          }}
+                        >
+                          Recover
+                        </button>
+                      </div>
+                    </details>
+                  ))}
                 </div>
               )}
             </section>
@@ -983,11 +1027,21 @@ function Host() {
     </div>
   );
 }
+function useRotatingPage(count: number, size: number) {
+  const [page, setPage] = useState(0);
+  const pages = Math.max(1, Math.ceil(count / size));
+  useEffect(() => {
+    const timer = setInterval(() => setPage((p) => (p + 1) % pages), 8000);
+    return () => clearInterval(timer);
+  }, [pages]);
+  return page % pages;
+}
 function Display() {
   const code = new URLSearchParams(location.search).get('code')?.toUpperCase() ?? null;
   const token = location.hash.slice(1);
   const room = useRoom('display', code, token);
   const state = room.state;
+  const rosterPage = useRotatingPage(state?.players.length ?? 0, 8);
   if (!code || !token)
     return (
       <Loading error="Open the TV display using the private link in your host control room." />
@@ -1010,7 +1064,7 @@ function Display() {
           </div>
         }
       />
-      <main className="display-main">
+      <main className={`display-main ${state.powerball ? 'has-ball-machine' : ''}`}>
         <div className="display-hero">
           <div>
             <span className="eyebrow">
@@ -1050,11 +1104,23 @@ function Display() {
               <Qr code={code} />
             </div>
           ) : (
-            <Timer state={state} offset={room.clockOffset} />
+            <>
+              {state.room.status === 'open' ? (
+                <Timer state={state} offset={room.clockOffset} />
+              ) : (
+                <span className="round-state">
+                  {state.room.status === 'pending'
+                    ? 'Starting soon'
+                    : state.powerball && !state.powerball.revealed
+                      ? 'Betting closed'
+                      : 'Round complete'}
+                </span>
+              )}
+            </>
           )}
         </div>
         <ErrorNote text={room.error} />
-        <Ranking state={state} />
+        <Ranking state={state} display />
         {state.room.status !== 'pending' && state.powerball && (
           <PowerballDisplay state={state.powerball} />
         )}
@@ -1083,8 +1149,10 @@ function Display() {
               : ''}
           </span>
         </div>
-        <div className="guest-grid">
-          {state.players.map((p) => (
+        <div
+          className={`guest-grid ${state.room.phase !== 'lobby' && state.room.phase !== 'connection-check' ? 'roster-during-game' : ''}`}
+        >
+          {state.players.slice(rosterPage * 8, rosterPage * 8 + 8).map((p) => (
             <div key={p.id} className={`guest-chip ${p.checkedIn ? 'checked' : ''}`}>
               <span>{p.emoji}</span>
               <strong>{p.name}</strong>

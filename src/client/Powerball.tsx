@@ -1,6 +1,47 @@
 import React, { useState } from 'react';
 import type { PowerballColor, PowerballProjection } from '../server/games/powerball.js';
 import type { PublicPlayer } from '../shared/contracts.js';
+import { GAME_MOTION, useDrawPresentation } from './game-motion.js';
+
+function BallMachine({
+  state,
+  animating,
+  complete,
+}: {
+  state: PowerballProjection;
+  animating: boolean;
+  complete: boolean;
+}) {
+  const color = complete ? state.winningColor : null;
+  return (
+    <div
+      className={`ball-machine ${animating ? 'is-drawing' : ''} ${complete ? 'is-revealed' : ''}`}
+      aria-busy={animating}
+    >
+      <div className="ball-box" aria-hidden="true">
+        <span className="box-label">Red or blue?</span>
+        <div className="mixing-balls">
+          {Array.from({ length: 6 }, (_, i) => (
+            <span key={i} className={`mixing-ball ${i % 2 ? 'blue' : 'red'}`} />
+          ))}
+        </div>
+        <span className="ball-door" />
+      </div>
+      <div className="ball-ramp" aria-hidden="true">
+        {color && <span className={`drawn-ball ${color}`}>{color === 'red' ? 'R' : 'B'}</span>}
+      </div>
+      <p className="draw-status" role="status" aria-live="polite">
+        {animating
+          ? 'Mixing the balls…'
+          : color
+            ? `${color === 'red' ? 'Red' : 'Blue'}!`
+            : state.drawn
+              ? 'Ready for the host’s reveal.'
+              : 'Pick a color. Take a chance.'}
+      </p>
+    </div>
+  );
+}
 
 export interface PowerballViewProps {
   state: PowerballProjection;
@@ -15,13 +56,14 @@ export interface PowerballViewProps {
   onReveal: () => void;
 }
 export function PowerballPlayer(props: PowerballViewProps) {
+  const presentation = useDrawPresentation(props.state.revealed);
   const [color, setColor] = useState<PowerballColor>(props.state.ownBet?.color ?? 'red');
   const [amount, setAmount] = useState(String(props.state.ownBet?.amount ?? ''));
   const bet = props.state.ownBet;
   return (
-    <section>
-      <h2>Red or blue</h2>
-      {props.state.revealed ? (
+    <section className="game-panel" aria-label="Red or blue">
+      <BallMachine state={props.state} {...presentation} />
+      {presentation.complete ? (
         <>
           <p>The draw is {props.state.winningColor}.</p>
           {bet ? (
@@ -32,6 +74,8 @@ export function PowerballPlayer(props: PowerballViewProps) {
             <p>You did not place a bet.</p>
           )}
         </>
+      ) : props.state.revealed ? (
+        <p>The result is on its way…</p>
       ) : (
         <>
           <p>
@@ -49,17 +93,21 @@ export function PowerballPlayer(props: PowerballViewProps) {
               ? `Available: ${props.spendable} tokens${bet ? ` plus ${bet.amount} currently reserved` : ''}.`
               : 'Available balance hidden. Tap Tokens to reveal it.'}
           </p>
-          <label>
-            Side{' '}
-            <select
-              value={color}
-              disabled={props.disabled || !props.open}
-              onChange={(e) => setColor(e.target.value as PowerballColor)}
-            >
-              <option value="red">Red</option>
-              <option value="blue">Blue</option>
-            </select>
-          </label>
+          <div className="color-choices" role="group" aria-label="Choose a color">
+            {(['red', 'blue'] as const).map((side) => (
+              <button
+                key={side}
+                className={`color-choice ${side}`}
+                aria-pressed={color === side}
+                disabled={props.disabled || !props.open}
+                onClick={() => setColor(side)}
+              >
+                <span aria-hidden="true">●</span>
+                {side === 'red' ? 'Red' : 'Blue'}
+                {color === side ? ' ✓' : ''}
+              </button>
+            ))}
+          </div>
           <label>
             Stake{' '}
             <input
@@ -93,18 +141,27 @@ export function PowerballPlayer(props: PowerballViewProps) {
   );
 }
 export function PowerballHost(props: PowerballViewProps) {
+  const presentation = useDrawPresentation(props.state.revealed);
   return (
-    <section>
+    <section className="powerball-host">
       <h3>Powerball</h3>
+      <BallMachine state={props.state} {...presentation} />
       <p>{props.state.hostBets?.length ?? 0} bets reserved.</p>
-      {props.state.hostBets?.map((bet) => (
-        <p key={bet.playerId}>
-          {props.players.find((p) => p.id === bet.playerId)?.name}: {bet.amount} on {bet.color}
-          {bet.payout === null ? '' : ` · returned ${bet.payout}`}
-        </p>
-      ))}
+      <details>
+        <summary>View reserved bets</summary>
+        {props.state.hostBets?.map((bet) => (
+          <p key={bet.playerId}>
+            {props.players.find((p) => p.id === bet.playerId)?.name}: {bet.amount} on {bet.color}
+            {bet.payout === null || !presentation.complete ? '' : ` · returned ${bet.payout}`}
+          </p>
+        ))}
+      </details>
       {props.state.revealed ? (
-        <p>Draw: {props.state.winningColor}</p>
+        <p>
+          {presentation.complete
+            ? `Draw: ${props.state.winningColor}`
+            : 'Revealing on phones and the display…'}
+        </p>
       ) : !props.state.drawn ? (
         <button
           className="button secondary"
@@ -119,22 +176,25 @@ export function PowerballHost(props: PowerballViewProps) {
           disabled={props.disabled || props.open}
           onClick={props.onReveal}
         >
-          Reveal and settle
+          Reveal ball · {GAME_MOTION.powerballMs / 1000} seconds
         </button>
       )}
     </section>
   );
 }
 export function PowerballDisplay({ state }: Pick<PowerballViewProps, 'state'>) {
+  const presentation = useDrawPresentation(state.revealed);
   return (
-    <section>
-      <h2>Red or blue</h2>
+    <section className="powerball-display" aria-label="Powerball draw">
+      <BallMachine state={state} {...presentation} />
       <p>
-        {state.revealed
+        {presentation.complete
           ? `The draw is ${state.winningColor}.`
-          : state.drawn
-            ? 'The draw is saved. Waiting for the host to reveal it.'
-            : 'Choose your side on your phone.'}
+          : presentation.animating
+            ? 'Here comes the draw…'
+            : state.drawn
+              ? 'Betting is closed. Here comes the reveal.'
+              : 'Choose your side on your phone.'}
       </p>
     </section>
   );

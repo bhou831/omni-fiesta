@@ -52,7 +52,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 7) {
+    if (schemaVersion > 8) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -91,6 +91,10 @@ export class Store {
       this.db.exec(`BEGIN IMMEDIATE; ${somebodyCallingSchema} PRAGMA user_version=6; COMMIT;`);
     if (schemaVersion < 7)
       this.db.exec(`BEGIN IMMEDIATE; ${powerballSchema} PRAGMA user_version=7; COMMIT;`);
+    if (schemaVersion < 8)
+      this.db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE IF NOT EXISTS archived_rooms(room_id TEXT PRIMARY KEY REFERENCES rooms(id), archived_at INTEGER NOT NULL);
+        PRAGMA user_version=8; COMMIT;`);
   }
 
   transaction<T>(run: () => T): T {
@@ -108,7 +112,29 @@ export class Store {
     const row = this.db.prepare('SELECT * FROM rooms WHERE id=?').get(id) as unknown as
       RoomRow | undefined;
     requireRule(row, 'ROOM_NOT_FOUND', 'Party not found.', 404);
+    requireRule(
+      !this.isArchived(id),
+      'ROOM_ARCHIVED',
+      'This party is archived. Ask the host to restore it.',
+      410,
+    );
     return row;
+  }
+  isArchived(roomId: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM archived_rooms WHERE room_id=?').get(roomId);
+  }
+  /** Reversible cleanup: keep players, sessions, draws and the complete ledger. */
+  setArchived(code: string, archived: boolean, now: number): string {
+    return this.transaction(() => {
+      const room = this.db.prepare('SELECT id FROM rooms WHERE code=?').get(code.toUpperCase()) as
+        { id: string } | undefined;
+      requireRule(room, 'ROOM_NOT_FOUND', 'Party not found.', 404);
+      const result = archived
+        ? this.db.prepare('INSERT OR IGNORE INTO archived_rooms VALUES(?,?)').run(room.id, now)
+        : this.db.prepare('DELETE FROM archived_rooms WHERE room_id=?').run(room.id);
+      if (result.changes) this.bump(room.id);
+      return room.id;
+    });
   }
   roomByCode(code: string): RoomRow {
     const row = this.db.prepare('SELECT id FROM rooms WHERE code=?').get(code.toUpperCase()) as

@@ -44,6 +44,11 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
       setConnected(false);
       setError('Your session expired. Reload to sign in or join again.');
     });
+    socket.on('room-archived', () => {
+      setConnected(false);
+      setState(null);
+      setError('This party is archived. Ask the host to restore it.');
+    });
     socket.on('state', (next: RoomSnapshot) =>
       setState((previous) =>
         previous?.serverInstance === next.serverInstance &&

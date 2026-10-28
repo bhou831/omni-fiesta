@@ -85,7 +85,10 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
       >
         Assign teams
       </button>
-      <TeamList trivia={trivia} />
+      <details>
+        <summary>View teams and players</summary>
+        <TeamList trivia={trivia} />
+      </details>
       <BuzzStatus trivia={trivia} />
       <p>
         Question {trivia.question || 'not started'} · {trivia.status}

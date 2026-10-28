@@ -84,6 +84,8 @@ Investments, costumes, trivia, slots, Powerball, phone reveal, and the complete 
 
 ## Room for celebration effects
 
+Game interaction update (2026-10-28): slots may use a compact outlined cabinet, rolling emoji reels and a pull handle; Powerball may use a simple outlined mixing box and a falling red/blue ball. Use lightweight CSS transforms, no new animation dependency, accessible text outcomes and reduced-motion/hidden-page fallbacks. Five investment cards use restrained symbol marks and expandable research details. These requested functional game effects are implemented; the optional welcome-page balloons below remain deferred.
+
 The user may later want balloons drifting upward on the welcome page or short confetti bursts on winner reveals. The exact artwork, motion, density, timing, and controls are **deferred**. Do not ship a speculative animation now or let this future work delay the static refresh.
 
 Leave a small, replaceable client-side celebration/decorative layer separate from page content and game logic. It can initially be a static marker or an empty component slot. Its future contract should allow:
@@ -101,3 +103,6 @@ Keep presentation options in client-side UI configuration rather than adding aes
 Apply and inspect all four routes, including sign-in/join forms, validation errors, waiting/open/closed/finished rehearsal states, and host roster. Verify narrow phone widths as well as a landscape host/TV layout. Report the actual viewport used and any real-device limits honestly.
 
 Retain all existing game rules, timers, privacy, sessions, accounting, request handling, and configuration behavior. This direction changes presentation; it does not authorize changing scoring or enabling unfinished games. Use `docs/tasks/party-notebook-ui.md` for the bounded implementation task.
+
+
+2026-10-28 refinement: host and player are portrait-first; TV is landscape-first. Party management and private details use disclosures, with compact round controls. Game machines use restrained rounded surfaces and semantic red/blue accents; the Powerball chamber is circular, slots retain a handle plus a clear Spin button. Desktop TV lays the chamber beside its result. Public lists rotate in small batches to bound screen content.
