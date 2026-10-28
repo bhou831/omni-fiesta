@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, type CSSProperties } from 'react';
 import type { PowerballColor, PowerballProjection } from '../server/games/powerball.js';
 import type { PublicPlayer } from '../shared/contracts.js';
 import { GAME_MOTION, useDrawPresentation } from './game-motion.js';
+
+const BALL_POSITIONS = [
+  [4, 0],
+  [22, 0],
+  [40, 0],
+  [58, 0],
+  [76, 0],
+  [13, 17],
+  [31, 17],
+  [49, 17],
+  [67, 17],
+  [22, 34],
+  [40, 34],
+  [58, 34],
+] as const;
 
 function BallMachine({
   state,
@@ -21,14 +36,28 @@ function BallMachine({
       <div className="ball-box" aria-hidden="true">
         <span className="box-label">Red or blue?</span>
         <div className="mixing-balls">
-          {Array.from({ length: 6 }, (_, i) => (
-            <span key={i} className={`mixing-ball ${i % 2 ? 'blue' : 'red'}`} />
+          {BALL_POSITIONS.map(([x, y], i) => (
+            <span
+              key={i}
+              className={`mixing-ball ${i % 2 ? 'blue' : 'red'}`}
+              style={
+                {
+                  left: `${x}%`,
+                  bottom: `${y}%`,
+                  animationDelay: `${-(i % 4) * 0.16}s`,
+                } as CSSProperties
+              }
+            />
           ))}
         </div>
         <span className="ball-door" />
       </div>
       <div className="ball-ramp" aria-hidden="true">
-        {color && <span className={`drawn-ball ${color}`}>{color === 'red' ? 'R' : 'B'}</span>}
+        {color ? (
+          <span className={`drawn-ball ${color}`}>{color === 'red' ? 'R' : 'B'}</span>
+        ) : state.drawn && !animating ? (
+          <span className="drawn-ball mystery-ball">?</span>
+        ) : null}
       </div>
       <p className="draw-status" role="status" aria-live="polite">
         {animating
@@ -60,16 +89,29 @@ export function PowerballPlayer(props: PowerballViewProps) {
   const [color, setColor] = useState<PowerballColor>(props.state.ownBet?.color ?? 'red');
   const [amount, setAmount] = useState(String(props.state.ownBet?.amount ?? ''));
   const bet = props.state.ownBet;
+  const stakeEnabled = props.open && !props.disabled;
+  const maximum = props.spendable + (bet?.amount ?? 0);
+  const net = bet?.payout == null ? null : bet.payout - bet.amount;
   return (
     <section className="game-panel" aria-label="Red or blue">
       <BallMachine state={props.state} {...presentation} />
       {presentation.complete ? (
         <>
           <p>The draw is {props.state.winningColor}.</p>
-          {bet ? (
-            <p>
-              Your {bet.amount}-token {bet.color} bet returned {bet.payout} tokens.
-            </p>
+          {bet && net !== null ? (
+            <div className="powerball-ticket powerball-result" role="status">
+              <strong>
+                {bet.amount} tokens on {bet.color}
+              </strong>
+              <span>{bet.payout} tokens returned</span>
+              <span>
+                {net > 0
+                  ? `Gain +${net} tokens`
+                  : net < 0
+                    ? `Loss −${Math.abs(net)} tokens`
+                    : 'No change'}
+              </span>
+            </div>
           ) : (
             <p>You did not place a bet.</p>
           )}
@@ -84,9 +126,12 @@ export function PowerballPlayer(props: PowerballViewProps) {
               : 'Betting is closed. Wait for the host to reveal the draw.'}
           </p>
           {bet && (
-            <p>
-              Saved: {bet.amount} tokens on {bet.color}.
-            </p>
+            <div className="powerball-ticket">
+              <strong>
+                {bet.amount} tokens on {bet.color}
+              </strong>
+              <span>Reserved</span>
+            </div>
           )}
           <p>
             {props.revealBalance
@@ -102,7 +147,9 @@ export function PowerballPlayer(props: PowerballViewProps) {
                 disabled={props.disabled || !props.open}
                 onClick={() => setColor(side)}
               >
-                <span aria-hidden="true">●</span>
+                <span className="choice-ball" aria-hidden="true">
+                  {side === 'red' ? 'R' : 'B'}
+                </span>
                 {side === 'red' ? 'Red' : 'Blue'}
                 {color === side ? ' ✓' : ''}
               </button>
@@ -114,11 +161,35 @@ export function PowerballPlayer(props: PowerballViewProps) {
               type="number"
               min="1"
               step="1"
+              inputMode="numeric"
               value={amount}
               disabled={props.disabled || !props.open}
               onChange={(e) => setAmount(e.target.value)}
             />
           </label>
+          <div className="stake-chips" role="group" aria-label="Quick stake amounts">
+            {[50, 100, 200].map((value) => (
+              <button
+                key={value}
+                type="button"
+                className="button secondary"
+                disabled={!stakeEnabled}
+                onClick={() => setAmount(String(value))}
+              >
+                {value}
+              </button>
+            ))}
+            {props.revealBalance && (
+              <button
+                type="button"
+                className="button secondary"
+                disabled={!stakeEnabled || maximum < 1}
+                onClick={() => setAmount(String(maximum))}
+              >
+                Max
+              </button>
+            )}
+          </div>
           <button
             className="button primary"
             disabled={props.disabled || !props.open}

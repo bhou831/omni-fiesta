@@ -159,3 +159,15 @@ At the user's request, collapsed party management, private player/account rows, 
 Build/typecheck and formatting passed. Full suite: 49 passed, six transport tests blocked by localhost EPERM. Browser checked host at 390×844 CSS pixels and Powerball display at 1440×800; the landscape check caught and corrected a vertical layout overflow. Isolated slots markup measured 390px width without horizontal overflow; the browser screenshot scaling was unreliable for that temporary preview. Preview files were removed. Physical-device and full animation lifecycle verification remain outstanding.
 
 Final check note: the repeated repository-wide format check flagged `tests/room-archive.test.ts`, outside this UI change. The earlier formatting check passed; UI files were formatted. Final build/typecheck was run independently.
+
+### Slots presentation refinement (2026-10-28)
+
+Added restrained reel shading, saved-result staggered stops, a finger-tracking mounted handle, a secondary keyboard-accessible spin button, and a compact gross/net payout presentation. Symbols distinguish only a positive return from zero, without assuming configured payout tiers. The existing hidden-page and reduced-motion paths remain. Observed: formatting, typecheck, production build, slot rule tests, and balance-visibility test passed. Browser interaction, real phone touch behavior, and visual reduced-motion verification were not performed for this refinement.
+
+### Powerball presentation refinement (2026-10-28)
+
+Added a lightly shaded chamber with a fixed arrangement of balls and a neutral waiting marker, larger labeled color choices, optional quick stakes (including Max only when balance is revealed), and compact saved-bet/result tickets. Results describe gain, loss or no change without inferring a refund from the payout alone. The committed draw, five-second presentation and reduced-motion/late-join behavior remain unchanged. Observed: seven focused view, balance-privacy and Powerball rule tests passed, along with formatting, typecheck and build. Browser, physical-phone and reduced-motion visual checks remain outstanding for this refinement.
+
+### Investment card refinement (2026-10-28)
+
+Added an accessible opening-price position within a valid 24-hour range, clearer gain/loss indicators, compact volume, precision-aware small prices, and a per-100-token what-if table using the same decimal payout calculation and saved multiplier as settlement. The hypothetical zero-payout threshold is labeled as an estimate and is not shown as possible for a 100% fall when the configured multiplier is below one. Missing/inconsistent range data remains unavailable; no historical classifications or additional provider calls were added. Observed: five focused investment view/math and balance-privacy tests passed; formatting, typecheck and build passed. Browser and physical-phone layout verification remain outstanding for this change.
