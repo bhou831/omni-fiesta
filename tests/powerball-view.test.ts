@@ -34,7 +34,7 @@ test('Powerball reports gains, losses and break-even accurately', () => {
   assert.match(draw(100), /No change/);
   assert.doesNotMatch(draw(100), /refund|win/i);
 });
-test('quick Max does not disclose hidden balance', () => {
+test('stake slider spans zero to the player maximum in whole tokens', () => {
   const state: PowerballProjection = {
     ownBet: null,
     drawn: false,
@@ -57,17 +57,21 @@ test('quick Max does not disclose hidden balance', () => {
         onReveal: () => {},
       }),
     );
-  assert.doesNotMatch(view(false), />Max<|987/);
-  assert.match(view(true), />Max<|987/);
+  // Accepted: the slider reveals the player's own balance even while the token toggle is hidden.
+  for (const reveal of [false, true])
+    assert.match(view(reveal), /type="range"[^>]*max="987"|max="987"[^>]*type="range"/);
 });
 
+// The machine only exists on the TV; phones never render it.
 const machine = (state: PowerballProjection) =>
+  renderToStaticMarkup(createElement(PowerballDisplay, { state }));
+const phone = (state: PowerballProjection, open = false) =>
   renderToStaticMarkup(
     createElement(PowerballPlayer, {
       state,
       players: [],
       spendable: 987,
-      open: false,
+      open,
       disabled: false,
       onBet: () => {},
       onCancel: () => {},
@@ -75,6 +79,26 @@ const machine = (state: PowerballProjection) =>
       onReveal: () => {},
     }),
   );
+test('phones show no machine or draw, only a cue to watch the TV', () => {
+  for (const state of [
+    { drawn: false, revealed: false, winningColor: null },
+    { drawn: true, revealed: false, winningColor: null },
+    { drawn: true, revealed: true, winningColor: 'blue' as const },
+  ])
+    assert.doesNotMatch(
+      phone({ ownBet: null, hostBets: null, ...state }),
+      /gumball|gb-|Mixing the balls|Result: /,
+    );
+  // A reload after the reveal shows the saved result at once, with no draw to watch.
+  assert.match(
+    phone({ ownBet: null, drawn: true, revealed: true, winningColor: 'blue', hostBets: null }),
+    /did not place a bet/,
+  );
+  assert.match(
+    phone({ ownBet: null, drawn: false, revealed: false, winningColor: null, hostBets: null }),
+    /Watch the screen for the draw/,
+  );
+});
 test('gumball machine shows the capsule only once the draw is ready or revealed', () => {
   const idle = machine({
     ownBet: null,
@@ -129,7 +153,7 @@ test('TV shows live bet counts per color and highlights only the revealed winner
   assert.doesNotMatch(done, /tally-side is-red is-result/);
 });
 test('phones never render the public tally', () => {
-  const html = machine({
+  const html = phone({
     ownBet: null,
     drawn: false,
     revealed: false,

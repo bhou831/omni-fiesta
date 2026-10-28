@@ -12,7 +12,7 @@ import { Store, type RoomRow, type Session } from './store.js';
 import { requireRule } from './errors.js';
 import { connectionCheck, type PhaseModule } from './phases.js';
 import { validateSnapshot } from '../games/market.js';
-import { settleInvestments, snapshot as marketSnapshot, position } from '../games/investments.js';
+import { settleInvestments, snapshot as marketSnapshot, positions } from '../games/investments.js';
 import { costumeHostAction, costumeProjection } from '../games/costume.js';
 import { triviaHostAction, triviaProjection } from '../games/trivia.js';
 import { slotsPlayerState, slotsHostState, slotsDisplayState } from '../games/slots.js';
@@ -372,7 +372,7 @@ export class Engine {
           assets: context.config.investments.assets,
           cap: context.config.investments.max_investment_tokens,
           multiplier: context.config.investments.return_multiplier,
-          position: viewer.role === 'player' ? (position(context, viewer.playerId) ?? null) : null,
+          positions: viewer.role === 'player' ? positions(context, viewer.playerId) : [],
         };
       }
       if (room.phase === 'costume')

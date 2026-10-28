@@ -12,6 +12,7 @@ export interface CostumeViewProps {
   allowSelfVote: boolean;
   onVote: (candidateId: string) => void;
   onReveal: () => void;
+  onRevote?: () => void;
 }
 
 function Results({ state }: { state: CostumeProjection }) {
@@ -34,11 +35,14 @@ export function CostumePlayer(props: CostumeViewProps) {
   const { state, players, selfId, open, disabled, allowSelfVote, onVote } = props;
   return (
     <section>
-      <h2>Vote for a costume</h2>
+      <h2>{state.round > 1 ? 'Tie-break vote' : 'Vote for a costume'}</h2>
       {state.revealed ? (
         <Results state={state} />
       ) : (
         <>
+          {state.round > 1 && !state.revealed && (
+            <p>Tied for first. Vote again between the players below.</p>
+          )}
           <p>
             {open
               ? 'Choose one person. You can change your vote until voting closes.'
@@ -49,6 +53,7 @@ export function CostumePlayer(props: CostumeViewProps) {
           )}
           <div className="costume-choices">
             {players
+              .filter((p) => !state.candidates || state.candidates.some((c) => c.playerId === p.id))
               .filter((p) => allowSelfVote || p.id !== selfId)
               .map((p) => (
                 <button
@@ -70,18 +75,38 @@ export function CostumePlayer(props: CostumeViewProps) {
   );
 }
 export function CostumeHost(props: CostumeViewProps) {
+  const tied = props.state.tiedForFirst.map(
+    (id) => props.players.find((p) => p.id === id)?.name ?? 'A player',
+  );
   return (
     <section>
       <h3>Costume voting</h3>
       <p>
         {props.state.voteCount} {props.state.voteCount === 1 ? 'vote' : 'votes'} received.
       </p>
+      {props.state.round > 1 && !props.state.revealed && (
+        <p>Re-vote round {props.state.round}: only the players tied for first can win.</p>
+      )}
       {!props.state.revealed && <p>Private preview; results become public when revealed.</p>}
       <Results state={props.state} />
+      {tied.length > 0 && (
+        <p className="notice">
+          Tied for first: {tied.join(', ')}. Start a re-vote to choose one winner.
+        </p>
+      )}
+      {!props.state.revealed && tied.length > 0 && (
+        <button
+          className="button primary"
+          disabled={props.disabled || props.open}
+          onClick={props.onRevote}
+        >
+          Start re-vote between {tied.length} players
+        </button>
+      )}
       {!props.state.revealed && (
         <button
           className="button secondary"
-          disabled={props.disabled || props.open}
+          disabled={props.disabled || props.open || tied.length > 0}
           onClick={props.onReveal}
         >
           Settle and reveal results
@@ -91,5 +116,18 @@ export function CostumeHost(props: CostumeViewProps) {
   );
 }
 export function CostumeDisplay({ state }: Pick<CostumeViewProps, 'state'>) {
-  return <section>{state.revealed && <Results state={state} />}</section>;
+  return (
+    <section>
+      {state.revealed && <Results state={state} />}
+      {!state.revealed && state.candidates && (
+        <ul className="tie-candidates" aria-label="Tied for first">
+          {state.candidates.map((c) => (
+            <li key={c.playerId}>
+              <span aria-hidden="true">{c.emoji}</span> {c.name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
 }

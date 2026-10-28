@@ -52,7 +52,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 10) {
+    if (schemaVersion > 12) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -101,6 +101,23 @@ export class Store {
       );
     if (schemaVersion < 10)
       this.db.exec(`BEGIN IMMEDIATE; ${TRIVIA_RECEIPTS_SCHEMA} PRAGMA user_version=10; COMMIT;`);
+    // A player may now hold one position per asset (previously one position in total).
+    if (schemaVersion < 11)
+      this.db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE investments_v11(room_id TEXT NOT NULL REFERENCES rooms(id), player_id TEXT NOT NULL REFERENCES players(id), asset_id TEXT NOT NULL, principal INTEGER NOT NULL CHECK(principal>0), payout INTEGER, PRIMARY KEY(room_id,player_id,asset_id));
+        INSERT INTO investments_v11(room_id,player_id,asset_id,principal,payout) SELECT room_id,player_id,asset_id,principal,payout FROM investments;
+        DROP TABLE investments;
+        ALTER TABLE investments_v11 RENAME TO investments;
+        PRAGMA user_version=11; COMMIT;`);
+    // Costume votes belong to a round so a tie for first can be settled by re-votes.
+    if (schemaVersion < 12)
+      this.db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE costume_votes_v12(room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL, round INTEGER NOT NULL DEFAULT 1, voter_id TEXT NOT NULL REFERENCES players(id), candidate_id TEXT NOT NULL REFERENCES players(id), PRIMARY KEY(room_id,phase_instance,round,voter_id));
+        INSERT INTO costume_votes_v12(room_id,phase_instance,round,voter_id,candidate_id) SELECT room_id,phase_instance,1,voter_id,candidate_id FROM costume_votes;
+        DROP TABLE costume_votes;
+        ALTER TABLE costume_votes_v12 RENAME TO costume_votes;
+        CREATE TABLE IF NOT EXISTS costume_rounds(room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL, round INTEGER NOT NULL, candidates TEXT NOT NULL, PRIMARY KEY(room_id,phase_instance,round));
+        PRAGMA user_version=12; COMMIT;`);
   }
 
   transaction<T>(run: () => T): T {

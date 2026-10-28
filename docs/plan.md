@@ -254,3 +254,11 @@ The TV now renders on a fixed 1920×1080 stage scaled to the window (`DisplayFra
 ## Checkpoint: pre-party polish (2026-10-28)
 
 Implemented from the independent UI review: single costume result numbering, party copy no longer names a weekday, neutral investment ticker marks, consistent arrows and disclosure markers, no decorative emoji on host or result screens, shared `formatTokens`, unified "Connection check" naming, "bet" wording, readable host labels, final-ranking top-three emphasis, centered Powerball status, and fainter disabled buttons. Verified 2026-10-28: `npm run format:check`, `npm run typecheck`, `npm test` (79 pass, 0 fail) and `npm run build` all pass; the costume, closing bell, Powerball, final ranking, Somebody’s calling and trivia host screens were checked in headless Chrome. The last ranking-column spacing tweak was not re-screenshotted.
+
+## Checkpoint: second feedback round (2026-10-28)
+
+Assumptions recorded: the investment cap applies to a player's total across assets; saving replaces the whole portfolio; a costume re-vote only orders players who were tied for first and repeats while the top is tied (an all-zero re-vote leaves the tie standing); avatars stay on the 24 presets (a custom emoji field was built, reviewed and removed for simplicity).
+
+Implemented: multi-asset investing (schema v11, per-asset positions, per-asset settlement keys, checkbox cards with a pinned total bar); Powerball stake slider, selected-ball spacing fix and no machine on phones; balloons fixed and bolder fireworks on every stage; costume tie-for-first re-votes (schema v12, `revote` host action, tie-break voting, host and TV UI). Updated rule tests and added tests for multi-position settlement, v10 migration, phones without the machine, and repeated re-votes.
+
+Follow-up (2026-10-28): investment cards now lead with a live-chart link button, collapse the payoff table, sit on an opaque background, and keep the unsaved draft in session storage. No chart is embedded and no extra market calls were added.

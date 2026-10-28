@@ -24,29 +24,29 @@ For local UI development, `just preview [game]` opens an isolated, in-memory gal
 
 ## Experiences
 
-| View | Route | Behavior |
-| --- | --- | --- |
-| Player | `/play` | Portrait; profile emoji/name; current stage; confirmed submissions; personal balance hidden initially, tap to toggle. |
-| Host | `/host` | Authenticated private console; joined/ready/disconnected roster; every player's balance and transactions; game controls and configurable scoring. |
+| View    | Route     | Behavior                                                                                                                                                      |
+| ------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Player  | `/play`   | Portrait; profile emoji/name; current stage; confirmed submissions; personal balance hidden initially, tap to toggle.                                         |
+| Host    | `/host`   | Authenticated private console; joined/ready/disconnected roster; every player's balance and transactions; game controls and configurable scoring.             |
 | Display | `/screen` | Landscape; join QR/room code, instructions, applicable countdown, public results, and host-triggered reveals. Receives no phone numbers or private host data. |
 
-The lobby lists actual joined players only. There is no expected guest list or missing-guest comparison. Profiles require name, phone, and an emoji from a provided set. Email is optional and unused by gameplay; omitted or blank email is accepted, and a supplied address is validated. Email/SMS verification is not required for this version. Persistent player sessions support rejoining. Use an authenticated host session; knowing `/host` is not authorization.
+The lobby lists actual joined players only. There is no expected guest list or missing-guest comparison. Profiles require name, phone, and an emoji from a provided set of 24 (decided 2026-10-28: custom emoji were considered and dropped for simplicity). Email is optional and unused by gameplay; omitted or blank email is accepted, and a supplied address is validated. Email/SMS verification is not required for this version. Persistent player sessions support rejoining. Use an authenticated host session; knowing `/host` is not authorization.
 
 The private host view and TV display are separate so balances and the selected phone number stay private until intentional reveals. A host browser uses an extended screen or a separate control device. Trivia questions remain in external PowerPoint slides.
 
 ## Stage sequence
 
-| Order | Stage | Behavior | Session countdown |
-| --- | --- | --- | --- |
-| 0 | Lobby | Join, choose profile, mark ready; host starts. | None |
-| 1 | Investment selection | One asset per player; starting grant, investment cap, locked stake, amplified return. | Configuration: `timers.investment_selection_seconds` |
-| 2 | Costume contest | One vote per player; award top three distinct vote groups; penalize lowest group when outside prize places. | Configuration: `timers.costume_voting_seconds` |
-| 3 | Trivia | Host assigns balanced teams, arms buzzer, judges answers, and awards each teammate. | None |
-| 4 | Slots | Optional paid spins with immediate independent results, up to configured limit. | Configuration: `timers.slots_seconds` |
-| 5 | Powerball | Red/blue proportional pool betting; host locks, draws, and reveals. | Configuration: `timers.powerball_betting_seconds` |
-| 6 | Investment review | Fetch one closing snapshot and settle all locked investments once. | None |
-| 7 | Somebody's Calling | Free entry; one private random player selection; host calls manually, then reveals and awards. | None |
-| 8 | Finish | Show the complete final ranking from first through last. | None |
+| Order | Stage                | Behavior                                                                                                                           | Session countdown                                    |
+| ----- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 0     | Lobby                | Join, choose profile, mark ready; host starts.                                                                                     | None                                                 |
+| 1     | Investment selection | One or more assets per player, with the cap applying to the total; starting grant, investment cap, locked stake, amplified return. | Configuration: `timers.investment_selection_seconds` |
+| 2     | Costume contest      | One vote per player; award top three distinct vote groups; penalize lowest group when outside prize places.                        | Configuration: `timers.costume_voting_seconds`       |
+| 3     | Trivia               | Host assigns balanced teams, arms buzzer, judges answers, and awards each teammate.                                                | None                                                 |
+| 4     | Slots                | Optional paid spins with immediate independent results, up to configured limit.                                                    | Configuration: `timers.slots_seconds`                |
+| 5     | Powerball            | Red/blue proportional pool betting; host locks, draws, and reveals.                                                                | Configuration: `timers.powerball_betting_seconds`    |
+| 6     | Investment review    | Fetch one closing snapshot and settle all locked investments once.                                                                 | None                                                 |
+| 7     | Somebody's Calling   | Free entry; one private random player selection; host calls manually, then reveals and awards.                                     | None                                                 |
+| 8     | Finish               | Show the complete final ranking from first through last.                                                                           | None                                                 |
 
 Only those four action sessions have countdowns. Advancing to a timed stage places it in a waiting state; the host starts its timer explicitly, and player actions open at that moment. Display the same server-based countdown on phones, the TV, and optionally the host. Unsubmitted actions expire with no automatic choice, charge, vote, bet, or spin. Previously accepted actions remain valid and still settle. After expiry, show a waiting state until the host proceeds.
 
@@ -70,17 +70,17 @@ Show the S&P 500 choice as **S&P 500 proxy — SPYx**. It is a tokenized ETF pro
 
 The provider change from the earlier Twelve Data candidate is an implementation choice to cover all five instruments through one documented API. Documentation and provider pages establish the intended coverage; authenticated endpoint access, account entitlements, freshness, and Saturday behavior still require integration verification. Do not silently replace an instrument or change providers between opening and settlement.
 
-| Asset / provider ID | Short player-facing description | Research links |
-| --- | --- | --- |
-| Solana (SOL) / `solana` | SOL powers the Solana network, which supports payments and applications. Compare its recent price movement and trading activity before choosing. | [Market and chart](https://www.coingecko.com/en/coins/solana), [Project](https://solana.com/) |
-| Bitcoin (BTC) / `bitcoin` | Bitcoin is a peer-to-peer digital currency. Use its recent movement as a reference when comparing the other crypto choices. | [Market and chart](https://www.coingecko.com/en/coins/bitcoin), [Project](https://bitcoin.org/en/) |
-| Dogecoin (DOGE) / `dogecoin` | Dogecoin is a dog-themed peer-to-peer cryptocurrency. Compare its price range and trading activity with the other choices. | [Market and chart](https://www.coingecko.com/en/coins/dogecoin), [Project](https://dogecoin.com/) |
-| S&P 500 proxy (SPYx) / `sp500-xstock` | SPYx is a tokenized proxy for an ETF tracking large US companies. This game uses the token's USD quote, including weekend token-market movements. | [Market and chart](https://www.coingecko.com/en/coins/sp500-xstock) |
-| Pepe (PEPE) / `pepe` | PEPE is a frog-themed meme token. It adds a speculative choice; use the price range and volume to judge its recent activity. | [Market and chart](https://www.coingecko.com/en/coins/pepe) |
+| Asset / provider ID                   | Short player-facing description                                                                                                                   | Research links                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Solana (SOL) / `solana`               | SOL powers the Solana network, which supports payments and applications. Compare its recent price movement and trading activity before choosing.  | [Market and chart](https://www.coingecko.com/en/coins/solana), [Project](https://solana.com/)      |
+| Bitcoin (BTC) / `bitcoin`             | Bitcoin is a peer-to-peer digital currency. Use its recent movement as a reference when comparing the other crypto choices.                       | [Market and chart](https://www.coingecko.com/en/coins/bitcoin), [Project](https://bitcoin.org/en/) |
+| Dogecoin (DOGE) / `dogecoin`          | Dogecoin is a dog-themed peer-to-peer cryptocurrency. Compare its price range and trading activity with the other choices.                        | [Market and chart](https://www.coingecko.com/en/coins/dogecoin), [Project](https://dogecoin.com/)  |
+| S&P 500 proxy (SPYx) / `sp500-xstock` | SPYx is a tokenized proxy for an ETF tracking large US companies. This game uses the token's USD quote, including weekend token-market movements. | [Market and chart](https://www.coingecko.com/en/coins/sp500-xstock)                                |
+| Pepe (PEPE) / `pepe`                  | PEPE is a frog-themed meme token. It adds a speculative choice; use the price range and volume to judge its recent activity.                      | [Market and chart](https://www.coingecko.com/en/coins/pepe)                                        |
 
 Each compact portrait card must contain:
 
-Present the five assets as collapsed, expandable cards. The cover shows a symbol/mark, name, opening price and 24h change. Opening a card reveals the description, facts, source/time and research links below. A separate Choose action changes the draft selection; the amount and Save investment action commit it. Researching a card alone never moves tokens.
+Present the five assets as cards with a checkbox to invest and a separate control to expand details. The cover shows a symbol/mark, name, opening price and 24h change. Opening a card reveals the description, facts, source/time and research links below. Ticking a card adds it to the draft; each ticked asset has its own amount, and Save investments commits the whole set. Researching a card alone never moves tokens.
 
 - Name, symbol, category, and the short description above.
 - Opening USD price, 24-hour percentage change, 24-hour high/low, and reported 24-hour USD trading volume, when supplied by the provider.
@@ -106,7 +106,7 @@ Personal phone numbers/emails are not public. Balances are sent only to their ow
 - Proposed single-instance stack: TypeScript, React, Node.js/Socket.IO, SQLite on durable disk, and Caddy HTTPS on Lightsail. This is a design, not an already deployed environment.
 - Session durations currently default to 120/60/90/60 seconds; all four are editable in configuration before starting a party.
 - Red/blue draw uses 50/50 server randomness, stakes on one side, proportional payouts, and a refund if the selected side has no bettors.
-- No accepted costume ballots means no awards or penalties. With one player, no self-voting is possible; host can close or skip the empty contest.
+- A tie for first place is settled by re-vote: the host starts a re-vote among only the tied players with a fresh timer, repeating until one player leads; results cannot be revealed while a tie for first stands (if nobody votes in a re-vote, the tie stands). Re-votes only order players who were tied; ties for second or lower still share the full prize. No accepted costume ballots means no awards or penalties. With one player, no self-voting is possible; host can close or skip the empty contest.
 - Confirmed submissions may be revised before expiry; the server adjusts reservations atomically. Spins are final when accepted.
 - Exact profile identifiers, guest recovery procedure, API access, and deployment commands will be established during implementation and rehearsal, not reported as complete here.
 
@@ -119,7 +119,6 @@ Reviewed 2026-10-27; recheck live integration before the party.
 - [CoinGecko tokenized-asset guide](https://www.coingecko.com/learn/track-tokenized-stocks-rwa-data): includes the `sp500-xstock` API ID.
 - Asset and project pages are linked in the research-card table above. No current market numbers have been copied into configuration or treated as party opening quotes.
 
-
 ## Round presentation refinement (2026-10-28)
 
 Keep one game title and one large rules block on the TV, followed by live teams, a machine or results. Avoid repeating the title in an eyebrow and nested game headings. Use the guest-facing names: **2 minute quantitative researcher**, **Best dressed**, **Tracy’s themed trivia**, **Tonight I am Venetian**, **Powerball red or blue**, **The closing bell**, **Somebody’s calling**. These are presentation names; internal stage IDs stay stable.
@@ -129,7 +128,6 @@ Use subtle hedge-fund green/serif investment accents, Venetian brass/warm casino
 The public closing bell shows all configured assets with opening/closing quotes, directional market returns and game returns per 100 tokens invested. The player sees a large personal token gain/loss, stake, returned amount and settlement state, with prices/timestamps/math in a disclosure. Pending estimates must say they are not yet credited. Public cards never expose individual positions or private balances.
 
 Show the invite QR in the lobby only. New registrations remain closed once the party starts. Disconnection never removes a player, tokens, a team or an accepted action; reconnect with the existing session or use the host-assisted recovery link. Keep TV access and connection help available to the host during play.
-
 
 ## Action clarity and trivia corrections (2026-10-28)
 

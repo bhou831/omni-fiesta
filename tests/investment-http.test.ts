@@ -155,7 +155,7 @@ test('investment HTTP and sockets preserve role privacy and committed state', as
     '',
     room.displayToken,
   );
-  assert.equal(publicState.data.investments.position, null);
+  assert.deepEqual(publicState.data.investments.positions, []);
   assert.doesNotMatch(
     JSON.stringify(publicState.data),
     /private@example|2125550100|spendable|principal/,
@@ -206,7 +206,7 @@ test('investment HTTP and sockets preserve role privacy and committed state', as
   const review = (await request(`/api/rooms/${room.code}/state`, undefined, joined.cookie)).data;
   assert.equal(review.self.accounts.locked, 0);
   assert.equal(review.self.accounts.spendable, 1000);
-  assert.equal(review.investments.position.payout, 600);
+  assert.equal(review.investments.positions[0].payout, 600);
   assert.equal(
     (
       await request(

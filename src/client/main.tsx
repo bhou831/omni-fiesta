@@ -897,6 +897,7 @@ function Host() {
                     allowSelfVote={state.costume.allowSelfVote}
                     onVote={() => {}}
                     onReveal={() => void room.command('phase.host', { action: 'reveal' })}
+                    onRevote={() => void room.command('phase.host', { action: 'revote' })}
                   />
                 )}
                 {state.trivia && (
@@ -1067,7 +1068,7 @@ function Host() {
               <details className="ledger">
                 <summary>Private investment positions</summary>
                 {state.host?.investments.map((pos) => (
-                  <p key={pos.player_id}>
+                  <p key={`${pos.player_id}:${pos.asset_id}`}>
                     {state.players.find((p) => p.id === pos.player_id)?.name}:{' '}
                     {state.investments?.assets.find((a) => a.provider_id === pos.asset_id)
                       ?.symbol ?? pos.asset_id}
@@ -1104,14 +1105,8 @@ function useRotatingPage(count: number, size: number) {
   }, [pages]);
   return page % pages;
 }
-/** Decorative balloons behind content; fireworks stay in the waiting room, where nothing competes. */
-function AmbientCelebration({
-  fireworks = false,
-  light = false,
-}: {
-  fireworks?: boolean;
-  light?: boolean;
-}) {
+/** Balloons and fireworks behind content on every stage; `light` is the smaller phone version. */
+function AmbientCelebration({ light = false }: { light?: boolean }) {
   const [hidden, setHidden] = useState(document.hidden);
   useEffect(() => {
     const update = () => setHidden(document.hidden);
@@ -1123,13 +1118,12 @@ function AmbientCelebration({
       className={`ambient-celebration ${light ? 'is-light' : ''} ${hidden ? 'is-paused' : ''}`}
       aria-hidden="true"
     >
-      {[0, 1, 2, 3, 4, 5].map((i) => (
+      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
         <span key={`balloon-${i}`} className={`ambient-balloon balloon-${i}`} />
       ))}
-      {fireworks &&
-        [0, 1, 2, 3].map((i) => (
-          <span key={`firework-${i}`} className={`lobby-firework firework-${i}`} />
-        ))}
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <span key={`firework-${i}`} className={`lobby-firework firework-${i}`} />
+      ))}
     </div>
   );
 }
@@ -1168,7 +1162,7 @@ function Display() {
   return (
     <DisplayFrame>
       <div className="page display-page">
-        <AmbientCelebration fireworks={state.room.phase === 'lobby'} />
+        <AmbientCelebration />
         <Header
           right={
             <div className="header-actions">
@@ -1234,25 +1228,27 @@ function Display() {
               {state.slots?.role === 'display' && (
                 <SlotsDisplay state={state.slots.data} roomPlayers={state.players.length} />
               )}
-              {state.room.phase === 'costume' && !state.costume?.revealed && (
-                <div className="display-ghost" aria-hidden="true">
-                  <span className="ghost-arm ghost-arm-left" />
-                  <span className="ghost-arm ghost-arm-right" />
-                  <span className="ghost-face">
-                    <i />
-                    <i />
-                  </span>
-                  <span className="ghost-cheeks" />
-                  <span className="ghost-smile" />
-                  <span className="ghost-bow" />
-                  <span className="ghost-hem">
-                    <i />
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                </div>
-              )}
+              {state.room.phase === 'costume' &&
+                !state.costume?.revealed &&
+                !state.costume?.candidates && (
+                  <div className="display-ghost" aria-hidden="true">
+                    <span className="ghost-arm ghost-arm-left" />
+                    <span className="ghost-arm ghost-arm-right" />
+                    <span className="ghost-face">
+                      <i />
+                      <i />
+                    </span>
+                    <span className="ghost-cheeks" />
+                    <span className="ghost-smile" />
+                    <span className="ghost-bow" />
+                    <span className="ghost-hem">
+                      <i />
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  </div>
+                )}
               <Ranking state={state} display />
               {state.room.status !== 'pending' && state.powerball && (
                 <PowerballDisplay state={state.powerball} />

@@ -106,12 +106,12 @@ export interface RoomSnapshot {
     assets: import('../server/config.js').GameConfig['investments']['assets'];
     cap: number;
     multiplier: number;
-    position: {
+    positions: {
       player_id: string;
       asset_id: string;
       principal: number;
       payout: number | null;
-    } | null;
+    }[];
   };
   costume?: import('../server/games/costume.js').CostumeProjection & { allowSelfVote: boolean };
   trivia?: import('../server/games/trivia.js').TriviaProjection;

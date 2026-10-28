@@ -116,11 +116,19 @@ try {
     await playerActions('invest', () => ({ assetId: 'bitcoin', amount: 100 }));
     await close();
     await advance();
-    if (count > 1)
+    if (count > 2)
       await playerActions('vote', (index) => ({
         candidateId: players[(index + 1) % count].data.playerId,
       }));
     await close();
+    if (count > 2) {
+      // Everyone got one vote, so everyone is tied for first: re-vote until one guest leads.
+      await action('revote');
+      await playerActions('vote', (index) => ({
+        candidateId: players[index === 0 ? 1 : 0].data.playerId,
+      }));
+      await close();
+    }
     await action('reveal');
     await advance();
     await action('assign', { count: Math.min(4, count) });

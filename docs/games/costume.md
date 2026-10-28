@@ -18,8 +18,10 @@ Host closes or waits for deadline, then settles exactly once and reveals the com
 
 ## Acceptance examples
 
-- Five players tie for first: each receives 1,000. A single player in the next distinct vote group receives 800. Every player in the third distinct group receives 500.
-- With nine players and vote totals `[3,3,2,1,0,0,0,0,0]`, awards are `[1000,1000,800,500,0,0,0,0,0]`. The five zero-vote candidates each owe 100, capped individually at spendable balance.
+- A tie for first blocks the reveal. The host starts a re-vote (fresh timer, same voting rules) among only the tied players; every player may vote, but only tied players can be chosen, and earlier-round ballots are kept but not counted as the current vote. This repeats until one player leads. Standing is each round's votes in order, so a re-vote only orders players who were tied. If nobody votes in a re-vote the tie stands and results may be revealed.
+- Players in a tie for second or lower still each receive that place's full prize; for example, with nine players and votes `[4,2,2,2,0,0,0,0,0]`, awards are 1,000, then 800 for each of the three tied for second, then 500 for each of the five zero-vote players (a prize exists for their group, so no penalty), with no re-vote.
+- With nine players and round-one totals `[3,3,2,1,0,0,0,0,0]`, the two leaders are re-voted. If player 0 then outpolls player 1, awards are `[1000,800,500,0,0,0,0,0,0]` before the zero-vote penalties of 100 each.
+- The five zero-vote candidates each owe 100 (500 pool split), capped individually at spendable balance.
 - If two of those bottom players have balances 60 and 140, deduct 60 and 100 respectively; do not shift the uncollectible 40 to anyone else.
 - With distinct vote groups 4/2/0, every player in the zero-vote group receives the full third-place award and no penalty.
 - All zero votes causes no settlement effects.

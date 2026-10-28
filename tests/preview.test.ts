@@ -32,7 +32,7 @@ test('each independent preview seeds real game projections with fixture prices a
     if (scenario.key === 'powerball-results') assert.equal(display.powerball?.revealed, true);
     if (scenario.stage === 'investment-review') {
       assert.equal(player.self?.accounts.locked, 0);
-      assert.equal(player.investments?.position?.payout, 720);
+      assert.equal(player.investments?.positions[0]?.payout, 720);
     }
     if (scenario.stage === 'finish') assert.equal(display.ranking?.length, 6);
   }

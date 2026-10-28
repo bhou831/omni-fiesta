@@ -100,19 +100,24 @@ export interface PowerballViewProps {
 export function PowerballPlayer(props: PowerballViewProps) {
   const presentation = useDrawPresentation(props.state.revealed);
   const [color, setColor] = useState<PowerballColor>(props.state.ownBet?.color ?? 'red');
-  const [amount, setAmount] = useState(String(props.state.ownBet?.amount ?? ''));
+  const [amount, setAmountRaw] = useState(props.state.ownBet?.amount ?? 0);
   const bet = props.state.ownBet;
-  const saved = !!bet && bet.color === color && bet.amount === Number(amount);
+  const saved = !!bet && bet.color === color && bet.amount === amount;
   const stakeEnabled = props.open && !props.disabled;
   const maximum = props.spendable + (bet?.amount ?? 0);
+  const setAmount = (tokens: number) =>
+    setAmountRaw(Math.min(maximum, Math.max(0, Math.round(tokens))));
   const net = bet?.payout == null ? null : bet.payout - bet.amount;
+  // The machine and draw live on the TV only; the phone just waits, then shows the personal result.
+  const result = useRef<HTMLDivElement>(null);
+  useCelebrateOnArrival(presentation.complete && net !== null && net > 0, result);
   return (
     <section className="game-panel" aria-label="Red or blue">
-      <BallMachine state={props.state} {...presentation} celebrate={net !== null && net > 0} />
       {presentation.complete ? (
         <>
           {bet && net !== null ? (
             <div
+              ref={result}
               className={`powerball-ticket powerball-result ${net > 0 ? 'is-gain' : net < 0 ? 'is-loss' : ''}`}
               role="status"
             >
@@ -136,14 +141,14 @@ export function PowerballPlayer(props: PowerballViewProps) {
         </>
       ) : props.state.revealed ? (
         <p className="watch-cue" role="status">
-          Watch the screen.
+          Watch the screen for the draw.
         </p>
       ) : (
         <>
           <p>
             {props.open
               ? 'Pick a side and a stake. It’s reserved until the draw.'
-              : 'Betting is closed. Wait for the host to reveal the draw.'}
+              : 'Betting is closed. Watch the screen for the draw.'}
           </p>
           {bet && (
             <div className="powerball-ticket">
@@ -175,45 +180,51 @@ export function PowerballPlayer(props: PowerballViewProps) {
               </button>
             ))}
           </div>
-          <label>
-            Stake{' '}
-            <input
-              type="number"
-              min="1"
-              step="1"
-              inputMode="numeric"
-              value={amount}
-              disabled={props.disabled || !props.open}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </label>
-          <div className="stake-chips" role="group" aria-label="Quick stake amounts">
-            {[50, 100, 200].map((value) => (
+          <div className="stake-slider">
+            <label htmlFor="powerball-stake">Stake</label>
+            <output className="stake-value" htmlFor="powerball-stake">
+              {amount.toLocaleString()} <small>{amount === 1 ? 'token' : 'tokens'}</small>
+            </output>
+            <div className="stake-track">
               <button
-                key={value}
                 type="button"
                 className="button secondary"
-                disabled={!stakeEnabled}
-                onClick={() => setAmount(String(value))}
+                aria-label="One token less"
+                disabled={!stakeEnabled || amount < 1}
+                onClick={() => setAmount(amount - 1)}
               >
-                {value}
+                −
               </button>
-            ))}
-            {props.revealBalance && (
-              <button
-                type="button"
-                className="button secondary"
+              <input
+                id="powerball-stake"
+                type="range"
+                min="0"
+                max={maximum}
+                step="1"
+                value={Math.min(amount, maximum)}
+                aria-valuetext={`${amount} tokens`}
                 disabled={!stakeEnabled || maximum < 1}
-                onClick={() => setAmount(String(maximum))}
+                onChange={(e) => setAmount(Number(e.target.value))}
+              />
+              <button
+                type="button"
+                className="button secondary"
+                aria-label="One token more"
+                disabled={!stakeEnabled || amount >= maximum}
+                onClick={() => setAmount(amount + 1)}
               >
-                Max
+                +
               </button>
-            )}
+            </div>
+            <div className="stake-scale" aria-hidden="true">
+              <span>0</span>
+              <span>{props.revealBalance ? maximum.toLocaleString() : 'All'}</span>
+            </div>
           </div>
           <button
             className="button primary"
-            disabled={props.disabled || !props.open || saved}
-            onClick={() => props.onBet(color, Number(amount))}
+            disabled={props.disabled || !props.open || saved || amount < 1 || amount > maximum}
+            onClick={() => props.onBet(color, amount)}
           >
             {saved ? '✓ Bet saved' : bet ? 'Update bet' : 'Save bet'}
           </button>
@@ -223,10 +234,10 @@ export function PowerballPlayer(props: PowerballViewProps) {
             aria-live="polite"
           >
             {saved
-              ? `✓ ${bet!.amount} tokens on ${bet!.color}. Your bet is in.`
+              ? `✓ ${bet!.amount} tokens on ${bet!.color}. Your bet is in. The draw happens on the TV.`
               : bet
                 ? 'Unsaved changes. Your previous bet is still in the draw.'
-                : 'Choose your stake, then save your bet.'}
+                : 'Slide to set your stake, then save your bet.'}
           </p>
           {bet && (
             <button

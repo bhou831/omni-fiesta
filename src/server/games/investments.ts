@@ -19,12 +19,22 @@ export function snapshot(
     .get(context.room.id, kind) as { payload: string } | undefined;
   return row ? (JSON.parse(row.payload) as MarketSnapshot) : null;
 }
-export function position(context: PhaseContext, playerId: string): Position | undefined {
+export function positions(context: PhaseContext, playerId: string): Position[] {
   return context.store.db
     .prepare(
-      'SELECT player_id,asset_id,principal,payout FROM investments WHERE room_id=? AND player_id=?',
+      'SELECT player_id,asset_id,principal,payout FROM investments WHERE room_id=? AND player_id=? ORDER BY asset_id',
     )
-    .get(context.room.id, playerId) as unknown as Position | undefined;
+    .all(context.room.id, playerId) as unknown as Position[];
+}
+/** `invest` replaces the whole portfolio; the single `{ assetId, amount }` form is a one-asset portfolio. */
+function allocationsFrom(data: Record<string, unknown>): { assetId: string; amount: number }[] {
+  const list = Array.isArray(data.allocations)
+    ? data.allocations
+    : [{ assetId: data.assetId, amount: data.amount }];
+  return list.map((item) => ({
+    assetId: (item as { assetId?: unknown })?.assetId as string,
+    amount: (item as { amount?: unknown })?.amount as number,
+  }));
 }
 export const investments: PhaseModule = {
   id: 'investments',
@@ -36,27 +46,35 @@ export const investments: PhaseModule = {
     requireRule(
       action === 'invest' || action === 'cancel',
       'UNKNOWN_ACTION',
-      'Choose or cancel an investment.',
+      'Choose or cancel your investments.',
     );
-    const old = position(context, playerId);
-    const amount = action === 'cancel' ? 0 : data.amount;
-    const asset = action === 'cancel' ? '' : data.assetId;
-    requireRule(
-      typeof amount === 'number' &&
-        Number.isSafeInteger(amount) &&
-        (action === 'cancel' || amount > 0) &&
-        amount <= context.config.investments.max_investment_tokens,
-      'INVALID_AMOUNT',
-      'Choose a whole-token amount within the investment cap.',
-    );
-    requireRule(
-      action === 'cancel' ||
-        (typeof asset === 'string' &&
-          context.config.investments.assets.some((a) => a.provider_id === asset)),
-      'INVALID_ASSET',
-      'Choose an available asset.',
-    );
-    const delta = amount - (old?.principal ?? 0);
+    const { assets, max_investment_tokens: cap } = context.config.investments;
+    const allocations = action === 'cancel' ? [] : allocationsFrom(data);
+    if (action === 'invest') {
+      requireRule(
+        allocations.length > 0 && allocations.length <= assets.length,
+        'INVALID_ASSET',
+        'Choose at least one available asset.',
+      );
+      requireRule(
+        allocations.every(
+          (item) =>
+            typeof item.assetId === 'string' && assets.some((a) => a.provider_id === item.assetId),
+        ) && new Set(allocations.map((item) => item.assetId)).size === allocations.length,
+        'INVALID_ASSET',
+        'Choose each available asset at most once.',
+      );
+      requireRule(
+        allocations.every(
+          (item) =>
+            typeof item.amount === 'number' && Number.isSafeInteger(item.amount) && item.amount > 0,
+        ) && allocations.reduce((sum, item) => sum + item.amount, 0) <= cap,
+        'INVALID_AMOUNT',
+        'Choose whole-token amounts that total no more than the investment cap.',
+      );
+    }
+    const amount = allocations.reduce((sum, item) => sum + item.amount, 0);
+    const delta = amount - positions(context, playerId).reduce((sum, p) => sum + p.principal, 0);
     context.store.adjust(
       context.room.id,
       playerId,
@@ -65,17 +83,15 @@ export const investments: PhaseModule = {
       { spendable: -delta, locked: delta, reserved: 0 },
       context.now,
     );
-    if (amount === 0)
-      context.store.db
-        .prepare('DELETE FROM investments WHERE room_id=? AND player_id=?')
-        .run(context.room.id, playerId);
-    else
-      context.store.db
-        .prepare(
-          'INSERT INTO investments(room_id,player_id,asset_id,principal) VALUES(?,?,?,?) ON CONFLICT(room_id,player_id) DO UPDATE SET asset_id=excluded.asset_id,principal=excluded.principal',
-        )
-        .run(context.room.id, playerId, asset as string, amount);
-    return { assetId: asset, principal: amount };
+    context.store.db
+      .prepare('DELETE FROM investments WHERE room_id=? AND player_id=?')
+      .run(context.room.id, playerId);
+    const insert = context.store.db.prepare(
+      'INSERT INTO investments(room_id,player_id,asset_id,principal) VALUES(?,?,?,?)',
+    );
+    for (const item of allocations)
+      insert.run(context.room.id, playerId, item.assetId, item.amount);
+    return { allocations, principal: amount };
   },
 };
 export const investmentReview: PhaseModule = {
@@ -116,13 +132,13 @@ export function settleInvestments(context: PhaseContext): void {
     context.store.adjust(
       context.room.id,
       item.player_id,
-      'investment-settlement',
+      `investment-settlement:${item.asset_id}`,
       'Investment settlement',
       { spendable: payout, locked: -item.principal, reserved: 0 },
       context.now,
     );
     context.store.db
-      .prepare('UPDATE investments SET payout=? WHERE room_id=? AND player_id=?')
-      .run(payout, context.room.id, item.player_id);
+      .prepare('UPDATE investments SET payout=? WHERE room_id=? AND player_id=? AND asset_id=?')
+      .run(payout, context.room.id, item.player_id, item.asset_id);
   }
 }

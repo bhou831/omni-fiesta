@@ -22,7 +22,7 @@ test('closing bell separates credited profit from pending estimates and caps los
   assert.match(render(), /\+120/);
   assert.match(render(), /720 tokens/);
   assert.match(render(), /✓ Settled/);
-  state.investments!.position!.payout = null;
+  state.investments!.positions[0]!.payout = null;
   assert.match(render(), /preview, not credited yet/);
   assert.doesNotMatch(render(), /✓ Settled/);
   state.investments!.closing!.quotes[0].price = '1';

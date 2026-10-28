@@ -68,6 +68,16 @@ for (const count of [15, 100])
       }),
     );
     close();
+    // Every guest got one vote, so everyone is tied for first: re-vote until one guest leads.
+    assert.throws(() => hostAction('reveal'));
+    hostAction('revote');
+    players.forEach((p, i) =>
+      execute(p, 'phase.action', {
+        action: 'vote',
+        data: { candidateId: players[i === 0 ? 1 : 0].playerId },
+      }),
+    );
+    close();
     hostAction('reveal');
     advance();
     hostAction('assign', { count: 4 });

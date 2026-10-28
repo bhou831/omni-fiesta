@@ -43,7 +43,12 @@ function view(multiplier: number, low: number | null, high: number | null) {
       playerId: player.playerId,
     });
     return renderToStaticMarkup(
-      createElement(InvestmentPlayer, { state, command: async () => {}, disabled: false }),
+      createElement(InvestmentPlayer, {
+        state,
+        command: async () => {},
+        disabled: false,
+        expandAll: true,
+      }),
     );
   } finally {
     store.close();
@@ -65,4 +70,33 @@ test('missing or inconsistent range is unavailable and small multipliers do not 
   assert.match(missing, /position in 24h range: Unavailable/);
   assert.match(missing, /100% price fall would not reduce the payout to zero/);
   assert.match(view(20, 0.00000002, 0.00000003), /position in 24h range: Unavailable/);
+});
+
+test('expanded details lead with a chart button, tuck the payoff table away, and keep a stored draft', () => {
+  const html = view(20, 0.000000005, 0.000000015);
+  assert.match(html, /See live chart ↗/);
+  assert.match(html, /Opens in a new tab/);
+  assert.match(html, /<details class="investment-risk"><summary>Payoff examples/);
+  // Market and chart is the button, so it is not repeated in the footer links.
+  assert.doesNotMatch(html, /Market and chart ↗/);
+  assert.match(html, /Project ↗/);
+  const store = new Map<string, string>();
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+  Object.defineProperty(globalThis, 'sessionStorage', {
+    configurable: true,
+    value: {
+      getItem: () => JSON.stringify({ solana: '250', 'not-an-asset': '5', bitcoin: 7 }),
+      setItem: (k: string, v: string) => store.set(k, v),
+    },
+  });
+  try {
+    const restored = view(20, 0.000000005, 0.000000015);
+    assert.match(restored, /Tokens in SOL/);
+    assert.match(restored, /value="250"/);
+    assert.doesNotMatch(restored, /Tokens in BTC/);
+    assert.match(restored, /Invested[^]*250/);
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'sessionStorage', original);
+    else delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+  }
 });

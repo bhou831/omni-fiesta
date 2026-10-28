@@ -96,17 +96,39 @@ test('costume votes, capped penalty, privacy, and atomic repeated reveal', (t) =
     phaseInstance: 2,
     type: 'phase.close',
   });
+  // Players 0 and 1 tie for first, so results are held back until a re-vote picks one winner.
+  assert.deepEqual(costumeProjection(f.context(), 'host').tiedForFirst, [
+    f.players[0].playerId,
+    f.players[1].playerId,
+  ]);
+  assert.deepEqual(costumeProjection(f.context(), 'display').tiedForFirst, []);
+  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'reveal')));
+  f.store.transaction(() => costumeHostAction(f.context(), 'revote'));
+  assert.equal(f.store.room(f.room.id).status, 'open');
+  assert.equal(costumeProjection(f.context(), 'display').round, 2);
+  assert.equal(costumeProjection(f.context(), 'player', f.players[0].playerId).votedFor, null);
+  // Re-vote: only the tied players are candidates (a vote for anyone else is rejected).
+  assert.throws(() => f.engine.execute(f.sessions[0], f.room.id, f.cmd(f.players[2].playerId)));
+  const round2 = [1, 0, 0, 0, 0, 0, 0, 1, 1];
+  round2.forEach((target, i) =>
+    f.engine.execute(f.sessions[i], f.room.id, f.cmd(f.players[target].playerId)),
+  );
+  f.engine.execute(f.host, f.room.id, {
+    requestId: randomUUID(),
+    phaseInstance: 2,
+    type: 'phase.close',
+  });
   f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
   f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
   const result = costumeProjection(f.context(), 'display').results!;
   const byId = new Map(result.map((r) => [r.playerId, r]));
   assert.deepEqual(
     f.players.map((p) => byId.get(p.playerId)?.votes),
-    [3, 3, 2, 1, 0, 0, 0, 0, 0],
+    [6, 3, 2, 1, 0, 0, 0, 0, 0],
   );
   assert.deepEqual(
     f.players.map((p) => byId.get(p.playerId)?.tokenChange),
-    [1000, 1000, 800, 500, -60, -100, -100, -100, -100],
+    [1000, 800, 500, 0, -60, -100, -100, -100, -100],
   );
   assert.equal(f.store.player(f.players[4].playerId).spendable, 0);
   assert.equal(f.store.player(f.players[4].playerId).locked, 300);
@@ -114,7 +136,7 @@ test('costume votes, capped penalty, privacy, and atomic repeated reveal', (t) =
   assert.equal(JSON.stringify(result).includes('example.test'), false);
   assert.equal(
     f.store.db.prepare("SELECT COUNT(*) AS n FROM ledger WHERE reason='Costume contest'").get()?.n,
-    9,
+    8,
   );
 });
 
@@ -161,27 +183,98 @@ test('vote revisions overwrite the previous ballot and one player can close with
   assert.equal(solo.store.player(solo.players[0].playerId).spendable, 1000);
 });
 
-test('five tied winners each receive full first prize and third group is never penalized', (t) => {
-  const f = setup(15);
+test('a tie for first is re-voted among the tied players until one player leads', (t) => {
+  const f = setup(5);
   t.after(() => f.store.close());
-  const targets = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 6, 7];
-  targets.forEach((target, i) =>
-    f.engine.execute(f.sessions[(i + 8) % 15], f.room.id, f.cmd(f.players[target].playerId)),
+  const close = () =>
+    f.engine.execute(f.host, f.room.id, {
+      requestId: randomUUID(),
+      phaseInstance: 2,
+      type: 'phase.close',
+    });
+  const vote = (from: number, to: number) =>
+    f.engine.execute(f.sessions[from], f.room.id, f.cmd(f.players[to].playerId));
+  // Round 1: players 0 and 1 tie with two votes each.
+  [
+    [0, 1],
+    [1, 0],
+    [2, 0],
+    [3, 1],
+    [4, 2],
+  ].forEach(([from, to]) => vote(from!, to!));
+  close();
+  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'reveal')));
+  f.store.transaction(() => costumeHostAction(f.context(), 'revote'));
+  // Round 2 ties again; the host must re-vote again, and still only the same two can win.
+  [
+    [0, 1],
+    [1, 0],
+    [2, 0],
+    [3, 1],
+  ].forEach(([from, to]) => vote(from!, to!));
+  close();
+  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'reveal')));
+  f.store.transaction(() => costumeHostAction(f.context(), 'revote'));
+  assert.equal(costumeProjection(f.context(), 'display').round, 3);
+  assert.deepEqual(
+    costumeProjection(f.context(), 'display').candidates?.map((c) => c.playerId),
+    [f.players[0].playerId, f.players[1].playerId],
+  );
+  // Round 3 has a clear leader.
+  [
+    [0, 1],
+    [1, 0],
+    [2, 0],
+    [3, 0],
+  ].forEach(([from, to]) => vote(from!, to!));
+  close();
+  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'revote')));
+  f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
+  const results = costumeProjection(f.context(), 'display').results!;
+  const byId = new Map(results.map((result) => [result.playerId, result]));
+  assert.deepEqual(
+    f.players.map((p) => byId.get(p.playerId)?.place),
+    [1, 2, 3, 4, 4],
+  );
+  assert.deepEqual(
+    f.players.map((p) => byId.get(p.playerId)?.tokenChange),
+    [1000, 800, 500, -250, -250],
+  );
+  // Revealed results can no longer be re-voted, and a repeat settles nothing twice.
+  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'revote')));
+  f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
+  assert.equal(
+    f.store.db.prepare("SELECT COUNT(*) AS n FROM ledger WHERE reason='Costume contest'").get()?.n,
+    5,
+  );
+});
+
+test('three-way ties for second place still share the second prize', (t) => {
+  const f = setup(8);
+  t.after(() => f.store.close());
+  // Player 0 leads outright; players 1-3 tie for second and are not re-voted.
+  [
+    [1, 0],
+    [2, 0],
+    [3, 0],
+    [4, 0],
+    [5, 1],
+    [6, 2],
+    [7, 3],
+  ].forEach(([from, to]) =>
+    f.engine.execute(f.sessions[from!], f.room.id, f.cmd(f.players[to!].playerId)),
   );
   f.engine.execute(f.host, f.room.id, {
     requestId: randomUUID(),
     phaseInstance: 2,
     type: 'phase.close',
   });
+  assert.deepEqual(costumeProjection(f.context(), 'host').tiedForFirst, []);
   f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
   const results = costumeProjection(f.context(), 'display').results!;
   const byId = new Map(results.map((result) => [result.playerId, result]));
   assert.deepEqual(
-    f.players.map((p) => byId.get(p.playerId)?.tokenChange),
-    [1000, 1000, 1000, 1000, 1000, 800, 800, 800, 500, 500, 500, 500, 500, 500, 500],
-  );
-  assert.deepEqual(
-    f.players.map((p) => byId.get(p.playerId)?.place),
-    [1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3],
+    f.players.map((p) => byId.get(p.playerId)?.tokenChange).slice(0, 4),
+    [1000, 800, 800, 800],
   );
 });

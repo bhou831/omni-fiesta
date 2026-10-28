@@ -20,7 +20,7 @@ export function RoundDescription({ state }: { state: RoomSnapshot }) {
         <Rules>
           <Rule>Research the five assets.</Rule>
           <Rule>
-            Choose one · up to <strong>{state.investments?.cap} tokens</strong>.
+            Pick any · up to <strong>{state.investments?.cap} tokens</strong> in total.
           </Rule>
           <Rule>{state.investments?.multiplier}× returns · lose no more than your stake.</Rule>
           <Rule>Locked until the closing bell.</Rule>
@@ -32,6 +32,13 @@ export function RoundDescription({ state }: { state: RoomSnapshot }) {
         return (
           <Rules>
             <Rule>Tonight’s best dressed.</Rule>
+          </Rules>
+        );
+      if (state.costume && state.costume.round > 1)
+        return (
+          <Rules>
+            <Rule>Tied for first.</Rule>
+            <Rule>Vote again between these players.</Rule>
           </Rules>
         );
       return (
