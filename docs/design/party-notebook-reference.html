@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Party notebook — approved design reference</title>
+<style>
+body { margin: 0; background: #fff; color: #202020; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.reference-note { max-width: 930px; margin: 24px auto 0; padding: 0 20px; color: #666; font-size: 12px; }
+#tracy-party-directions { max-width: 960px; margin: 0 auto; }
+
+  #tracy-party-directions .tp-concept { min-height: 585px; padding: 16px; }
+  #tracy-party-directions .tp-page { --tp-accent: #f0bfb0; --tp-ink: #202020; color-scheme: light; color: var(--tp-ink); background: #fff; border: 1px solid #dededb; border-radius: 5px; min-height: 550px; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+  #tracy-party-directions .tp-page *, #tracy-party-directions .tp-page *::before, #tracy-party-directions .tp-page *::after { box-sizing: border-box; }
+  #tracy-party-directions .tp-page [hidden] { display: none !important; }
+  #tracy-party-directions .tp-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin: 0 28px; padding: 18px 0; border-bottom: 1px solid #ededeb; font-size: 12px; }
+  #tracy-party-directions .tp-host-link { background: transparent; border: 0; color: #666; font: inherit; padding: 5px 0; text-decoration: underline; text-underline-offset: 4px; }
+  #tracy-party-directions .tp-main { padding: 35px 40px; flex: 1; }
+  #tracy-party-directions h1 { font: 650 clamp(27px, 4.5vw, 37px)/1.18 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: -.04em; margin: 10px 0 12px; color: var(--tp-ink); }
+  #tracy-party-directions h2 { font: 600 28px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: -.03em; margin: 25px 0 12px; color: var(--tp-ink); }
+  #tracy-party-directions p { margin: 0; }
+  #tracy-party-directions .tp-intro { color: #454545; margin: 0 0 12px; }
+  #tracy-party-directions .tp-instruction { color: #737373; font-size: 13px; max-width: 390px; }
+  #tracy-party-directions .tp-page-emoji { font-size: 34px; line-height: 1; margin-bottom: 22px; }
+  #tracy-party-directions .tp-join-button { display: inline-flex; align-items: center; justify-content: center; gap: 35px; background: #222; color: #fff; border: 1px solid #222; border-radius: 6px; padding: 12px 19px; min-height: 45px; font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin-top: 25px; }
+  #tracy-party-directions .tp-join-button:hover:not(:disabled) { background: #444; }
+  #tracy-party-directions .tp-join-button:disabled { background: #e8e8e8; border-color: #e8e8e8; color: #777; }
+  #tracy-party-directions .tp-join-button:focus-visible, #tracy-party-directions input:focus-visible, #tracy-party-directions .tp-back:focus-visible, #tracy-party-directions .tp-host-link:focus-visible { outline: 2px solid #6c6c6c; outline-offset: 4px; }
+  #tracy-party-directions .tp-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #777; font-size: 11px; padding: 18px 28px; }
+  #tracy-party-directions .tp-confetti { color: var(--tp-accent); font-size: 26px; letter-spacing: 3px; line-height: 1; }
+  #tracy-party-directions .tp-notebook-agenda { border-top: 1px solid #e8e8e5; margin-top: 35px; padding-top: 17px; display: flex; gap: 25px; align-items: baseline; color: #575757; font-size: 12px; }
+  #tracy-party-directions .tp-caption { color: #777; }
+  #tracy-party-directions .tp-notebook-agenda div > span { color: #999; margin-right: 7px; }
+  #tracy-party-directions .tp-invitation { --tp-accent: #b9c5e5; }
+  #tracy-party-directions .tp-invitation .tp-main { text-align: center; padding-top: 35px; }
+  #tracy-party-directions .tp-invitation h1 { margin: 9px 0 20px; font-weight: 400; }
+  #tracy-party-directions .tp-day-count { display: block; font: 400 clamp(64px, 12vw, 100px)/1.05 Georgia, "Times New Roman", serif; letter-spacing: -.055em; }
+  #tracy-party-directions .tp-day-name { display: block; font: 400 30px/1.3 Georgia, "Times New Roman", serif; letter-spacing: -.03em; margin-top: 9px; }
+  #tracy-party-directions .tp-invitation .tp-intro { font-size: 14px; color: #666; }
+  #tracy-party-directions .tp-invitation .tp-instruction { max-width: none; font-size: 11px; margin-top: 21px; }
+  #tracy-party-directions .tp-invitation .tp-join-button { margin-top: 5px; }
+  #tracy-party-directions .tp-confetti-row { display: flex; justify-content: center; align-items: center; gap: 20px; height: 20px; margin-bottom: 20px; }
+  #tracy-party-directions .tp-confetti-row i { display: block; width: 4px; height: 9px; background: var(--tp-accent); transform: rotate(24deg); }
+  #tracy-party-directions .tp-confetti-row i:nth-child(2n) { transform: rotate(-36deg); background: #d9bdab; width: 6px; height: 6px; border-radius: 50%; }
+  #tracy-party-directions .tp-confetti-row i:nth-child(3) { background: #b8c8af; }
+  #tracy-party-directions .tp-sheet { --tp-accent: #a9c4aa; }
+  #tracy-party-directions .tp-sheet .tp-header { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
+  #tracy-party-directions .tp-sheet .tp-main { padding-top: 29px; }
+  #tracy-party-directions .tp-sheet-title { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+  #tracy-party-directions .tp-sheet-title h1 { font-size: 35px; }
+  #tracy-party-directions .tp-stamp { border: 1px dashed #899486; color: #536250; background: #f6faf5; font: 400 10px/1.6 ui-monospace, SFMono-Regular, monospace; padding: 10px 12px; text-align: center; transform: rotate(6deg); }
+  #tracy-party-directions .tp-stamp strong { color: #394a36; background: var(--tp-accent); font-weight: 500; padding: 1px 3px; }
+  #tracy-party-directions .tp-game-list { margin-top: 18px; }
+  #tracy-party-directions .tp-game-list > div { display: flex; gap: 20px; padding: 11px 0; border-bottom: 1px solid #ededeb; font-size: 13px; }
+  #tracy-party-directions .tp-game-list > div > span:first-child { color: #999; font: 400 11px/1.8 ui-monospace, SFMono-Regular, Consolas, monospace; }
+  #tracy-party-directions .tp-back { background: transparent; border: 0; color: #777; padding: 4px 0; font: inherit; font-size: 12px; }
+  #tracy-party-directions .tp-join-form { max-width: 350px; }
+  #tracy-party-directions .tp-invitation .tp-join-form { margin: auto; }
+  #tracy-party-directions .tp-join-form label { display: grid; text-align: left; gap: 7px; margin-top: 24px; font-size: 12px; }
+  #tracy-party-directions .tp-join-form input { border: 1px solid #d0d0cd; background: #fff; color: #222; border-radius: 5px; min-height: 44px; padding: 10px 12px; font: 400 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; width: 100%; }
+  #tracy-party-directions .tp-join-form .tp-confirmation { margin-top: 20px; font-size: 13px; color: #465844; }
+  #tracy-party-directions .tp-roster { display: flex; justify-content: space-between; gap: 20px; padding: 18px 0; border-top: 1px solid #e8e8e5; border-bottom: 1px solid #e8e8e5; margin-top: 30px; font-size: 12px; }
+  #tracy-party-directions .tp-roster > span:last-child { color: #777; }
+  @media (max-width: 450px) {
+    #tracy-party-directions .tp-concept { padding: 10px; min-height: 620px; }
+    #tracy-party-directions .tp-page { min-height: 590px; }
+    #tracy-party-directions .tp-header { margin: 0 18px; font-size: 11px; gap: 10px; }
+    #tracy-party-directions .tp-host-link { font-size: 10px; min-height: 40px; }
+    #tracy-party-directions .tp-main { padding: 30px 24px; }
+    #tracy-party-directions .tp-notebook-agenda { flex-direction: column; gap: 9px; }
+    #tracy-party-directions .tp-footer { padding: 18px; font-size: 10px; }
+    #tracy-party-directions .tp-sheet-title h1 { font-size: 30px; }
+    #tracy-party-directions .tp-stamp { padding: 8px; font-size: 9px; }
+    #tracy-party-directions .tp-sheet .tp-header { font-size: 10px; }
+  }
+  @media (pointer: coarse) { #tracy-party-directions .tp-host-link, #tracy-party-directions .tp-back { min-height: 44px; } }
+
+</style>
+</head>
+<body>
+<p class="reference-note">Approved direction: Party notebook · Static welcome reference for Tracy’s 10,000-day celebration.</p>
+<div id="tracy-party-directions">
+<section class="tp-concept" data-variant="Party notebook" aria-label="Party notebook direction">
+      <div class="tp-page tp-notebook" aria-label="Party notebook preview">
+        <header class="tp-header"><span>Tracy / 10,000 days</span><button class="tp-host-link cursor-interaction" type="button" data-host>Host controls</button></header>
+        <main class="tp-main">
+          <div class="tp-welcome">
+            <div class="tp-page-emoji tp-decoration" aria-hidden="true">🎈</div>
+            <h1>Tracy’s 10,000th day.</h1>
+            <p class="tp-intro">A Saturday night to celebrate Tracy.</p>
+            <p class="tp-instruction">Join on your phone. We’ll start when everyone’s here.</p>
+            <button class="tp-join-button cursor-interaction" type="button" data-join>Join the games <span aria-hidden="true">↗</span></button>
+            <div class="tp-notebook-agenda"><span class="tp-caption">Tonight</span><div><span aria-hidden="true">↳</span> Investments, costumes, trivia &amp; a little luck.</div></div>
+          </div>
+          
+          <div class="tp-host-view" hidden>
+            <button class="tp-back cursor-interaction" type="button" data-back>← Back</button>
+            <h2>Waiting room</h2><p>We’ll start when everyone’s ready.</p>
+            <div class="tp-roster"><span>Players</span><span>No one here yet</span></div>
+            <button class="tp-join-button" type="button" disabled>Start games</button>
+          </div>
+        </main>
+        <footer class="tp-footer"><span>10,000 days. One Tracy.</span><span class="tp-decoration tp-confetti" aria-hidden="true">· &nbsp; · &nbsp; ·</span></footer>
+      </div>
+    </section>
+</div>
+</body>
+</html>

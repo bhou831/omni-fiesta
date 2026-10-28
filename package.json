@@ -1,0 +1,43 @@
+{
+  "name": "omni-fiesta",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node --env-file-if-exists=.env --watch --import tsx src/server/index.ts",
+    "preview": "node --import tsx scripts/preview.ts",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write src tests scripts vite.config.ts package.json tsconfig*.json index.html",
+    "format:check": "prettier --check src tests scripts vite.config.ts package.json tsconfig*.json index.html",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "build": "npm run typecheck && NODE_ENV=production vite build && tsc -p tsconfig.server.json",
+    "start": "node --env-file-if-exists=.env dist/server/index.js",
+    "simulate": "node --env-file-if-exists=.env --import tsx scripts/simulate.ts"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "yaml": "^2.8.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0"
+  }
+}
