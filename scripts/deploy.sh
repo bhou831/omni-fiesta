@@ -10,7 +10,7 @@ if [[ ! -d /opt/omni-fiesta || ! -f /etc/omni-fiesta.env ]]; then
   echo 'Expected the existing /opt/omni-fiesta service and /etc/omni-fiesta.env.' >&2
   exit 1
 fi
-if [[ ! -f /var/lib/omni-fiesta/party.sqlite ]]; then
+if ! sudo test -f /var/lib/omni-fiesta/party.sqlite; then
   echo 'Expected database /var/lib/omni-fiesta/party.sqlite; check deployment configuration.' >&2
   exit 1
 fi

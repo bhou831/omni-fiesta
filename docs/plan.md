@@ -225,6 +225,7 @@ Verified the exact staged tree independently of pre-existing workspace gameplay 
 # Lightsail deployment commands
 
 - Added server-side `just pull` and `just deploy` recipes with staged builds, stopped-service SQLite backup, release replacement and local health check. Shell syntax and recipe dry runs passed; the workflow has not been exercised on Lightsail, and schema rollback and off-instance backups remain manual.
+- The first Lightsail deployment attempt exposed an unprivileged database existence check against the service's mode-700 data directory. Changed the check to use sudo; a complete server-side deployment remains to be verified.
 
 ### Waiting room celebration (2026-10-28)
 
