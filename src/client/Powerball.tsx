@@ -1,63 +1,76 @@
-import React, { useState, type CSSProperties } from 'react';
+import React, { useRef, useState, type CSSProperties } from 'react';
 import type { PowerballColor, PowerballProjection } from '../server/games/powerball.js';
 import type { PublicPlayer } from '../shared/contracts.js';
+import { CELEBRATION_COLORS, useCelebrateOnArrival } from './celebrate.js';
 import { GAME_MOTION, useDrawPresentation } from './game-motion.js';
+import { formatTokens } from './format.js';
 
-const BALL_POSITIONS = [
-  [4, 0],
-  [22, 0],
-  [40, 0],
-  [58, 0],
-  [76, 0],
-  [13, 17],
-  [31, 17],
-  [49, 17],
-  [67, 17],
-  [22, 34],
-  [40, 34],
-  [58, 34],
-] as const;
+// Dome contents in em, laid out once so every view (and every render) shows the same machine.
+const DOME_BALLS = (() => {
+  let seed = 7;
+  const next = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  return Array.from({ length: 28 }, (_, i) => {
+    let x = 0;
+    let y = 0;
+    do {
+      x = 1.6 + next() * 19.6;
+      y = 8 + next() * 14.5;
+    } while (Math.hypot(x + 1.4 - 12.2, y + 1.4 - 12.2) > 10.6);
+    return {
+      color: i % 2 ? 'blue' : 'red',
+      style: {
+        left: `${x.toFixed(2)}em`,
+        top: `${y.toFixed(2)}em`,
+        '--dx': `${((next() - 0.5) * 1.2).toFixed(2)}em`,
+        '--dy': `${(next() * 1.1 - 0.8).toFixed(2)}em`,
+        '--dur': `${(0.9 + next() * 1.3).toFixed(2)}s`,
+      } as CSSProperties,
+    };
+  });
+})();
 
 function BallMachine({
   state,
   animating,
   complete,
+  celebrate = false,
 }: {
   state: PowerballProjection;
   animating: boolean;
   complete: boolean;
+  celebrate?: boolean;
 }) {
   const color = complete ? state.winningColor : null;
+  const scene = useRef<HTMLDivElement>(null);
+  const picked = state.revealed ? state.winningColor : null;
+  useCelebrateOnArrival(complete && celebrate, scene, [
+    ...CELEBRATION_COLORS,
+    ...(picked ? [picked === 'red' ? '#b83e3e' : '#3476c5'] : []),
+  ]);
+  const ready = state.drawn && !animating && !complete;
   return (
     <div
-      className={`ball-machine ${animating ? 'is-drawing' : ''} ${complete ? 'is-revealed' : ''}`}
+      className={`gumball ${animating ? 'is-drawing' : ''} ${complete ? 'is-revealed' : ''} ${ready ? 'is-ready' : ''}`}
       aria-busy={animating}
     >
-      <div className="ball-box" aria-hidden="true">
-        <span className="box-label">Red or blue</span>
-        <div className="mixing-balls">
-          {BALL_POSITIONS.map(([x, y], i) => (
-            <span
-              key={i}
-              className={`mixing-ball ${i % 2 ? 'blue' : 'red'}`}
-              style={
-                {
-                  left: `${x}%`,
-                  bottom: `${y}%`,
-                  animationDelay: `${-(i % 4) * 0.16}s`,
-                } as CSSProperties
-              }
-            />
+      <div className="gumball-scene" ref={scene} aria-hidden="true">
+        <div className="gb-dome">
+          {DOME_BALLS.map((ball, i) => (
+            <i key={i} className={`gb ${ball.color}`} style={ball.style} />
           ))}
         </div>
-        <span className="ball-door" />
-      </div>
-      <div className="ball-ramp" aria-hidden="true">
-        {color ? (
-          <span className={`drawn-ball ${color}`}>{color === 'red' ? 'R' : 'B'}</span>
-        ) : state.drawn && !animating ? (
-          <span className="drawn-ball mystery-ball">?</span>
-        ) : null}
+        <i className={`gb gb-drop ${picked ?? 'red'}`} />
+        <span className="gb-neck" />
+        <div className="gb-base">
+          <span className="gb-knob" />
+          <span className="gb-door" />
+        </div>
+        <div className="gb-capsule">
+          <i className={`gb-in ${picked ?? ''}`}>{picked ? (picked === 'red' ? 'R' : 'B') : ''}</i>
+          <i className="gb-half gb-bottom" />
+          <i className="gb-half gb-top" />
+          <b className="gb-q">?</b>
+        </div>
       </div>
       <p className="draw-status" role="status" aria-live="polite">
         {animating
@@ -95,21 +108,26 @@ export function PowerballPlayer(props: PowerballViewProps) {
   const net = bet?.payout == null ? null : bet.payout - bet.amount;
   return (
     <section className="game-panel" aria-label="Red or blue">
-      <BallMachine state={props.state} {...presentation} />
+      <BallMachine state={props.state} {...presentation} celebrate={net !== null && net > 0} />
       {presentation.complete ? (
         <>
           {bet && net !== null ? (
-            <div className="powerball-ticket powerball-result" role="status">
-              <strong>
-                {bet.amount} tokens on {bet.color}
-              </strong>
-              <span>{bet.payout} tokens returned</span>
-              <span>
+            <div
+              className={`powerball-ticket powerball-result ${net > 0 ? 'is-gain' : net < 0 ? 'is-loss' : ''}`}
+              role="status"
+            >
+              <span className="result-kicker">
+                {props.state.winningColor === 'red' ? 'Red' : 'Blue'} won
+              </span>
+              <strong className="result-net">
                 {net > 0
-                  ? `Gain +${net} tokens`
+                  ? `Gain ${formatTokens(net, { signed: true })} tokens`
                   : net < 0
-                    ? `Loss −${Math.abs(net)} tokens`
+                    ? `Loss ${formatTokens(net, { signed: true })} tokens`
                     : 'No change'}
+              </strong>
+              <span>
+                {bet.amount} tokens on {bet.color} · {bet.payout} tokens returned
               </span>
             </div>
           ) : (
@@ -117,12 +135,14 @@ export function PowerballPlayer(props: PowerballViewProps) {
           )}
         </>
       ) : props.state.revealed ? (
-        <p>The result is on its way…</p>
+        <p className="watch-cue" role="status">
+          Watch the screen.
+        </p>
       ) : (
         <>
           <p>
             {props.open
-              ? 'Choose a side and a whole-token stake. Your stake is reserved until the draw.'
+              ? 'Pick a side and a stake. It’s reserved until the draw.'
               : 'Betting is closed. Wait for the host to reveal the draw.'}
           </p>
           {bet && (
@@ -133,11 +153,11 @@ export function PowerballPlayer(props: PowerballViewProps) {
               <span>Reserved</span>
             </div>
           )}
-          <p>
-            {props.revealBalance
-              ? `Available: ${props.spendable} tokens${bet ? ` plus ${bet.amount} currently reserved` : ''}.`
-              : 'Available balance hidden. Tap Tokens to reveal it.'}
-          </p>
+          {props.revealBalance && (
+            <p>
+              {`Available: ${props.spendable} tokens${bet ? ` plus ${bet.amount} currently reserved` : ''}.`}
+            </p>
+          )}
           <div className="color-choices" role="group" aria-label="Choose a color">
             {(['red', 'blue'] as const).map((side) => (
               <button
@@ -203,10 +223,10 @@ export function PowerballPlayer(props: PowerballViewProps) {
             aria-live="polite"
           >
             {saved
-              ? `✓ ${bet!.amount} tokens on ${bet!.color}. Your ticket is in.`
+              ? `✓ ${bet!.amount} tokens on ${bet!.color}. Your bet is in.`
               : bet
-                ? 'Unsaved changes. Your previous ticket is still in the draw.'
-                : 'Choose your stake, then save your ticket.'}
+                ? 'Unsaved changes. Your previous bet is still in the draw.'
+                : 'Choose your stake, then save your bet.'}
           </p>
           {bet && (
             <button
@@ -265,9 +285,27 @@ export function PowerballHost(props: PowerballViewProps) {
 }
 export function PowerballDisplay({ state }: Pick<PowerballViewProps, 'state'>) {
   const presentation = useDrawPresentation(state.revealed);
+  const tally = state.tally ?? { red: 0, blue: 0 };
+  const total = tally.red + tally.blue;
+  const result = presentation.complete ? state.winningColor : null;
   return (
-    <section className="powerball-display" aria-label="Powerball draw">
-      <BallMachine state={state} {...presentation} />
+    <section
+      className={`powerball-display ${result ? `is-revealed result-${result}` : ''}`}
+      aria-label="Powerball draw"
+    >
+      <BallMachine state={state} {...presentation} celebrate />
+      <div className="tally" role="group" aria-label="Bets so far">
+        {(['red', 'blue'] as const).map((side) => (
+          <div key={side} className={`tally-side is-${side} ${result === side ? 'is-result' : ''}`}>
+            <span className="tally-label">{side === 'red' ? 'Red' : 'Blue'}</span>
+            <strong>{tally[side]}</strong>
+            <small>{tally[side] === 1 ? 'bet' : 'bets'}</small>
+            <span className="tally-bar" aria-hidden="true">
+              <i style={{ transform: `scaleX(${total ? tally[side] / total : 0})` }} />
+            </span>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

@@ -68,6 +68,8 @@ export interface PowerballProjection {
   winningColor: PowerballColor | null;
   hostBets:
     { playerId: string; color: PowerballColor; amount: number; payout: number | null }[] | null;
+  /** Public display only: how many players back each color. No names or stakes. */
+  tally?: { red: number; blue: number } | null;
 }
 export function powerballProjection(
   context: PhaseContext,
@@ -94,6 +96,13 @@ export function powerballProjection(
             amount: row.amount,
             payout: revealed ? row.payout : null,
           }))
+        : null,
+    tally:
+      role === 'display'
+        ? {
+            red: rows.filter((row) => row.color === 'red').length,
+            blue: rows.filter((row) => row.color === 'blue').length,
+          }
         : null,
   };
 }

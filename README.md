@@ -10,7 +10,7 @@ The party celebrates **Tracy's 10,000th day**. The approved direction is a minim
 
 See the [design guide](docs/design/party-notebook.md) and [portable visual reference](docs/design/party-notebook-reference.html). The running app now applies this design across `/`, `/play`, `/host`, and `/screen`, including forms, waiting states, errors, countdowns, and rehearsal completion. Shared client tokens and system fonts keep the views coherent. The static balloon marker is an optional client component; no animation library or game configuration changes were added. Optional floating balloons and other celebration effects are reserved for a later iteration; keep their decorative layer separate from core layout and game logic.
 
-Game interactions now include a pull/tap slot handle with rolling reels, a five-second red/blue ball reveal, and five expandable investment research cards. Presentation timings live in `src/client/game-motion.ts`; reduced motion skips the wait and reloads show saved results immediately. These effects do not change game odds, accounting or session timers.
+Game interactions now include a slot ticket printer, a five-second gumball-machine red/blue reveal, win fireworks, and five expandable investment research cards. Presentation timings live in `src/client/game-motion.ts`; reduced motion skips the wait and reloads show saved results immediately. These effects do not change game odds, accounting or session timers.
 
 ## UI verification (2026-10-27–28)
 

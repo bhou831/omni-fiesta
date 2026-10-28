@@ -4,7 +4,7 @@ Status: approved by the user on 2026-10-27. The static design is implemented acr
 
 ## Identity and tone
 
-This is Tracy's **10,000-day celebration**, with games for friends on a Saturday night. The chosen direction is **Party notebook** from the reviewed concepts. The user wants a simple, personal, playful white page with black text, inspired by the clarity of a Notion page.
+This is Tracy's **10,000-day celebration**, with games for friends on a party night. The chosen direction is **Party notebook** from the reviewed concepts. The user wants a simple, personal, playful white page with black text, inspired by the clarity of a Notion page.
 
 Use `Tracy / 10,000 days` in the compact page header and `Tracy’s 10,000th day.` as the opening headline. Omni Fiesta remains the repository/engine name; it is not the main guest-facing identity for this event. The milestone is 10,000 days, not 1,000. Do not invent a birthday date, venue, exact start time, or biographical facts.
 
@@ -22,18 +22,18 @@ The selected [portable reference](party-notebook-reference.html) captures the ap
 
 Suggested tokens matching the approved reference:
 
-| Token | Starting value / purpose |
-| --- | --- |
-| Canvas | `#ffffff` |
-| Main text / primary button | `#202020` |
-| Secondary text | `#666666`; keep sufficient contrast |
-| Divider | `#e8e8e5` |
-| Quiet secondary surface | `#f7f7f5`, only where useful |
-| Decorative accent | `#f0bfb0`, used sparingly; never essential text on white |
-| Button / field radius | Approximately 6px |
-| Spacing | A small consistent 8/16/24/32/40px scale |
-| Body / editable fields | Readable body text; at least 16px editable fields on phones |
-| Page heading | Roughly 28–40px on phones/normal pages; scale functional TV content for distance |
+| Token                      | Starting value / purpose                                                         |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| Canvas                     | `#ffffff`                                                                        |
+| Main text / primary button | `#202020`                                                                        |
+| Secondary text             | `#666666`; keep sufficient contrast                                              |
+| Divider                    | `#e8e8e5`                                                                        |
+| Quiet secondary surface    | `#f7f7f5`, only where useful                                                     |
+| Decorative accent          | `#f0bfb0`, used sparingly; never essential text on white                         |
+| Button / field radius      | Approximately 6px                                                                |
+| Spacing                    | A small consistent 8/16/24/32/40px scale                                         |
+| Body / editable fields     | Readable body text; at least 16px editable fields on phones                      |
+| Page heading               | Roughly 28–40px on phones/normal pages; scale functional TV content for distance |
 
 Keep the requested white/black appearance consistent even when the device prefers dark mode. Preserve text scaling, keyboard focus, readable contrast, and reduced-motion preferences.
 
@@ -41,20 +41,20 @@ Keep the requested white/black appearance consistent even when the device prefer
 
 Use short labels that explain the current task. Warmth can come from Tracy's name, emojis, player names, and the game itself. Avoid promotional slogans and elaborate metaphors.
 
-| Location | Preferred wording |
-| --- | --- |
-| Welcome header | `Tracy / 10,000 days` |
-| Welcome headline | `Tracy’s 10,000th day.` |
-| Welcome description | `A Saturday night to celebrate Tracy.` |
-| Join instruction | `Join on your phone. We’ll start when everyone’s here.` |
-| Primary welcome action | `Join the games` |
-| Host access | `Host controls` |
-| Player registration | `Join the games` / `Your name` / `Pick an emoji` |
-| Waiting state | `You’re in. Waiting for the host.` |
-| Host room | `Waiting room` / `Players` / `Start sound check` for the existing rehearsal |
-| Investment action | `Choose an investment` |
-| Costume action | `Vote for a costume` |
-| Finished action | `Waiting for the host` or a direct confirmation |
+| Location               | Preferred wording                                                           |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Welcome header         | `Tracy / 10,000 days`                                                       |
+| Welcome headline       | `Tracy’s 10,000th day.`                                                     |
+| Welcome description    | `A night to celebrate Tracy.`                                               |
+| Join instruction       | `Join on your phone. We’ll start when everyone’s here.`                     |
+| Primary welcome action | `Join the games`                                                            |
+| Host access            | `Host controls`                                                             |
+| Player registration    | `Join the games` / `Your name` / `Pick an emoji`                            |
+| Waiting state          | `You’re in. Waiting for the host.`                                          |
+| Host room              | `Waiting room` / `Players` / `Start sound check` for the existing rehearsal |
+| Investment action      | `Choose an investment`                                                      |
+| Costume action         | `Vote for a costume`                                                        |
+| Finished action        | `Waiting for the host` or a direct confirmation                             |
 
 Remove existing guest-facing phrases such as `Good company. Friendly rivalry.`, `Your next great night in`, `A party. A plot twist. Your move.`, `Let the good times roll.`, `Enter the group chat.`, and `Good evening, game master.` Do not replace these with a different layer of marketing copy. Keep genuine state labels and helpful instructions.
 
@@ -104,9 +104,7 @@ Apply and inspect all four routes, including sign-in/join forms, validation erro
 
 Retain all existing game rules, timers, privacy, sessions, accounting, request handling, and configuration behavior. This direction changes presentation; it does not authorize changing scoring or enabling unfinished games. Use `docs/tasks/party-notebook-ui.md` for the bounded implementation task.
 
-
 2026-10-28 refinement: host and player are portrait-first; TV is landscape-first. Party management and private details use disclosures, with compact round controls. Game machines use restrained rounded surfaces and semantic red/blue accents; the Powerball chamber is circular, slots retain a handle plus a clear Spin button. Desktop TV lays the chamber beside its result. Public lists rotate in small batches to bound screen content.
-
 
 ## Game personality and facilitation (2026-10-28)
 
@@ -117,7 +115,6 @@ TV: one title, one large playful rules block, then useful state/results. No repe
 Host: separate trivia team assignment, question/buzzer and awards using labeled groups, 20px field/action gaps and 24–32px group spacing. Use a three-column group layout on wide screens and a stacked portrait layout. Keep the invite QR in the lobby; during play show connection/recovery help in a disclosure and keep the TV link available.
 
 Player: confirm saved investments and bets from the server snapshot with a persistent checked button/status. Editing should make unsaved changes clear. Closing-bell results lead with signed token P/L and settlement state, with calculation details expandable. TV market cards show public price movements only. Motion remains presentation-only: spaced pull handle, staggered reel stops, varied ball orbits and a short drop/bounce; preserve reduced-motion behavior and saved results on reload.
-
 
 ## Scannable rules and confident actions (2026-10-28)
 

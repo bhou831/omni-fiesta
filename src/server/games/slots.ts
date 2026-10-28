@@ -39,9 +39,12 @@ export interface SlotsHostState {
   limit: number;
   acceptedSpins: number;
 }
+/** Public counts only: no player is named and no spin result or balance is exposed. */
 export interface SlotsDisplayState {
   cost: number;
   limit: number;
+  spins: number;
+  players: number;
 }
 export type RandomBelow = (exclusive: bigint) => bigint;
 
@@ -126,9 +129,16 @@ export function slotsHostState(context: PhaseContext): SlotsHostState {
   };
 }
 export function slotsDisplayState(context: PhaseContext): SlotsDisplayState {
+  const result = context.store.db
+    .prepare(
+      'SELECT COUNT(*) AS spins, COUNT(DISTINCT player_id) AS players FROM slot_spins WHERE room_id=? AND phase_instance=?',
+    )
+    .get(context.room.id, context.room.phase_instance) as { spins: number; players: number };
   return {
     cost: context.config.slots.cost_per_spin_tokens,
     limit: context.config.slots.max_spins_per_player,
+    spins: result.spins,
+    players: result.players,
   };
 }
 

@@ -163,7 +163,9 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
         <legend>2 · Question &amp; buzzer</legend>
         <BuzzStatus trivia={trivia} />
         <p>
-          Question {trivia.question || 'not started'} · {trivia.status}
+          Question {trivia.question || 'not started'} ·{' '}
+          {{ idle: 'ready', armed: 'buzzer open', locked: 'buzzer closed' }[trivia.status] ??
+            trivia.status}
         </p>
         <div className="actions">
           {button(
@@ -249,13 +251,34 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
 }
 export function TriviaDisplay({ trivia }: { trivia: TriviaProjection }) {
   return (
-    <section>
+    <section className="trivia-board">
       {(trivia.question > 0 || trivia.winner) && (
         <div className="trivia-buzz-status">
           <BuzzStatus trivia={trivia} />
         </div>
       )}
-      <TeamList trivia={trivia} />
+      <div className="team-board">
+        {trivia.teams.map((team) => (
+          <article
+            key={team.id}
+            className={`team-card ${trivia.winner?.teamId === team.id ? 'is-buzzer' : ''} ${team.excluded ? 'is-excluded' : ''}`}
+            style={{ '--team-color': team.color } as CSSProperties}
+          >
+            <h3>
+              {team.name}
+              {team.excluded && <small>Excluded this question</small>}
+            </h3>
+            <ul className="team-members">
+              {team.members.map((p) => (
+                <li key={p.id} className={trivia.winner?.playerId === p.id ? 'is-first' : ''}>
+                  <span aria-hidden="true">{p.emoji}</span>
+                  {p.name}
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

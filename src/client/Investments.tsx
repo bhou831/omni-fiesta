@@ -8,7 +8,8 @@ type Props = {
   disabled: boolean;
   revealBalance?: boolean;
 };
-const assetMarks: Record<string, string> = { SOL: '≋', BTC: '₿', DOGE: 'Ð', SPYx: '↗', PEPE: 'P' };
+// Plain ticker letters in every mark: one font, one size, nothing that reads as a market direction.
+const assetMark = (symbol: string | undefined) => (symbol ?? '').slice(0, 3).toUpperCase();
 const metric = (value: number | null | undefined) =>
   value == null ? 'Unavailable' : value.toLocaleString(undefined, { maximumSignificantDigits: 8 });
 const usd = (value: number | null | undefined) => {
@@ -183,7 +184,7 @@ export function InvestmentPlayer({ state, command, disabled, revealBalance = fal
             >
               <summary>
                 <span className="asset-mark" aria-hidden="true">
-                  {assetMarks[a.symbol] ?? a.symbol[0]}
+                  {assetMark(a.symbol)}
                 </span>
                 <span className="asset-identity">
                   <strong>{a.symbol}</strong>
@@ -280,9 +281,6 @@ function PersonalInvestmentResult({ data }: { data: InvestmentData }) {
   if (!pos)
     return (
       <section className="investment-result">
-        <span className="result-icon" aria-hidden="true">
-          🛋️
-        </span>
         <h2>You sat this one out.</h2>
         <p>No tokens invested. Enjoy the closing bell.</p>
       </section>
@@ -304,7 +302,7 @@ function PersonalInvestmentResult({ data }: { data: InvestmentData }) {
     >
       <div className="result-asset">
         <span className="asset-mark" aria-hidden="true">
-          {assetMarks[asset?.symbol ?? ''] ?? '↗'}
+          {assetMark(asset?.symbol)}
         </span>
         <div>
           <strong>{asset?.symbol ?? pos.asset_id}</strong>
@@ -336,7 +334,7 @@ function PersonalInvestmentResult({ data }: { data: InvestmentData }) {
       </dl>
       <p className="settlement-status">
         {pos.payout === null
-          ? '⏳ The host will settle this shortly.'
+          ? 'The host will settle this shortly.'
           : '✓ Settled. Returned tokens are available to play.'}
       </p>
       <details className="investment-receipt">
@@ -384,7 +382,7 @@ export function InvestmentReviewDisplay({ data }: { data: InvestmentData }) {
             key={asset.provider_id}
           >
             <span className="asset-mark" aria-hidden="true">
-              {assetMarks[asset.symbol] ?? asset.symbol[0]}
+              {assetMark(asset.symbol)}
             </span>
             <h2>{asset.symbol}</h2>
             <p className="asset-name">{asset.name}</p>

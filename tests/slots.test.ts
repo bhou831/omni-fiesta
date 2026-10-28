@@ -107,7 +107,11 @@ test('accepted spin is charged and saved once; retry survives closure and reconn
   assert.deepEqual(slotsDisplayState(f.engine.context(f.store.room(f.room.id))), {
     cost: 200,
     limit: 3,
+    spins: 1,
+    players: 1,
   });
+  const exposed = JSON.stringify(slotsDisplayState(f.engine.context(f.store.room(f.room.id))));
+  assert.doesNotMatch(exposed, /gross|net|balance|attempt|example\.test|Fox/);
 });
 
 test('distinct requests cannot overspend or exceed attempt limit', (t) => {

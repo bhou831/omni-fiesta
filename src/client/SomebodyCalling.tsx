@@ -41,7 +41,13 @@ export function SomebodyCallingHost({ state, disabled, command }: HostProps) {
     </section>
   );
 }
-export function SomebodyCallingPlayer({ state }: { state: CallingPublicState }) {
+export function SomebodyCallingPlayer({
+  state,
+  hint = true,
+}: {
+  state: CallingPublicState;
+  hint?: boolean;
+}) {
   return (
     <section className="calling-brief" aria-live="polite">
       {state.revealed && state.winner ? (
@@ -71,12 +77,12 @@ export function SomebodyCallingPlayer({ state }: { state: CallingPublicState }) 
               …
             </span>
           </p>
-          <p>Keep your phone’s ringer on.</p>
+          {hint && <p>Keep your phone’s ringer on.</p>}
         </>
       )}
     </section>
   );
 }
 export function SomebodyCallingDisplay({ state }: { state: CallingPublicState }) {
-  return <SomebodyCallingPlayer state={state} />;
+  return <SomebodyCallingPlayer state={state} hint={false} />;
 }

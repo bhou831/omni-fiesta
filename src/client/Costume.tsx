@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CostumeProjection } from '../server/games/costume.js';
 import type { PublicPlayer } from '../shared/contracts.js';
+import { formatTokens } from './format.js';
 
 export interface CostumeViewProps {
   state: CostumeProjection;
@@ -18,13 +19,12 @@ function Results({ state }: { state: CostumeProjection }) {
   return (
     <ol>
       {state.results.map((result) => (
-        <li key={result.playerId}>
+        <li key={result.playerId} value={result.place}>
           <strong>
-            {result.place}. {result.emoji} {result.name}
+            {result.emoji} {result.name}
           </strong>{' '}
           · {result.votes} {result.votes === 1 ? 'vote' : 'votes'} ·{' '}
-          {result.tokenChange > 0 ? '+' : ''}
-          {result.tokenChange} tokens
+          {formatTokens(result.tokenChange, { signed: true })} tokens
         </li>
       ))}
     </ol>

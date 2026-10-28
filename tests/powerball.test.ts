@@ -194,3 +194,24 @@ test('configured probability boundary selects red or blue with no automatic wage
   assert.equal(f.store.player(f.players[0].playerId).spendable, 1000);
   assert.equal(f.store.player(f.players[0].playerId).reserved, 0);
 });
+
+test('display tally counts bets per color but never names players or stakes', (t) => {
+  const f = setup(3);
+  t.after(() => f.store.close());
+  assert.deepEqual(powerballProjection(f.ctx(), 'display').tally, { red: 0, blue: 0 });
+  f.engine.execute(f.sessions[0], f.room.id, f.command('red', 100));
+  f.engine.execute(f.sessions[1], f.room.id, f.command('blue', 400));
+  f.engine.execute(f.sessions[2], f.room.id, f.command('blue', 300));
+  const display = powerballProjection(f.ctx(), 'display');
+  assert.deepEqual(display.tally, { red: 1, blue: 2 });
+  assert.doesNotMatch(JSON.stringify(display), /400|300|100|playerId|example\.test/);
+  assert.equal(powerballProjection(f.ctx(), 'player', f.players[0].playerId).tally, null);
+  assert.equal(powerballProjection(f.ctx(), 'host').tally, null);
+  f.engine.execute(f.sessions[2], f.room.id, {
+    requestId: randomUUID(),
+    phaseInstance: 5,
+    type: 'phase.action',
+    payload: { action: 'cancel' },
+  });
+  assert.deepEqual(powerballProjection(f.ctx(), 'display').tally, { red: 1, blue: 1 });
+});

@@ -178,7 +178,6 @@ Advancing to investments, costume, slots, Powerball, or the timed Sound check no
 
 Observed: targeted core, investment and 15/100-player in-process integration tests passed; a separate build and typecheck passed. `just format` passed. `just check` passed formatting and 46 non-network tests, but four HTTP/WebSocket tests could not bind loopback (`EPERM`); browser interaction and those updated transport tests remain unverified in this restricted session. The new fake-clock tests cover authorization, waiting without expiry, rejecting early actions, repeat starts and restart while pending.
 
-
 ### Portrait controls and game polish (2026-10-28)
 
 At the user's request, collapsed party management, private player/account rows, trivia teams and Powerball bets; surfaced investment entry above research; added sticky mobile lifecycle actions and current-round headings; removed obsolete coming-soon copy. TV roster/rankings rotate in bounded batches; active games suppress roster chips, and closed display timers become status labels. Slots has a softer cabinet, forward-running reels, settling motion and an explicit Spin action alongside the handle. Powerball has a circular chamber, richer ball motion and accessible red/blue choice buttons, with a landscape chamber/result arrangement. Existing server results, timing hooks and reduced-motion fallbacks remain authoritative.
@@ -204,6 +203,7 @@ Added an accessible opening-price position within a valid 24-hour range, clearer
 Recovery redemption now uses an additive version-9 receipt and client request ID to safely repeat the same redemption after an interrupted response, including across restart, without granting a second balance. The original recovery link is retained until success. Production listens on loopback; development retains LAN access. CoinGecko requests have a ten-second abort deadline. A stale opening snapshot can be refreshed only before investment input opens; starting is rejected until prices are fresh, and the opening snapshot is frozen once selection begins. Open room admission and host removal remain product/operational issues, not changed here.
 
 Observed: focused recovery (including restart and replay boundaries), market failure/freshness and 15/100-player in-process tests passed; the version-7 archive migration test passed after updating its expected schema version. Formatting, typecheck and production build passed. The restricted `just check` cannot bind loopback for six HTTP/WebSocket tests; an initial version-8 migration assertion failed after the intentional migration and was corrected, then the non-network migration test passed. Transport/browser checks for the new behavior and live-provider access were not rerun. No deployment performed.
+
 # Slot handle follow-up
 
 - The handle now moves down during a spin started by either control and returns when the spin finishes; dragging and reduced-motion settings remain supported. Formatting and production build passed. Browser and physical-device verification remain pending.
@@ -212,15 +212,16 @@ Observed: focused recovery (including restart and replay boundaries), market fai
 
 - An archived party's player session no longer prevents the join screen from loading for another party. Added HTTP coverage for joining a new party and restoring the old session; the HTTP test could not bind loopback in this sandbox (EPERM), so it remains unverified here. The archive migration test, formatting, and production build passed.
 
-
 ### Unified visual system (2026-10-28)
 
 At the user’s request, unified game typography and semantic color tokens; removed serif/monospace theme overrides, casino/fair/file metaphors and decorative instruction emoji. Slots use neutral geometric reel symbols, Powerball uses a neutral outlined chamber, and the calling reveal uses a simple phone illustration and prominent winner typography. Landscape display now separates the shared title/timer frame from instructions and dominant game content, with responsive introduction columns and result layouts. Consolidated superseded CSS declarations and documented the authoritative direction in `design/visual-system.md`. Game logic and motion timing are unchanged.
 
 Verified the exact staged tree independently of pre-existing workspace gameplay changes: formatting, typecheck and production build passed; 59 tests passed and seven HTTP/socket tests were blocked by localhost `EPERM`. The full working tree also built and passed formatting, with 62 tests passing and the same seven transport restrictions. Generated static fixture markup successfully; live browser review was unavailable, local preview binding was denied, and browser policy rejected file-based previews. No screenshot, physical-device or animation verification is claimed. Pre-existing gameplay changes remain outside this commit.
+
 # Deployment operator shortcuts
 
 - Added explicit SSH, service status, log, restart and HTTPS health recipes to the justfile, with setup notes in deployment documentation. These do not provision or deploy an application and have not been exercised against a Lightsail instance.
+
 # Lightsail deployment commands
 
 - Added server-side `just pull` and `just deploy` recipes with staged builds, stopped-service SQLite backup, release replacement and local health check. Shell syntax and recipe dry runs passed; the workflow has not been exercised on Lightsail, and schema rollback and off-instance backups remain manual.
@@ -234,3 +235,21 @@ Added a decorative, non-interactive balloon and fireworks background to the TV l
 Enlarged and sped up lobby fireworks, removed the registration call spoiler, added twelve profile emoji, and added decorative costume ghost and slots illustrations to the TV. Formatting, production build/typecheck, and all 69 tests passed (with local port access). Browser and TV visual verification and deployment remain outstanding.
 
 - Refined the costume display ghost with arms, cheeks, a bow tie, shaded eyes and a scalloped hem. Formatting and production build/typecheck passed; browser/TV visual verification and deployment remain outstanding.
+
+### Slots ticket printer, gumball Powerball and win fireworks (2026-10-28)
+
+At the user's request, after reviewing static mocks: slots now render each saved spin as a printed ticket (Spin button replaces the pull handle), Powerball uses a gumball machine with a capsule reveal inside the existing five-second presentation, `src/client/celebrate.ts` fires a firework finale when a saved net gain or the public draw result arrives live (never on reload, never for a net loss), and quiet balloons now float behind the TV in every phase and behind player pages. About 460 lines of superseded slot, handle and ball CSS were removed. Docs (`spec.md`, game specs, README, `design/visual-system.md`) were updated. Added `tests/slots-view.test.ts` and a gumball test in `tests/powerball-view.test.ts`.
+
+Verified 2026-10-28 with dependencies installed: `npm run format:check`, `npm run typecheck`, `npm test` (78 tests) and `npm run build` passed. One earlier full-suite run had a single failure in `balance-visibility` that did not recur in four later runs (unexplained, likely timing). Drove the real app through `npm run preview` with Playwright at 1920×1080 and 390×844: live slots and bet counts reached the TV, a host close/draw/reveal showed the phone cue, capsule reveal, TV fireworks and winning-side highlight, and a losing phone stayed quiet. Reduced-motion and physical TV/phone verification, and deployment, remain pending.
+
+### TV and phone refinement (2026-10-28)
+
+Rebalanced `/screen` into fixed zones (title and timer with progress bar, rules strip, full-width stage, room strip), scaled type for distance, centered sparse rounds, and added aggregate live counts for Slots (spins, players) and Powerball (bets per color) via `slotsDisplayState` and `PowerballProjection.tally`, with privacy tests. Rebalanced `/play`: one identity row with an Open/Closed pill, pinned Spin button, shorter copy, compact machine, "Watch the screen" cue and a result card that leads with the outcome. Timers kept on both. Not done: a "Next: …" preview between rounds (the client does not know the next stage), and collapsing the final ranking on phones (it is the content at that stage). Verified as above; physical-device review remains.
+
+### Scaled TV stage, slots dots and trivia board (2026-10-28)
+
+The TV now renders on a fixed 1920×1080 stage scaled to the window (`DisplayFrame`, `--vw`/`--vh`); verified in a real browser at 1366×768, 1920×1080 and 2560×1440 with no scrolling and the same composition. Slots shows anonymous per-player dots instead of tiles, Trivia shows team cards (the projection has no scores, so there are no score bars), and heroes idle gently. Added `tests/trivia-view.test.ts`. Physical TV review remains.
+
+## Checkpoint: pre-party polish (2026-10-28)
+
+Implemented from the independent UI review: single costume result numbering, party copy no longer names a weekday, neutral investment ticker marks, consistent arrows and disclosure markers, no decorative emoji on host or result screens, shared `formatTokens`, unified "Connection check" naming, "bet" wording, readable host labels, final-ranking top-three emphasis, centered Powerball status, and fainter disabled buttons. Verified 2026-10-28: `npm run format:check`, `npm run typecheck`, `npm test` (79 pass, 0 fail) and `npm run build` all pass; the costume, closing bell, Powerball, final ranking, Somebody’s calling and trivia host screens were checked in headless Chrome. The last ranking-column spacing tweak was not re-screenshotted.
