@@ -262,3 +262,7 @@ Assumptions recorded: the investment cap applies to a player's total across asse
 Implemented: multi-asset investing (schema v11, per-asset positions, per-asset settlement keys, checkbox cards with a pinned total bar); Powerball stake slider, selected-ball spacing fix and no machine on phones; balloons fixed and bolder fireworks on every stage; costume tie-for-first re-votes (schema v12, `revote` host action, tie-break voting, host and TV UI). Updated rule tests and added tests for multi-position settlement, v10 migration, phones without the machine, and repeated re-votes.
 
 Follow-up (2026-10-28): investment cards now lead with a live-chart link button, collapse the payoff table, sit on an opaque background, and keep the unsaved draft in session storage. No chart is embedded and no extra market calls were added.
+
+### Ambient fireworks refinement (2026-10-28)
+
+Softened the background fireworks with muted colors, thinner rays, lower opacity and more time between bursts on TV and phone. Outcome fireworks remain event-driven. Reduced-motion and hidden-tab behavior are unchanged. Formatting and production build/typecheck passed; visual review remains pending.

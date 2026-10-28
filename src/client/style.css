@@ -2064,21 +2064,20 @@ td {
   animation-delay: -7s;
 }
 .lobby-firework {
-  --fw: #ff7a6b;
+  --fw: #b96f64;
   position: absolute;
-  width: 280px;
-  height: 280px;
+  width: 240px;
+  height: 240px;
   border-radius: 50%;
   opacity: 0;
-  background: repeating-conic-gradient(from 0deg, var(--fw) 0deg 5deg, transparent 5deg 22deg);
+  background: repeating-conic-gradient(from 0deg, var(--fw) 0deg 2deg, transparent 2deg 22deg);
   -webkit-mask: radial-gradient(circle, transparent 0 30%, #000 32% 56%, transparent 58%);
   mask: radial-gradient(circle, transparent 0 30%, #000 32% 56%, transparent 58%);
-  filter: drop-shadow(0 0 8px var(--fw));
-  animation: firework-burst 3.6s ease-out infinite;
+  animation: firework-burst 8s ease-out infinite;
 }
 .ambient-celebration.is-light .lobby-firework {
-  width: 180px;
-  height: 180px;
+  width: 150px;
+  height: 150px;
 }
 .ambient-celebration.is-light .firework-3,
 .ambient-celebration.is-light .firework-4,
@@ -2090,34 +2089,34 @@ td {
   top: 14%;
 }
 .firework-1 {
-  --fw: #ffc94a;
+  --fw: #a88942;
   left: 36%;
   top: 34%;
-  animation-delay: -0.6s;
+  animation-delay: -3s;
 }
 .firework-2 {
-  --fw: #5aa9ff;
+  --fw: #6687a8;
   right: 10%;
   top: 10%;
-  animation-delay: -1.2s;
+  animation-delay: -6s;
 }
 .firework-3 {
-  --fw: #b48cff;
+  --fw: #8c7da3;
   right: 28%;
   top: 52%;
-  animation-delay: -1.8s;
+  animation-delay: -9s;
 }
 .firework-4 {
-  --fw: #5fcf9b;
+  --fw: #6c9982;
   left: 18%;
   top: 56%;
-  animation-delay: -2.4s;
+  animation-delay: -12s;
 }
 .firework-5 {
-  --fw: #ff8fc1;
+  --fw: #b77d95;
   right: 4%;
   top: 40%;
-  animation-delay: -3s;
+  animation-delay: -15s;
 }
 .ambient-celebration.is-paused * {
   animation-play-state: paused;
@@ -2135,21 +2134,21 @@ td {
 }
 @keyframes firework-burst {
   0%,
-  45%,
   100% {
     opacity: 0;
-    transform: scale(0.2);
+    transform: scale(0.3);
   }
-  52% {
-    opacity: 0.9;
+  2% {
+    opacity: 0.35;
   }
-  80% {
-    opacity: 0.55;
-    transform: scale(1.25);
+  10% {
+    opacity: 0.2;
+    transform: scale(1);
   }
-  95% {
+  15%,
+  99% {
     opacity: 0;
-    transform: scale(1.5);
+    transform: scale(1.2);
   }
 }
 @media (prefers-reduced-motion: reduce) {
