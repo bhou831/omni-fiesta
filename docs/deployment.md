@@ -1,8 +1,8 @@
 # Deployment and recovery preparation
 
-These are preparation notes, not a claim that any AWS resource, DNS record or service exists. Provisioning, DNS changes and public deployment require a separate task. This is a single-instance application: do not run multiple writers against the same SQLite database.
+This is a single-instance application: do not run multiple writers against the same SQLite database. Check the actual server configuration before applying these instructions.
 
-For a future Lightsail deployment, install a supported Node 22 release, build the application, create a dedicated `omni-fiesta` service user and persistent `/var/lib/omni-fiesta` directory, and adapt `deploy/omni-fiesta.service` to the actual installation and Node paths. Put `HOST_PASSWORD` and `COINGECKO_API_KEY` in a private `/etc/omni-fiesta.env` readable only by the service and administrator; never commit it. The production Node listener binds to loopback; configure `PUBLIC_ORIGIN`, HTTPS, firewall and DNS for the real host, then use `deploy/Caddyfile` as the starting reverse proxy configuration. Verify Caddy's HTTPS and WebSocket proxying and service startup before inviting players. Set `ENABLE_REHEARSAL=false` in production. Verify CoinGecko API access and freshness for all configured IDs before the event.
+For Lightsail, install a supported Node 22 release, build the application, create a dedicated `omni-fiesta` service user and persistent `/var/lib/omni-fiesta` directory, and adapt `deploy/omni-fiesta.service` to the actual installation and Node paths. Put `HOST_PASSWORD` and `COINGECKO_API_KEY` in a private `/etc/omni-fiesta.env` readable only by the service and administrator; never commit it. The production Node listener binds to loopback; configure `PUBLIC_ORIGIN`, HTTPS, firewall and DNS for the real host, then use `deploy/Caddyfile` as the starting reverse proxy configuration. Verify Caddy's HTTPS and WebSocket proxying and service startup before inviting players. Set `ENABLE_REHEARSAL=false` in production. Verify CoinGecko API access and freshness for all configured IDs before the event.
 
 ## Operator shortcuts
 
@@ -10,7 +10,7 @@ After the server, SSH access and service are configured, set these variables loc
 
 ```sh
 export DEPLOY_SSH_KEY="$HOME/.ssh/lightsail-key.pem"
-export DEPLOY_HOST="ubuntu@100.58.241.182"
+export DEPLOY_HOST="ubuntu@18.214.189.202"
 export DEPLOY_ORIGIN="https://game.bowen-hou.com"
 just deploy-ssh       # interactive administration
 just deploy-status    # systemd status
@@ -19,7 +19,18 @@ just deploy-health    # public HTTPS health endpoint
 just deploy-restart   # restart the service; requires server sudo
 ```
 
-Replace the example key path, host and origin with your actual configuration. The shortcuts do not install, upload, or update the application. Run `just check` locally, push the intended commit, and follow the server setup and release procedure before restarting. A health response only confirms the endpoint responds; it does not validate games, WebSockets, or market access. Restarting interrupts connected players; choose a suitable maintenance window.
+Replace the example key path, host and origin with your actual configuration. These remote operator shortcuts do not install or update the application.
+
+To deploy a tested, pushed commit, SSH to the server and run in `~/omni-fiesta`:
+
+```sh
+just pull
+just deploy
+```
+
+Install `just` on the server first. `pull` uses `~/.ssh/omni-fiesta-deploy` for GitHub and requires a fast-forward of `master`. `deploy` requires a clean checkout, Node/npm, curl and sudo; it installs dependencies, builds, stages runtime files, stops the service, backs up `/var/lib/omni-fiesta/party.sqlite`, replaces `/opt/omni-fiesta`, and checks the local health endpoint. It records the commit in `/opt/omni-fiesta/REVISION` and retains the previous application directory. It assumes the documented database path and service layout; it does not change the systemd unit or Caddy configuration. Backups and old releases consume disk space; manage retention securely and copy backups off the instance. Database migrations are not automatically rolled back; check schema compatibility before restoring an older release. If startup fails, inspect the logs and backup before recovering.
+
+Run `just check` locally and push the intended commit before deploying. A health response only confirms the endpoint responds; it does not validate games, WebSockets, or market access. Restarting interrupts connected players; choose a suitable maintenance window. The deployment script has not yet been verified on Lightsail.
 
 ## Consistent backups and restore
 

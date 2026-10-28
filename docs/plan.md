@@ -221,3 +221,6 @@ Verified the exact staged tree independently of pre-existing workspace gameplay 
 # Deployment operator shortcuts
 
 - Added explicit SSH, service status, log, restart and HTTPS health recipes to the justfile, with setup notes in deployment documentation. These do not provision or deploy an application and have not been exercised against a Lightsail instance.
+# Lightsail deployment commands
+
+- Added server-side `just pull` and `just deploy` recipes with staged builds, stopped-service SQLite backup, release replacement and local health check. Shell syntax and recipe dry runs passed; the workflow has not been exercised on Lightsail, and schema rollback and off-instance backups remain manual.

@@ -54,6 +54,14 @@ simulate players="15":
 market-check:
     node --env-file-if-exists=.env --import tsx scripts/check-market.ts
 
+# On the server: fast-forward master using the GitHub read-only deploy key.
+pull:
+    GIT_SSH_COMMAND="ssh -i $HOME/.ssh/omni-fiesta-deploy -o IdentitiesOnly=yes" git pull --ff-only origin master
+
+# On the server: build, back up the database, install the release, and restart.
+deploy:
+    bash scripts/deploy.sh
+
 # Connect to the configured Lightsail instance (set DEPLOY_SSH_KEY and DEPLOY_HOST).
 deploy-ssh:
     ssh -i "${DEPLOY_SSH_KEY:?Set DEPLOY_SSH_KEY to your private key path}" "${DEPLOY_HOST:?Set DEPLOY_HOST to user@host}"
