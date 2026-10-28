@@ -6,7 +6,7 @@ type CommandFn = (type: Command['type'], payload?: Command['payload']) => Promis
 export type TriviaViewProps = { trivia: TriviaProjection; command: CommandFn; disabled: boolean };
 function TeamList({ trivia }: { trivia: TriviaProjection }) {
   return (
-    <div>
+    <div className="team-list">
       {trivia.teams.map((team) => (
         <p key={team.id}>
           <strong style={{ color: team.color }}>{team.name}</strong>
@@ -32,7 +32,9 @@ function BuzzStatus({ trivia }: { trivia: TriviaProjection }) {
         ? 'Buzzer is open.'
         : trivia.question
           ? 'Waiting for the host.'
-          : 'Teams are being assigned.'}
+          : trivia.teams.length
+            ? 'Teams are ready.'
+            : 'Finding your teammates…'}
     </p>
   );
 }
@@ -66,98 +68,110 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
   const host = (action: string, data?: Record<string, unknown>) =>
     void command('phase.host', { action, data });
   return (
-    <section>
-      <h3>Trivia controls</h3>
-      <label>
-        Number of teams{' '}
-        <input
-          type="number"
-          min="1"
-          max={trivia.teams.reduce((n, t) => n + t.members.length, 0) || undefined}
-          value={count}
-          onChange={(e) => setCount(e.target.value)}
-        />
-      </label>{' '}
-      <button
-        className="button secondary"
-        disabled={disabled || trivia.question > 0}
-        onClick={() => host('assign', { count: Number(count) })}
-      >
-        Assign teams
-      </button>
-      <details>
-        <summary>View teams and players</summary>
-        <TeamList trivia={trivia} />
-      </details>
-      <BuzzStatus trivia={trivia} />
-      <p>
-        Question {trivia.question || 'not started'} · {trivia.status}
-      </p>
-      <div className="actions">
+    <section className="host-game-controls">
+      <fieldset className="control-group">
+        <legend>1 · Teams</legend>
+        <label>
+          Number of teams{' '}
+          <input
+            type="number"
+            min="1"
+            max={trivia.teams.reduce((n, t) => n + t.members.length, 0) || undefined}
+            value={count}
+            onChange={(e) => setCount(e.target.value)}
+          />
+        </label>{' '}
         <button
           className="button secondary"
-          disabled={disabled || !trivia.teams.length || trivia.status === 'armed'}
-          onClick={() => host('new-question')}
+          disabled={disabled || trivia.question > 0}
+          onClick={() => host('assign', { count: Number(count) })}
         >
-          New question
+          Assign teams
         </button>
-        <button
-          className="button primary"
-          disabled={disabled || !trivia.question || trivia.status !== 'idle'}
-          onClick={() => host('arm')}
-        >
-          Arm buzzer
-        </button>
+        <details>
+          <summary>View teams and players</summary>
+          <TeamList trivia={trivia} />
+        </details>
+      </fieldset>
+      <fieldset className="control-group">
+        <legend>2 · Question &amp; buzzer</legend>
+        <BuzzStatus trivia={trivia} />
+        <p>
+          Question {trivia.question || 'not started'} · {trivia.status}
+        </p>
+        <div className="actions">
+          <button
+            className="button secondary"
+            disabled={disabled || !trivia.teams.length || trivia.status === 'armed'}
+            onClick={() => host('new-question')}
+          >
+            New question
+          </button>
+          <button
+            className="button primary"
+            disabled={disabled || !trivia.question || trivia.status !== 'idle'}
+            onClick={() => host('arm')}
+          >
+            Arm buzzer
+          </button>
+          <button
+            className="button secondary"
+            disabled={disabled || trivia.status !== 'armed'}
+            onClick={() => host('close-buzzer')}
+          >
+            Close buzzer
+          </button>
+          <button
+            className="button secondary"
+            disabled={disabled || trivia.status !== 'locked'}
+            onClick={() => host('incorrect')}
+          >
+            Incorrect · reopen
+          </button>
+        </div>
+      </fieldset>
+      <fieldset className="control-group">
+        <legend>3 · Award points</legend>
+        <label>
+          Team{' '}
+          <select value={team} onChange={(e) => setTeam(e.target.value)}>
+            {trivia.teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>{' '}
+        <label>
+          Tokens per teammate{' '}
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </label>{' '}
         <button
           className="button secondary"
-          disabled={disabled || trivia.status !== 'armed'}
-          onClick={() => host('close-buzzer')}
+          disabled={disabled || !trivia.teams.length}
+          onClick={() => host('award', { teamId: Number(team), amount: Number(amount) })}
         >
-          Close buzzer
+          Award team
         </button>
-        <button
-          className="button secondary"
-          disabled={disabled || trivia.status !== 'locked'}
-          onClick={() => host('incorrect')}
-        >
-          Incorrect · reopen
-        </button>
-      </div>
-      <label>
-        Team{' '}
-        <select value={team} onChange={(e) => setTeam(e.target.value)}>
-          {trivia.teams.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-      </label>{' '}
-      <label>
-        Tokens per teammate{' '}
-        <input
-          type="number"
-          min="1"
-          step="1"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-      </label>{' '}
-      <button
-        className="button secondary"
-        disabled={disabled || !trivia.teams.length}
-        onClick={() => host('award', { teamId: Number(team), amount: Number(amount) })}
-      >
-        Award team
-      </button>
+        <p className="fine-print">Each teammate receives this many tokens.</p>
+      </fieldset>
     </section>
   );
 }
 export function TriviaDisplay({ trivia }: { trivia: TriviaProjection }) {
   return (
     <section>
-      <h2>Team trivia</h2>
-      <BuzzStatus trivia={trivia} />
+      {(trivia.question > 0 || trivia.winner) && (
+        <div className="trivia-buzz-status">
+          <BuzzStatus trivia={trivia} />
+        </div>
+      )}
       <TeamList trivia={trivia} />
     </section>
   );

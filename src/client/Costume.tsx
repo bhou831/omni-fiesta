@@ -47,7 +47,7 @@ export function CostumePlayer(props: CostumeViewProps) {
           {state.votedFor && (
             <p>Saved vote: {players.find((p) => p.id === state.votedFor)?.name ?? 'Player'}</p>
           )}
-          <div>
+          <div className="costume-choices">
             {players
               .filter((p) => allowSelfVote || p.id !== selfId)
               .map((p) => (
@@ -91,14 +91,5 @@ export function CostumeHost(props: CostumeViewProps) {
   );
 }
 export function CostumeDisplay({ state }: Pick<CostumeViewProps, 'state'>) {
-  return (
-    <section>
-      <h2>Costume contest</h2>
-      {state.revealed ? (
-        <Results state={state} />
-      ) : (
-        <p>Vote on your phone. The host will reveal the results.</p>
-      )}
-    </section>
-  );
+  return <section>{state.revealed && <Results state={state} />}</section>;
 }

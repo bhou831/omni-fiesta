@@ -4,7 +4,8 @@ import QRCode from 'qrcode';
 import { EMOJIS, type RoomSnapshot } from '../shared/contracts.js';
 import { api, post, requestId } from './api.js';
 import { useRoom } from './useRoom.js';
-import { InvestmentPlayer } from './Investments.js';
+import { InvestmentPlayer, InvestmentReviewDisplay } from './Investments.js';
+import { RoundDescription } from './RoundDescription.js';
 import { CostumePlayer, CostumeHost, CostumeDisplay } from './Costume.js';
 import { TriviaPlayer, TriviaHost, TriviaDisplay } from './Trivia.js';
 import { SlotsPlayer, SlotsHost, SlotsDisplay } from './Slots.js';
@@ -282,11 +283,10 @@ function Join({
             </div>
           </fieldset>
           <label>
-            Email
+            Email (optional)
             <input
               type="email"
               autoComplete="email"
-              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -383,7 +383,7 @@ function Player() {
         }
       />
       <main
-        className={`player-main ${state.room.status !== 'pending' && ['slots', 'powerball'].includes(state.room.phase) ? 'game-interaction' : ''}`}
+        className={`player-main phase-${state.room.phase} ${state.room.status !== 'pending' && ['slots', 'powerball'].includes(state.room.phase) ? 'game-interaction' : ''}`}
       >
         <div className="player-meta">
           <span className="tag">
@@ -412,7 +412,7 @@ function Player() {
               : state.room.phase === 'connection-check'
                 ? 'Tap below to check your connection. No tokens are spent.'
                 : state.room.mode === 'party'
-                  ? 'Follow the instructions below.'
+                  ? ''
                   : 'Sound check is complete. Waiting for the host.'}
         </p>
         {reveal && (
@@ -768,7 +768,7 @@ function Host() {
           </section>
         ) : (
           <>
-            <div className="host-grid">
+            <div className={`host-grid ${state.room.phase !== 'lobby' ? 'in-game' : ''}`}>
               <section className="panel round-panel">
                 <div className="section-heading">
                   <span className="eyebrow">
@@ -780,25 +780,19 @@ function Host() {
                   </span>
                   <Connection connected={room.connected} />
                 </div>
-                <h2>
-                  {state.room.phase === 'lobby'
-                    ? 'Waiting room'
-                    : state.room.phase === 'finish'
-                      ? state.room.mode === 'party'
-                        ? 'Party complete'
-                        : 'Rehearsal complete'
-                      : state.room.title}
-                  <span className="accent">.</span>
-                </h2>
-                <p>
-                  {state.room.phase === 'lobby'
-                    ? 'Get everyone into the room. When you’re ready, start the shared countdown.'
-                    : state.room.phase === 'connection-check'
-                      ? `${state.players.filter((p) => p.checkedIn).length} of ${state.players.length} players have checked in. You decide when to move on.`
-                      : state.room.mode === 'party'
-                        ? 'Manage this round below. Only the host advances the party.'
-                        : 'All connected. The rehearsal is complete.'}
-                </p>
+                {state.room.phase === 'lobby' && (
+                  <>
+                    <p className="host-lobby-intro">
+                      Get everyone into the room, prepare opening prices, then open the first game.
+                    </p>
+                  </>
+                )}
+                {state.room.phase === 'connection-check' && (
+                  <p>
+                    {state.players.filter((p) => p.checkedIn).length} of {state.players.length}{' '}
+                    checked in.
+                  </p>
+                )}
                 <Timer state={state} offset={room.clockOffset} />
                 {state.room.status === 'pending' && (
                   <p>
@@ -921,9 +915,21 @@ function Host() {
                 )}
               </section>
               <section className="panel invite-panel">
-                <span className="eyebrow">Invite players</span>
-                <h2>Join this room</h2>
-                <Qr code={state.room.code} />
+                {state.room.phase === 'lobby' ? (
+                  <>
+                    <h2>Join this room</h2>
+                    <Qr code={state.room.code} />
+                  </>
+                ) : (
+                  <details className="connection-help">
+                    <summary>Connections &amp; rejoining</summary>
+                    <p>
+                      New registration is closed. Returning players can reopen their original tab.
+                      For a lost session, use a recovery link in the player list below.
+                    </p>
+                    <p>Disconnected players keep their tokens, investments and team.</p>
+                  </details>
+                )}
                 {displayToken ? (
                   <a
                     className="button secondary"
@@ -1075,16 +1081,12 @@ function Display() {
           </div>
         }
       />
-      <main className={`display-main ${state.powerball ? 'has-ball-machine' : ''}`}>
+      <main
+        className={`display-main phase-${state.room.phase} ${state.powerball ? 'has-ball-machine' : ''}`}
+      >
         <div className="display-hero">
           <div>
-            <span className="eyebrow">
-              {state.room.phase === 'lobby'
-                ? 'Waiting room'
-                : state.room.mode === 'party'
-                  ? state.room.title
-                  : 'Sound check rehearsal'}{' '}
-            </span>
+            {state.room.phase === 'lobby' && <span className="eyebrow">Waiting room</span>}
             <h1>
               {state.room.phase === 'lobby' ? (
                 <>Tracy’s 10,000th day.</>
@@ -1096,19 +1098,7 @@ function Display() {
                 <>Rehearsal complete</>
               )}
             </h1>
-            <p>
-              {state.room.status === 'pending'
-                ? 'Waiting for the host to start the timer.'
-                : state.room.phase === 'lobby'
-                  ? 'Join on your phone. We’ll start when everyone’s here.'
-                  : state.room.phase === 'connection-check'
-                    ? state.room.status === 'closed'
-                      ? 'Time’s up. Your host will take it from here.'
-                      : 'Tap “Check in” on your phone.'
-                    : state.room.mode === 'party'
-                      ? 'Follow along on your phone.'
-                      : 'Sound check is complete. Waiting for the host.'}
-            </p>
+            <RoundDescription state={state} />
           </div>
           {state.room.phase === 'lobby' ? (
             <div className="display-qr">
@@ -1124,7 +1114,7 @@ function Display() {
                     ? 'Starting soon'
                     : state.powerball && !state.powerball.revealed
                       ? 'Betting closed'
-                      : 'Round complete'}
+                      : ''}
                 </span>
               )}
             </>
@@ -1143,23 +1133,20 @@ function Display() {
         {state.room.status !== 'pending' && state.slots?.role === 'display' && (
           <SlotsDisplay state={state.slots.data} />
         )}
-        {state.room.phase === 'investments' && (
-          <p>
-            Choose one asset and amount on your phone. Your investment remains locked until review.
-          </p>
+        {state.room.phase === 'investment-review' && state.investments && (
+          <InvestmentReviewDisplay data={state.investments} />
         )}
-        {state.room.phase === 'investment-review' && (
-          <p>The host will prepare closing prices and settle the investments.</p>
+        {['lobby', 'connection-check'].includes(state.room.phase) && (
+          <div className="section-heading">
+            <span className="eyebrow">Players</span>
+            <span>
+              {state.players.length} in the room
+              {state.room.phase === 'connection-check'
+                ? ` · ${state.players.filter((p) => p.checkedIn).length} checked in`
+                : ''}
+            </span>
+          </div>
         )}
-        <div className="section-heading">
-          <span className="eyebrow">Players</span>
-          <span>
-            {state.players.length} in the room
-            {state.room.phase === 'connection-check'
-              ? ` · ${state.players.filter((p) => p.checkedIn).length} checked in`
-              : ''}
-          </span>
-        </div>
         <div
           className={`guest-grid ${state.room.phase !== 'lobby' && state.room.phase !== 'connection-check' ? 'roster-during-game' : ''}`}
         >

@@ -27,11 +27,11 @@ export type Stage = (typeof PARTY_STAGES)[number] | 'connection-check';
 export type Role = 'host' | 'player' | 'display';
 export const STAGE_LABELS: Record<Stage, string> = {
   lobby: 'The gathering',
-  investments: 'Make your move',
+  investments: '2 minute quantitative researcher',
   costume: 'Best dressed',
-  trivia: 'Team trivia',
-  slots: 'Feeling lucky?',
-  powerball: 'Red or blue',
+  trivia: 'Tracy’s themed trivia',
+  slots: 'Tonight I am Venetian',
+  powerball: 'Powerball red or blue',
   'investment-review': 'The closing bell',
   'somebody-calling': 'Somebody’s calling',
   finish: 'That’s a wrap',
@@ -39,7 +39,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
 };
 export interface Profile {
   name: string;
-  email: string;
+  email?: string;
   phone: string;
   emoji: string;
 }

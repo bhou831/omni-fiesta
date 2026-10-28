@@ -100,38 +100,12 @@ export function InvestmentPlayer({ state, command, disabled, revealBalance = fal
   const [asset, setAsset] = useState(data.position?.asset_id ?? data.assets[0]?.provider_id ?? '');
   const [amount, setAmount] = useState(String(data.position?.principal ?? ''));
   if (state.room.phase === 'investment-review') {
-    const pos = data.position;
-    if (!pos) return <p>You did not make an investment.</p>;
-    const open = data.opening?.quotes.find((q) => q.id === pos.asset_id);
-    const close = data.closing?.quotes.find((q) => q.id === pos.asset_id);
-    return (
-      <section>
-        <h2>Your investment</h2>
-        <p>
-          {pos.asset_id} · {pos.principal} tokens {pos.payout === null ? 'locked' : 'invested'}
-        </p>
-        <p>
-          Opening: ${open?.price ?? 'Unavailable'} · Closing: ${close?.price ?? 'Pending'}
-        </p>
-        <p>
-          Opening time: {open ? new Date(open.timestamp).toLocaleString() : 'Unavailable'} · Closing
-          time: {close ? new Date(close.timestamp).toLocaleString() : 'Pending'}
-        </p>
-        <p>
-          Market return:{' '}
-          {open && close
-            ? `${((Number(close.price) / Number(open.price) - 1) * 100).toFixed(2)}%`
-            : 'Pending'}{' '}
-          · Multiplier: {data.multiplier}×
-        </p>
-        <p>
-          {pos.payout === null
-            ? 'Waiting for settlement.'
-            : `Gross payout: ${pos.payout} tokens · Game P/L: ${pos.payout - pos.principal} tokens`}
-        </p>
-      </section>
-    );
+    return <PersonalInvestmentResult data={data} />;
   }
+  const saved =
+    !!data.position &&
+    data.position.asset_id === asset &&
+    data.position.principal === Number(amount);
   return (
     <section className="game-panel">
       <h2>Choose one investment</h2>
@@ -139,14 +113,6 @@ export function InvestmentPlayer({ state, command, disabled, revealBalance = fal
         Up to {data.cap} tokens are locked until review. Returns are multiplied by {data.multiplier}
         ×; your maximum loss is your investment.
       </p>
-      {data.position && (
-        <p>
-          Saved: {data.position.principal} tokens in{' '}
-          {data.assets.find((a) => a.provider_id === data.position?.asset_id)?.symbol ??
-            data.position.asset_id}
-          .
-        </p>
-      )}
       <div className="investment-order">
         {' '}
         <label>
@@ -168,7 +134,7 @@ export function InvestmentPlayer({ state, command, disabled, revealBalance = fal
         </p>
         <button
           className="button primary"
-          disabled={disabled}
+          disabled={disabled || saved}
           onClick={() =>
             void command('phase.action', {
               action: 'invest',
@@ -176,8 +142,15 @@ export function InvestmentPlayer({ state, command, disabled, revealBalance = fal
             })
           }
         >
-          Save investment
+          {saved ? '✓ Investment saved' : data.position ? 'Update investment' : 'Save investment'}
         </button>
+        <p className={`save-feedback ${saved ? 'is-saved' : ''}`} role="status" aria-live="polite">
+          {saved
+            ? `✓ ${data.position!.principal} tokens in ${data.assets.find((a) => a.provider_id === data.position!.asset_id)?.symbol ?? asset}. You’re all set.`
+            : data.position
+              ? 'You have unsaved changes. Your previous investment is still saved.'
+              : 'No investment saved yet. Sitting out is fine, too.'}
+        </p>
         {data.position && (
           <button
             className="button secondary"
@@ -286,6 +259,153 @@ export function InvestmentPlayer({ state, command, disabled, revealBalance = fal
           );
         })}
       </div>
+    </section>
+  );
+}
+
+type InvestmentData = NonNullable<RoomSnapshot['investments']>;
+const signed = (value: number, digits = 2) =>
+  `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: digits })}`;
+const direction = (value: number) =>
+  value > 0 ? 'market-up' : value < 0 ? 'market-down' : 'market-flat';
+
+function PersonalInvestmentResult({ data }: { data: InvestmentData }) {
+  const pos = data.position;
+  if (!pos)
+    return (
+      <section className="investment-result">
+        <span className="result-icon" aria-hidden="true">
+          🛋️
+        </span>
+        <h2>You sat this one out.</h2>
+        <p>No tokens invested. Enjoy the closing bell.</p>
+      </section>
+    );
+  const asset = data.assets.find((a) => a.provider_id === pos.asset_id);
+  const open = data.opening?.quotes.find((q) => q.id === pos.asset_id);
+  const close = data.closing?.quotes.find((q) => q.id === pos.asset_id);
+  const payout =
+    pos.payout ??
+    (open && close
+      ? investmentPayout(pos.principal, data.multiplier, open.price, close.price)
+      : null);
+  const net = payout === null ? null : payout - pos.principal;
+  const marketReturn = open && close ? (Number(close.price) / Number(open.price) - 1) * 100 : null;
+  return (
+    <section
+      className={`investment-result ${net === null ? '' : direction(net)}`}
+      aria-live="polite"
+    >
+      <div className="result-asset">
+        <span className="asset-mark" aria-hidden="true">
+          {assetMarks[asset?.symbol ?? ''] ?? '↗'}
+        </span>
+        <div>
+          <strong>{asset?.symbol ?? pos.asset_id}</strong>
+          <p>{asset?.name}</p>
+        </div>
+      </div>
+      <span className="eyebrow">
+        {pos.payout === null ? 'Awaiting settlement' : 'Your game result'}
+      </span>
+      <strong className="result-number">
+        {net === null
+          ? 'Closing soon…'
+          : `${net > 0 ? '↗ ' : net < 0 ? '↘ ' : ''}${signed(net, 0)}`}
+      </strong>
+      <p className="result-caption">
+        {net === null
+          ? 'Your stake is safe in the lockbox until the host settles.'
+          : `tokens ${net > 0 ? 'gained' : net < 0 ? 'lost' : 'gained or lost'}${pos.payout === null ? ' · preview, not credited yet' : ''}`}
+      </p>
+      <dl className="result-breakdown">
+        <div>
+          <dt>You invested</dt>
+          <dd>{pos.principal} tokens</dd>
+        </div>
+        <div>
+          <dt>{pos.payout === null ? 'Expected return' : 'Returned to you'}</dt>
+          <dd>{payout === null ? 'Pending' : `${payout} tokens`}</dd>
+        </div>
+      </dl>
+      <p className="settlement-status">
+        {pos.payout === null
+          ? '⏳ The host will settle this shortly.'
+          : '✓ Settled. Returned tokens are available to play.'}
+      </p>
+      <details className="investment-receipt">
+        <summary>How it worked</summary>
+        <dl className="market-facts">
+          <div>
+            <dt>Opening price</dt>
+            <dd>{open ? usd(Number(open.price)) : 'Unavailable'}</dd>
+          </div>
+          <div>
+            <dt>Closing price</dt>
+            <dd>{close ? usd(Number(close.price)) : 'Pending'}</dd>
+          </div>
+          <div>
+            <dt>Market move</dt>
+            <dd>{marketReturn === null ? 'Pending' : `${signed(marketReturn)}%`}</dd>
+          </div>
+          <div>
+            <dt>Return multiplier</dt>
+            <dd>{data.multiplier}× · losses capped at your stake</dd>
+          </div>
+        </dl>
+        <p className="fine-print">
+          Opened {open ? new Date(open.timestamp).toLocaleString() : 'Unavailable'}
+          <br />
+          Closed {close ? new Date(close.timestamp).toLocaleString() : 'Pending'}
+        </p>
+      </details>
+    </section>
+  );
+}
+
+export function InvestmentReviewDisplay({ data }: { data: InvestmentData }) {
+  return (
+    <section className="market-results" aria-label="Opening to closing market results">
+      {data.assets.map((asset) => {
+        const open = data.opening?.quotes.find((q) => q.id === asset.provider_id);
+        const close = data.closing?.quotes.find((q) => q.id === asset.provider_id);
+        const change = open && close ? (Number(close.price) / Number(open.price) - 1) * 100 : null;
+        const payout =
+          open && close ? investmentPayout(100, data.multiplier, open.price, close.price) : null;
+        return (
+          <article
+            className={`market-result-card ${change === null ? '' : direction(change)}`}
+            key={asset.provider_id}
+          >
+            <span className="asset-mark" aria-hidden="true">
+              {assetMarks[asset.symbol] ?? asset.symbol[0]}
+            </span>
+            <h2>{asset.symbol}</h2>
+            <p className="asset-name">{asset.name}</p>
+            <strong className="market-change">
+              {change === null
+                ? 'Pending'
+                : `${change > 0 ? '↗' : change < 0 ? '↘' : '→'} ${signed(change)}%`}
+            </strong>
+            <span>market move</span>
+            <dl>
+              <div>
+                <dt>Open</dt>
+                <dd>{open ? usd(Number(open.price)) : '—'}</dd>
+              </div>
+              <div>
+                <dt>Close</dt>
+                <dd>{close ? usd(Number(close.price)) : '—'}</dd>
+              </div>
+            </dl>
+            <p className="amplified-return">
+              {payout === null
+                ? 'Waiting for closing prices'
+                : `${signed(payout - 100, 0)} tokens per 100 invested`}
+            </p>
+          </article>
+        );
+      })}
     </section>
   );
 }

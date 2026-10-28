@@ -27,6 +27,8 @@ export interface CostumeResult {
   tokenChange: number;
 }
 export interface CostumeProjection {
+  prizes: { place: number; tokens: number }[];
+  lastPlacePenaltyPool: number;
   votedFor: string | null;
   voteCount: number;
   revealed: boolean;
@@ -183,6 +185,8 @@ export function costumeProjection(
       .all(room.id, room.phase_instance) as unknown as CostumeResult[];
   else if (role === 'host') results = calculate(context);
   return {
+    prizes: context.config.costume.prizes_per_player,
+    lastPlacePenaltyPool: context.config.costume.last_place_penalty_pool_tokens,
     votedFor: own?.candidate_id ?? null,
     voteCount: role === 'host' || revealed ? voteCount : 0,
     revealed,

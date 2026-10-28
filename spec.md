@@ -30,7 +30,7 @@ For local UI development, `just preview [game]` opens an isolated, in-memory gal
 | Host | `/host` | Authenticated private console; joined/ready/disconnected roster; every player's balance and transactions; game controls and configurable scoring. |
 | Display | `/screen` | Landscape; join QR/room code, instructions, applicable countdown, public results, and host-triggered reveals. Receives no phone numbers or private host data. |
 
-The lobby lists actual joined players only. There is no expected guest list or missing-guest comparison. Profiles collect name, email, phone, and an emoji from a provided set; email/SMS verification is not required for this version. Persistent player sessions support rejoining. Use an authenticated host session; knowing `/host` is not authorization.
+The lobby lists actual joined players only. There is no expected guest list or missing-guest comparison. Profiles require name, phone, and an emoji from a provided set. Email is optional and unused by gameplay; omitted or blank email is accepted, and a supplied address is validated. Email/SMS verification is not required for this version. Persistent player sessions support rejoining. Use an authenticated host session; knowing `/host` is not authorization.
 
 The private host view and TV display are separate so balances and the selected phone number stay private until intentional reveals. A host browser uses an extended screen or a separate control device. Trivia questions remain in external PowerPoint slides.
 
@@ -118,3 +118,14 @@ Reviewed 2026-10-27; recheck live integration before the party.
 - [CoinGecko simple-price reference](https://docs.coingecko.com/reference/simple-price): exact IDs and provider timestamp support.
 - [CoinGecko tokenized-asset guide](https://www.coingecko.com/learn/track-tokenized-stocks-rwa-data): includes the `sp500-xstock` API ID.
 - Asset and project pages are linked in the research-card table above. No current market numbers have been copied into configuration or treated as party opening quotes.
+
+
+## Round presentation refinement (2026-10-28)
+
+Keep one game title and one large rules block on the TV, followed by live teams, a machine or results. Avoid repeating the title in an eyebrow and nested game headings. Use the guest-facing names: **2 minute quantitative researcher**, **Best dressed**, **Tracy’s themed trivia**, **Tonight I am Venetian**, **Powerball red or blue**, **The closing bell**, **Somebody’s calling**. These are presentation names; internal stage IDs stay stable.
+
+Use subtle hedge-fund green/serif investment accents, Venetian brass/warm casino accents, a county-fair lottery drum, and a classified-file phone-draw treatment within the white Party notebook canvas. Save investment/bet feedback must follow the authoritative snapshot, remain visible next to the action, and distinguish unsaved edits from the previous saved selection. Never infer successful saving from a click.
+
+The public closing bell shows all configured assets with opening/closing quotes, directional market returns and game returns per 100 tokens invested. The player sees a large personal token gain/loss, stake, returned amount and settlement state, with prices/timestamps/math in a disclosure. Pending estimates must say they are not yet credited. Public cards never expose individual positions or private balances.
+
+Show the invite QR in the lobby only. New registrations remain closed once the party starts. Disconnection never removes a player, tokens, a team or an accepted action; reconnect with the existing session or use the host-assisted recovery link. Keep TV access and connection help available to the host during play.

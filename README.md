@@ -126,3 +126,10 @@ The live `just market-check` request succeeded with HTTP 200 using the privately
 For a disposable browser/network rehearsal, `HOST_PASSWORD=fixture-test-password node --import tsx scripts/fixture-server.ts` starts an in-memory, non-production-only harness on port 3001 using the same default modules as the normal app. Select **Fixture party**; its data disappears when the process stops. Run the simulator with `BASE_URL=http://127.0.0.1:3001 HOST_PASSWORD=fixture-test-password npm run simulate -- 15 --party` (or 100). These observed commands require local-port permission. See [the plan](docs/plan.md) for remaining rehearsal work and [deployment preparation](docs/deployment.md) for future Lightsail/backup work. No public deployment was performed.
 
 Timed rounds wait after the host advances. Select **Start timer** in the host view to open player actions and begin the shared countdown; closing a waiting round skips it without starting the timer. Untimed rounds do not require this button.
+
+
+### Game UI and joining
+
+Email is optional at registration; name, phone and an emoji remain required. The phone is used for the final call. New registrations close when the host leaves the lobby. Existing players can reconnect without losing scores; use the private roster’s recovery link for a lost session. The invite QR stays in the lobby, with TV access and connection help available during play.
+
+Game screens use the event’s updated names and subtle themes. TV views show one title with large rules; investments and bets show a checked saved state after the server confirms them. The closing bell has five public market-result cards and a personal gain/loss receipt on the phone. Try these independently with `just preview stock`, `just preview trivia`, `just preview slots`, `just preview powerball`, or `just preview investment-review`.

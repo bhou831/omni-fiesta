@@ -35,7 +35,9 @@ const joinSchema = z
     profile: z
       .object({
         name: z.string().trim().min(1).max(30),
-        email: z.string().trim().email().max(254),
+        email: z
+          .union([z.string().trim().email().max(254), z.string().trim().length(0)])
+          .default(''),
         phone: z
           .string()
           .trim()
@@ -244,7 +246,7 @@ export function createApp(options: AppOptions) {
     const role = z.enum(['host', 'player']).parse(req.query.role ?? 'player');
     const session = sessionFrom(req.headers.cookie, role);
     res.json(
-      session
+      session && (!session.roomId || !store.isArchived(session.roomId))
         ? {
             authenticated: true,
             role,

@@ -113,6 +113,19 @@ test('host archives offline rooms, disconnects host/TV, and restores without del
     archivedVersion,
   );
   assert.equal((await request('/api/rooms', undefined, host)).data.rooms[0].archived, 1);
+  const archivedSession = await request('/api/session?role=player', undefined, player.cookie);
+  assert.equal(archivedSession.status, 200);
+  assert.equal(archivedSession.data.authenticated, false);
+  const nextRoom = (
+    await request('/api/rooms', { requestId: randomUUID(), mode: 'rehearsal' }, host)
+  ).data;
+  const nextPlayer = await request(
+    `/api/rooms/${nextRoom.code}/join`,
+    { joinKey: randomUUID(), profile },
+    player.cookie,
+  );
+  assert.equal(nextPlayer.status, 200);
+  assert.equal(nextPlayer.data.roomCode, nextRoom.code);
   assert.equal(
     (await request(`/api/rooms/${room.code}/state?role=host`, undefined, host)).status,
     410,
@@ -134,6 +147,10 @@ test('host archives offline rooms, disconnects host/TV, and restores without del
   now += 2000;
   assert.deepEqual(server.engine.expireAll(), []);
   assert.equal((await request(path, { archived: false }, host)).status, 200);
+  assert.equal(
+    (await request('/api/session?role=player', undefined, player.cookie)).data.roomCode,
+    room.code,
+  );
   const restored = (await request(`/api/rooms/${room.code}/state`, undefined, player.cookie)).data;
   assert.equal(restored.room.status, 'closed');
   assert.equal(restored.room.deadlineAt, 1001000);

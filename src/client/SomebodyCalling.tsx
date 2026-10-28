@@ -43,14 +43,24 @@ export function SomebodyCallingHost({ state, disabled, command }: HostProps) {
 }
 export function SomebodyCallingPlayer({ state }: { state: CallingPublicState }) {
   return (
-    <section aria-live="polite">
-      <h2>Somebody’s calling</h2>
+    <section className="calling-brief" aria-live="polite">
       {state.revealed && state.winner ? (
         <p>
           {state.winner.emoji} {state.winner.name} receives {state.winner.award} tokens!
         </p>
       ) : (
-        <p>Everyone is entered. Waiting for the host.</p>
+        <>
+          <div className="classified-stamp" aria-hidden="true">
+            CLASSIFIED
+          </div>
+          <p className="calling-signal">
+            ☎ Incoming call
+            <span className="signal-dots" aria-hidden="true">
+              …
+            </span>
+          </p>
+          <p>Keep the ringer on. The host has the file.</p>
+        </>
       )}
     </section>
   );

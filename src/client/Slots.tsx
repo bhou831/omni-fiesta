@@ -75,12 +75,17 @@ export function SlotsPlayer({
   };
   // Symbols are illustrative only: the saved gross and net, not a visual tier, define the result.
   const symbolsFor = (gross: number | undefined) =>
-    gross && gross > 0 ? ['★', '★', '★'] : ['🍒', '🔔', '★'];
+    gross && gross >= 500
+      ? ['7', '7', '7']
+      : gross && gross >= 300
+        ? ['🔔', '🔔', '🔔']
+        : gross && gross > 0
+          ? ['🍒', '🍒', '★']
+          : ['🍒', '🔔', '★'];
   const revealing = latest?.id !== presented?.id;
   const netLabel = (net: number) => (net > 0 ? `+${net}` : net < 0 ? `−${Math.abs(net)}` : '0');
   return (
     <section aria-label="Slots" className="game-panel">
-      <h2>Try your luck</h2>
       <p>
         Each spin costs {state.cost} tokens. You can spin up to {state.limit} times.
       </p>
@@ -88,9 +93,12 @@ export function SlotsPlayer({
         {remaining} {remaining === 1 ? 'spin' : 'spins'} remaining
         {revealBalance ? ` · ${spendable} tokens available` : ''}
       </p>
-      <div className={`slot-machine ${spinning ? 'is-spinning' : ''}`} aria-busy={spinning}>
+      <div
+        className={`slot-machine ${spinning ? 'is-spinning' : ''} ${spinning && landed.count > 0 ? 'is-settling' : ''}`}
+        aria-busy={spinning}
+      >
         <div className="slot-cabinet">
-          <span className="eyebrow">Tracy’s lucky three</span>
+          <span className="eyebrow">The Venetian · tonight only</span>
           <div className="slot-reels" aria-hidden="true">
             {[0, 1, 2].map((i) => {
               const stopped = revealing && landed.id === latest?.id && i < landed.count;
@@ -100,10 +108,10 @@ export function SlotsPlayer({
                 <div className="slot-window" key={i}>
                   {rolling ? (
                     <div className="slot-strip">
-                      <span>🍒</span>
+                      <span>7</span>
                       <span>🔔</span>
-                      <span>★</span>
                       <span>🍒</span>
+                      <span>7</span>
                     </div>
                   ) : (
                     <span className="slot-symbol" key={stopped ? latest?.id : presented?.id}>
@@ -219,11 +227,14 @@ export function SlotsHost({ state }: { state: SlotsHostState }) {
 }
 export function SlotsDisplay({ state }: { state: SlotsDisplayState }) {
   return (
-    <section>
-      <h2>Feeling lucky?</h2>
+    <section className="slots-display" aria-label="Casino night">
+      <div className="casino-marquee" aria-hidden="true">
+        <span>🍒</span>
+        <span>🔔</span>
+        <span>★</span>
+      </div>
       <p>
-        Spin on your phone for {state.cost} tokens each, up to {state.limit} times. Playing is
-        optional.
+        {state.cost} tokens per spin · {state.limit} chances to make an entrance.
       </p>
     </section>
   );

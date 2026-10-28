@@ -371,7 +371,15 @@ export class Store {
           .prepare(
             'INSERT INTO players(id,room_id,name,email,phone,emoji,created_at) VALUES(?,?,?,?,?,?,?)',
           )
-          .run(playerId, room.id, profile.name, profile.email, profile.phone, profile.emoji, now);
+          .run(
+            playerId,
+            room.id,
+            profile.name,
+            profile.email ?? '',
+            profile.phone,
+            profile.emoji,
+            now,
+          );
         this.adjust(
           room.id,
           playerId,

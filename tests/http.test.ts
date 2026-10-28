@@ -234,3 +234,30 @@ test('production requires an HTTPS origin and rehearsal is disabled unless expli
   assert.equal(response.status, 400);
   assert.equal((await response.json()).code, 'REHEARSAL_DISABLED');
 });
+
+test('email is optional at registration; provided addresses are validated and retries do not duplicate grants', async (t) => {
+  const f = await fixture();
+  t.after(() => f.server.close());
+  for (const [index, email] of [undefined, '', '   ', 'guest@example.test'].entries()) {
+    const profile = {
+      name: `Guest ${index}`,
+      emoji: '🦊',
+      phone: '2125550100',
+      ...(email === undefined ? {} : { email }),
+    };
+    const body = { joinKey: randomUUID(), profile };
+    const joined = await f.request(`/api/rooms/${f.room.code}/join`, body);
+    assert.equal(joined.status, 200);
+    const retry = await f.request(`/api/rooms/${f.room.code}/join`, body);
+    assert.equal(retry.data.playerId, joined.data.playerId);
+    const state = await f.request(`/api/rooms/${f.room.code}/state`, undefined, joined.cookie);
+    assert.equal(state.data.self.accounts.spendable, 1000);
+    assert.equal(f.server.store.player(joined.data.playerId).email, email?.trim() ?? '');
+  }
+  const invalid = await f.request(`/api/rooms/${f.room.code}/join`, {
+    joinKey: randomUUID(),
+    profile: { name: 'Invalid', emoji: '🦊', phone: '2125550100', email: 'not-an-email' },
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(f.server.store.players(f.room.id).length, 4);
+});

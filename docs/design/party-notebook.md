@@ -66,7 +66,7 @@ Use the approved left-aligned notebook composition: compact text header, small b
 
 ### Player `/play`
 
-Portrait first. Show the profile emoji/name, hidden balance control, one current task, any applicable countdown, confirmation, and connection state. Registration still collects the required profile fields. Keep the server-backed hidden/revealed balance behavior and hide it on stage changes.
+Portrait first. Show the profile emoji/name, hidden balance control, one current task, any applicable countdown, confirmation, and connection state. Registration requires name, phone and emoji; email is optional. Keep the server-backed hidden/revealed balance behavior and hide it on stage changes.
 
 Trivia can use the specified team color prominently while preserving label/button contrast. Other games use the shared light page. Decoration must not compete with a buzzer, amount input, vote, countdown, or a result.
 
@@ -106,3 +106,14 @@ Retain all existing game rules, timers, privacy, sessions, accounting, request h
 
 
 2026-10-28 refinement: host and player are portrait-first; TV is landscape-first. Party management and private details use disclosures, with compact round controls. Game machines use restrained rounded surfaces and semantic red/blue accents; the Powerball chamber is circular, slots retain a handle plus a clear Spin button. Desktop TV lays the chamber beside its result. Public lists rotate in small batches to bound screen content.
+
+
+## Game personality and facilitation (2026-10-28)
+
+The approved refinement adds restrained game-specific character inside the white notebook: hedge-fund green and serif investment headings, warm brass for **Tonight I am Venetian**, county-fair colors/type for **Powerball red or blue**, and a manila/classified-file treatment for **Somebody’s calling**. Functional machines may use subtle depth; keep it local to the machine rather than adding decorative cards everywhere.
+
+TV: one title, one large playful rules block, then useful state/results. No repeated eyebrows, generic “follow along” paragraphs or nested copies of the game title. State changes can replace instructions with a concise result introduction. Show costume prizes from saved room configuration, including full awards for tied prize groups and the existing conditional last-place penalty.
+
+Host: separate trivia team assignment, question/buzzer and awards using labeled groups, 20px field/action gaps and 24–32px group spacing. Use a three-column group layout on wide screens and a stacked portrait layout. Keep the invite QR in the lobby; during play show connection/recovery help in a disclosure and keep the TV link available.
+
+Player: confirm saved investments and bets from the server snapshot with a persistent checked button/status. Editing should make unsaved changes clear. Closing-bell results lead with signed token P/L and settlement state, with calculation details expandable. TV market cards show public price movements only. Motion remains presentation-only: spaced pull handle, staggered reel stops, varied ball orbits and a short drop/bounce; preserve reduced-motion behavior and saved results on reload.
