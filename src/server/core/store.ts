@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { randomBytes, randomUUID, createHash } from 'node:crypto';
+import { randomBytes, randomUUID, createHash, createHmac } from 'node:crypto';
 import type { Accounts, Profile, Stage } from '../../shared/contracts.js';
 import { configHash, type GameConfig } from '../config.js';
 import { requireRule } from './errors.js';
@@ -52,7 +52,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 8) {
+    if (schemaVersion > 9) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -95,6 +95,10 @@ export class Store {
       this.db.exec(`BEGIN IMMEDIATE;
         CREATE TABLE IF NOT EXISTS archived_rooms(room_id TEXT PRIMARY KEY REFERENCES rooms(id), archived_at INTEGER NOT NULL);
         PRAGMA user_version=8; COMMIT;`);
+    if (schemaVersion < 9)
+      this.db.exec(
+        `BEGIN IMMEDIATE; CREATE TABLE IF NOT EXISTS recovery_receipts(token_hash TEXT PRIMARY KEY, request_id TEXT NOT NULL, room_id TEXT NOT NULL REFERENCES rooms(id), player_id TEXT NOT NULL REFERENCES players(id), expires_at INTEGER NOT NULL); PRAGMA user_version=9; COMMIT;`,
+      );
   }
 
   transaction<T>(run: () => T): T {
@@ -249,19 +253,48 @@ export class Store {
     const token = randomBytes(32).toString('base64url');
     this.transaction(() => {
       this.db.prepare('DELETE FROM recovery_tokens WHERE player_id=?').run(playerId);
+      this.db.prepare('DELETE FROM recovery_receipts WHERE player_id=?').run(playerId);
       this.db
         .prepare('INSERT INTO recovery_tokens VALUES(?,?,?,?)')
         .run(hash(token), roomId, playerId, now + 600_000);
     });
     return token;
   }
-  recover(roomId: string, token: string, now: number): string {
+  recover(roomId: string, token: string, now: number, requestId?: string, secret?: string): string {
     return this.transaction(() => {
+      const tokenHash = hash(token);
+      const receipt =
+        requestId && secret
+          ? (this.db
+              .prepare(
+                'SELECT request_id,player_id,expires_at FROM recovery_receipts WHERE token_hash=? AND room_id=?',
+              )
+              .get(tokenHash, roomId) as
+              { request_id: string; player_id: string; expires_at: number } | undefined)
+          : undefined;
+      const sessionToken =
+        requestId && secret
+          ? createHmac('sha256', secret)
+              .update('recovery:' + tokenHash + ':' + requestId)
+              .digest('base64url')
+          : null;
+      if (receipt) {
+        requireRule(
+          receipt.request_id === requestId &&
+            receipt.expires_at > now &&
+            sessionToken &&
+            this.authenticate(sessionToken, 'player', now, '')?.playerId === receipt.player_id,
+          'RECOVERY_INVALID',
+          'This recovery link has expired or was already used.',
+          400,
+        );
+        return sessionToken;
+      }
       const recovery = this.db
         .prepare(
-          'SELECT player_id FROM recovery_tokens WHERE token_hash=? AND room_id=? AND expires_at>?',
+          'SELECT player_id,expires_at FROM recovery_tokens WHERE token_hash=? AND room_id=? AND expires_at>?',
         )
-        .get(hash(token), roomId, now) as { player_id: string } | undefined;
+        .get(tokenHash, roomId, now) as { player_id: string; expires_at: number } | undefined;
       requireRule(
         recovery,
         'RECOVERY_INVALID',
@@ -273,7 +306,15 @@ export class Store {
         .prepare("DELETE FROM sessions WHERE role='player' AND player_id=?")
         .run(recovery.player_id);
       this.db.prepare('DELETE FROM joins WHERE player_id=?').run(recovery.player_id);
-      return this.session('player', now, null, recovery.player_id, roomId);
+      if (!sessionToken || !requestId)
+        return this.session('player', now, null, recovery.player_id, roomId);
+      this.db
+        .prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?)')
+        .run(hash(sessionToken), 'player', roomId, recovery.player_id, null, now + 7 * 86_400_000);
+      this.db
+        .prepare('INSERT INTO recovery_receipts VALUES(?,?,?,?,?)')
+        .run(tokenHash, requestId, roomId, recovery.player_id, recovery.expires_at);
+      return sessionToken;
     });
   }
   revoke(token: string): void {

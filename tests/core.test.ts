@@ -423,3 +423,59 @@ test('pending timer survives restart without losing any of its duration', (t) =>
   assert.equal(store.room(room.id).deadline_at, 1001999);
   store.close();
 });
+
+test('recovery retries reissue the same credential only for the same request and within expiry', (t) => {
+  const f = fixture();
+  t.after(() => f.store.close());
+  const token = f.store.issueRecovery(f.room.id, f.joined.playerId, 1000000);
+  const requestId = randomUUID();
+  const secret = 'test-secret';
+  const replacement = f.store.recover(f.room.id, token, 1000001, requestId, secret);
+  assert.equal(f.store.recover(f.room.id, token, 1000002, requestId, secret), replacement);
+  assert.throws(
+    () => f.store.recover(f.room.id, token, 1000003, randomUUID(), secret),
+    errorCode('RECOVERY_INVALID'),
+  );
+  assert.throws(
+    () => f.store.recover(f.room.id, token, 1600000, requestId, secret),
+    errorCode('RECOVERY_INVALID'),
+  );
+  assert.equal(f.store.authenticate(f.joined.token, 'player', 1000001, ''), null);
+  assert.equal(
+    f.store.authenticate(replacement, 'player', 1000001, '')?.playerId,
+    f.joined.playerId,
+  );
+  assert.equal(f.store.player(f.joined.playerId).spendable, 1000);
+  f.store.issueRecovery(f.room.id, f.joined.playerId, 1000004);
+  assert.throws(
+    () => f.store.recover(f.room.id, token, 1000005, requestId, secret),
+    errorCode('RECOVERY_INVALID'),
+  );
+});
+
+test('recovery retry survives a server restart without issuing a second grant', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'party-recovery-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, 'party.sqlite');
+  let store = new Store(path);
+  const config = loadConfig();
+  const room = store.transaction(() => store.createRoom(config, 'party', 1000));
+  const player = store.join(
+    store.room(room.id),
+    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '2125550100' },
+    randomUUID(),
+    1000,
+  );
+  const token = store.issueRecovery(room.id, player.playerId, 1000);
+  const id = randomUUID();
+  const replacement = store.recover(room.id, token, 1001, id, 'same-server-secret');
+  store.close();
+  store = new Store(path);
+  t.after(() => store.close());
+  assert.equal(store.recover(room.id, token, 1002, id, 'same-server-secret'), replacement);
+  assert.equal(store.player(player.playerId).spendable, config.party.initial_tokens);
+  assert.equal(
+    store.db.prepare('SELECT count(*) AS n FROM ledger WHERE player_id=?').get(player.playerId)?.n,
+    1,
+  );
+});

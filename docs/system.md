@@ -47,7 +47,7 @@ Investment payout is `floor(max(0, principal * (1 + multiplier * (close/open - 1
 - Rooms: phase instance/status/deadline, state version, configuration snapshot, host ownership.
 - Players/memberships: public name/emoji/readiness; separate private profile/contact fields; session identity and balances.
 - Ledger operations/entries: immutable causes, amounts, accounts, and deduplication keys.
-- Market snapshots: role opening/closing, provider IDs, normalized full-precision prices, optional facts, provider/fetch times, immutable accepted payload.
+- Market snapshots: role opening/closing, provider IDs, normalized full-precision prices, optional facts, provider/fetch times, closing payload immutable once accepted and opening payload frozen once selection starts.
 - Investments and votes: unique room/player/stage records with revision support while open.
 - Teams/memberships, trivia questions/buzzer windows, first accepted buzz, excluded teams, and host awards.
 - Slot spins: unique attempt and request, cost, sampled outcome, resulting payout.

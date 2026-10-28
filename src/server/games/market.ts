@@ -60,7 +60,11 @@ export function validateSnapshot(
 }
 
 /** Credentials remain on the server; callers perform network I/O outside SQLite transactions. */
-export function coinGeckoProvider(apiKey: string, fetcher: typeof fetch = fetch): MarketProvider {
+export function coinGeckoProvider(
+  apiKey: string,
+  fetcher: typeof fetch = fetch,
+  timeoutMs = 10_000,
+): MarketProvider {
   return {
     async fetch(config, now) {
       if (!apiKey) throw new Error('CoinGecko API key is required');
@@ -70,7 +74,10 @@ export function coinGeckoProvider(apiKey: string, fetcher: typeof fetch = fetch)
         'ids',
         config.investments.assets.map((asset) => asset.provider_id).join(','),
       );
-      const response = await fetcher(url, { headers: { 'x-cg-demo-api-key': apiKey } });
+      const response = await fetcher(url, {
+        headers: { 'x-cg-demo-api-key': apiKey },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
       if (!response.ok) throw new Error('Market provider request failed');
       const body: unknown = await response.json();
       if (!Array.isArray(body)) throw new Error('Invalid market response');

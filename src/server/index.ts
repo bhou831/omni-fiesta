@@ -11,7 +11,7 @@ const server = createApp({
   production: process.env.NODE_ENV === 'production',
 });
 const closeFrontend = await server.attachFrontend();
-await server.listen(port, '0.0.0.0');
+await server.listen(port, process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0');
 console.log(`Omni Fiesta is ready at http://localhost:${port}. Host view: /host`);
 let stopping = false;
 async function stop() {

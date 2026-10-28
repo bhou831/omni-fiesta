@@ -133,3 +133,61 @@ test('preparation cannot commit after the room changes while fetching', async (t
   await assert.rejects(pending);
   assert.equal(store.db.prepare('SELECT count(*) AS n FROM market_snapshots').get()?.n, 0);
 });
+
+test('market requests use a bounded abort signal', async () => {
+  const fetcher: typeof fetch = async (_url, init) => {
+    assert.ok(init?.signal);
+    return new Promise((_resolve, reject) => {
+      init!.signal!.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    });
+  };
+  const keepAlive = setTimeout(() => {}, 1000);
+  try {
+    await assert.rejects(coinGeckoProvider('test-key', fetcher, 20).fetch(config, now), /aborted/);
+  } finally {
+    clearTimeout(keepAlive);
+  }
+});
+
+test('stale opening prices can refresh only before investments open', async (t) => {
+  const { Store } = await import('../src/server/core/store.js');
+  const { Engine } = await import('../src/server/core/engine.js');
+  const { investments } = await import('../src/server/games/investments.js');
+  const { prepareMarket } = await import('../src/server/games/prepare-market.js');
+  const { fixtureProvider } = await import('../src/server/games/market.js');
+  const { randomUUID } = await import('node:crypto');
+  const store = new Store(':memory:');
+  t.after(() => store.close());
+  let clock = now;
+  const room = store.transaction(() => store.createRoom(config, 'party', clock, 'fixture'));
+  store.join(
+    store.room(room.id),
+    { name: 'Test', email: 'test@example.test', phone: '2125550100', emoji: '🦊' },
+    randomUUID(),
+    clock,
+  );
+  const host = { role: 'host' as const, roomId: null, playerId: null, tokenHash: '' };
+  const engine = new Engine(store, () => clock, [investments]);
+  await prepareMarket(store, room.id, 'opening', fixtureProvider(), () => clock);
+  engine.execute(host, room.id, {
+    type: 'phase.advance',
+    phaseInstance: 0,
+    requestId: randomUUID(),
+  });
+  clock += 301000;
+  assert.throws(
+    () =>
+      engine.execute(host, room.id, {
+        type: 'phase.start',
+        phaseInstance: 1,
+        requestId: randomUUID(),
+      }),
+    /stale/,
+  );
+  await prepareMarket(store, room.id, 'opening', fixtureProvider(), () => clock);
+  engine.execute(host, room.id, { type: 'phase.start', phaseInstance: 1, requestId: randomUUID() });
+  await assert.rejects(
+    prepareMarket(store, room.id, 'opening', fixtureProvider(), () => clock),
+    /not available/,
+  );
+});

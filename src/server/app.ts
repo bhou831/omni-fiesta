@@ -339,11 +339,11 @@ export function createApp(options: AppOptions) {
   });
   app.post('/api/rooms/:code/recover', (req, res) => {
     const room = store.roomByCode(codeSchema.parse(req.params.code));
-    const { token } = z
-      .object({ token: z.string().min(32).max(128) })
+    const { token, requestId } = z
+      .object({ token: z.string().min(32).max(128), requestId: z.string().uuid().optional() })
       .strict()
       .parse(req.body);
-    const replacement = store.recover(room.id, token, now());
+    const replacement = store.recover(room.id, token, now(), requestId, credentialHash);
     setSession(res, 'player', replacement);
     broadcast(room.id);
     res.json({ roomCode: room.code });

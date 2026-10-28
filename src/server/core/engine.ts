@@ -11,6 +11,7 @@ import { type GameConfig } from '../config.js';
 import { Store, type RoomRow, type Session } from './store.js';
 import { requireRule } from './errors.js';
 import { connectionCheck, type PhaseModule } from './phases.js';
+import { validateSnapshot } from '../games/market.js';
 import { settleInvestments, snapshot as marketSnapshot, position } from '../games/investments.js';
 import { costumeHostAction, costumeProjection } from '../games/costume.js';
 import { triviaHostAction, triviaProjection } from '../games/trivia.js';
@@ -166,6 +167,19 @@ export class Engine {
               'CANNOT_START',
               'This timer is not waiting to start.',
             );
+            if (room.phase === 'investments') {
+              try {
+                const opening = marketSnapshot(this.context(room), 'opening');
+                if (!opening) throw new Error('Missing opening snapshot');
+                validateSnapshot(opening, JSON.parse(room.config) as GameConfig, this.now());
+              } catch {
+                requireRule(
+                  false,
+                  'MARKET_STALE',
+                  'Opening prices are stale. Refresh them before starting.',
+                );
+              }
+            }
             const started = this.now();
             this.store.db
               .prepare("UPDATE rooms SET status='open',opened_at=?,deadline_at=? WHERE id=?")

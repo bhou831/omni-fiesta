@@ -89,7 +89,7 @@ Present the five assets as collapsed, expandable cards. The cover shows a symbol
 - A market/chart research link and optional project link. External links open separately; returning restores the same player and timer. Opening a link does not pause the round.
 - Selection and amount controls, available tokens, cap, locked-stake explanation, the 20x game multiplier, and loss limit.
 
-Use one opening `/coins/markets` response, requested for the five exact IDs, to provide both entry prices and research facts. Freeze that snapshot for all players. Use one further market snapshot at investment review for closing prices. Transport retries are allowed; once the complete validated snapshot is accepted, persist and reuse it. Do not embed polling third-party charts or periodically fetch extra prices inside the app. External research pages may show their own newer data; settlement always uses the saved game snapshots.
+Use one opening `/coins/markets` response, requested for the five exact IDs, to provide both entry prices and research facts. Freeze that snapshot for all players. Use one further market snapshot at investment review for closing prices. Transport retries are allowed; the complete validated opening snapshot may be refreshed only while investment selection is pending and before any position exists. Starting selection requires a fresh snapshot; after opening, persist and reuse it. The accepted closing snapshot remains immutable. Do not embed polling third-party charts or periodically fetch extra prices inside the app. External research pages may show their own newer data; settlement always uses the saved game snapshots.
 
 ## Game presentation
 

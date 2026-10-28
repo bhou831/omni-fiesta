@@ -6,7 +6,7 @@ Read `../../spec.md` for the asset lineup/cards and `../../config/game.yaml` for
 
 ## Selection
 
-Host preparation fetches a USD `/coins/markets` batch for the exact configured IDs. Validate complete coverage, positive finite prices, provider timestamps, maximum age, and cross-asset timestamp spread. Freeze the complete opening snapshot before opening selection. Retry failed preparation without opening the timer. Missing optional research metrics do not invalidate an otherwise fresh price.
+Host preparation fetches a USD `/coins/markets` batch for the exact configured IDs. Validate complete coverage, positive finite prices, provider timestamps, maximum age, and cross-asset timestamp spread. Freeze the complete opening snapshot before opening selection. If it becomes stale while the stage is pending, the host can refresh it before starting; once selection opens it cannot change. Retry failed preparation without opening the timer. Missing optional research metrics do not invalidate an otherwise fresh price.
 
 One player holds at most one asset position, with a positive whole-token principal <= configured cap and affordable from spendable balance plus their existing position's principal. A player may revise the asset/amount or cancel while open; update reservations atomically. Cancelling restores the locked principal. No submission at expiry means no position. Confirm the selection on the phone. No real orders, wallets, or brokerage accounts are involved.
 

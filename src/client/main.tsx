@@ -326,9 +326,16 @@ function Player() {
   useEffect(() => {
     const token = new URLSearchParams(location.hash.slice(1)).get('recover');
     if (!token || !queryCode) return;
-    history.replaceState(null, '', `/play?code=${queryCode}`);
-    post<{ roomCode: string }>(`/api/rooms/${queryCode}/recover`, { token })
+    const key = `of_recovery_request_${queryCode}`;
+    const recoveryRequestId = sessionStorage.getItem(key) ?? requestId();
+    sessionStorage.setItem(key, recoveryRequestId);
+    post<{ roomCode: string }>(`/api/rooms/${queryCode}/recover`, {
+      token,
+      requestId: recoveryRequestId,
+    })
       .then((data) => {
+        sessionStorage.removeItem(key);
+        history.replaceState(null, '', `/play?code=${queryCode}`);
         setJoinedCode(data.roomCode);
         setSession({ authenticated: true, roomCode: data.roomCode });
       })
@@ -801,7 +808,8 @@ function Host() {
                 )}
                 {state.room.marketSource === 'fixture' && <p>Fixture prices · test party</p>}
                 {state.room.mode === 'party' &&
-                  ((state.room.phase === 'lobby' && !state.investments?.opening) ||
+                  (state.room.phase === 'lobby' ||
+                    (state.room.phase === 'investments' && state.room.status === 'pending') ||
                     (state.room.phase === 'investment-review' && !state.investments?.closing)) && (
                     <button
                       className="button secondary"
@@ -809,7 +817,7 @@ function Host() {
                         try {
                           setError('');
                           await post(
-                            `/api/rooms/${code}/market/${state.room.phase === 'lobby' ? 'opening' : 'closing'}`,
+                            `/api/rooms/${code}/market/${state.room.phase === 'investment-review' ? 'closing' : 'opening'}`,
                             {},
                           );
                         } catch (err) {
@@ -817,7 +825,10 @@ function Host() {
                         }
                       }}
                     >
-                      Prepare {state.room.phase === 'lobby' ? 'opening' : 'closing'} prices
+                      {state.room.phase !== 'investment-review' && state.investments?.opening
+                        ? 'Refresh'
+                        : 'Prepare'}{' '}
+                      {state.room.phase === 'investment-review' ? 'closing' : 'opening'} prices
                     </button>
                   )}
                 {state.room.phase === 'investment-review' && state.investments?.closing && (
