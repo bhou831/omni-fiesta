@@ -5,9 +5,11 @@ import type { CallingHostState, CallingPublicState } from '../server/games/someb
 type HostProps = {
   state: CallingHostState;
   disabled: boolean;
+  /** The command in flight (`type:action`), so the tapped button can show it is working. */
+  busyKey?: string | null;
   command: CommandSender;
 };
-export function SomebodyCallingHost({ state, disabled, command }: HostProps) {
+export function SomebodyCallingHost({ state, disabled, busyKey, command }: HostProps) {
   return (
     <section>
       <h3>Somebody’s calling</h3>
@@ -18,7 +20,7 @@ export function SomebodyCallingHost({ state, disabled, command }: HostProps) {
           disabled={disabled}
           onClick={() => void command('phase.host', { action: 'draw' })}
         >
-          Draw a player
+          {busyKey === 'phase.host:draw' ? 'Drawing…' : 'Draw a player'}
         </button>
       ) : (
         <>
@@ -34,7 +36,11 @@ export function SomebodyCallingHost({ state, disabled, command }: HostProps) {
             disabled={disabled || state.revealed}
             onClick={() => void command('phase.host', { action: 'reveal' })}
           >
-            {state.revealed ? 'Revealed' : `Reveal and award ${state.award} tokens`}
+            {state.revealed
+              ? 'Revealed'
+              : busyKey === 'phase.host:reveal'
+                ? 'Revealing…'
+                : `Reveal and award ${state.award} tokens`}
           </button>
         </>
       )}

@@ -92,6 +92,8 @@ export interface PowerballViewProps {
   revealBalance?: boolean;
   open: boolean;
   disabled: boolean;
+  /** The command in flight (`type:action`), so the tapped button can show it is working. */
+  busyKey?: string | null;
   onBet: (color: PowerballColor, amount: number) => void;
   onCancel: () => void;
   onDraw: () => void;
@@ -226,7 +228,13 @@ export function PowerballPlayer(props: PowerballViewProps) {
             disabled={props.disabled || !props.open || saved || amount < 1 || amount > maximum}
             onClick={() => props.onBet(color, amount)}
           >
-            {saved ? '✓ Bet saved' : bet ? 'Update bet' : 'Save bet'}
+            {props.busyKey === 'phase.action:bet'
+              ? 'Saving…'
+              : saved
+                ? '✓ Bet saved'
+                : bet
+                  ? 'Update bet'
+                  : 'Save bet'}
           </button>
           <p
             className={`save-feedback ${saved ? 'is-saved' : ''}`}
@@ -245,7 +253,7 @@ export function PowerballPlayer(props: PowerballViewProps) {
               disabled={props.disabled || !props.open}
               onClick={props.onCancel}
             >
-              Cancel bet
+              {props.busyKey === 'phase.action:cancel' ? 'Cancelling…' : 'Cancel bet'}
             </button>
           )}
         </>
@@ -280,7 +288,7 @@ export function PowerballHost(props: PowerballViewProps) {
           disabled={props.disabled || props.open}
           onClick={props.onDraw}
         >
-          Draw privately
+          {props.busyKey === 'phase.host:draw' ? 'Drawing…' : 'Draw privately'}
         </button>
       ) : (
         <button
@@ -288,7 +296,9 @@ export function PowerballHost(props: PowerballViewProps) {
           disabled={props.disabled || props.open}
           onClick={props.onReveal}
         >
-          Reveal ball · {GAME_MOTION.powerballMs / 1000} seconds
+          {props.busyKey === 'phase.host:reveal'
+            ? 'Revealing…'
+            : `Reveal ball · ${GAME_MOTION.powerballMs / 1000} seconds`}
         </button>
       )}
     </section>

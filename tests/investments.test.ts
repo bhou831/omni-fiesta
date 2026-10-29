@@ -324,3 +324,130 @@ test('version-10 databases keep their single position when upgraded to per-asset
     .prepare('INSERT INTO investments(room_id,player_id,asset_id,principal) VALUES(?,?,?,?)')
     .run(room.id, joined.playerId, 'solana', 100);
 });
+
+test('without closing prices the host refunds every stake once, and the closing bell can finish', async (t) => {
+  const { prepareMarket } = await import('../src/server/games/prepare-market.js');
+  const { fixtureProvider } = await import('../src/server/games/market.js');
+  const store = new Store(':memory:');
+  t.after(() => store.close());
+  const config = loadConfig();
+  const now = 1000000;
+  const room = store.transaction(() => store.createRoom(config, 'party', now));
+  const join = (name: string) =>
+    store.join(
+      store.room(room.id),
+      { name, emoji: '🦊', email: `${name}@example.test`, phone: '2125550100' },
+      randomUUID(),
+      now,
+    );
+  const fox = join('fox');
+  const owl = join('owl');
+  const host: Session = { role: 'host', roomId: null, playerId: null, tokenHash: '' };
+  const engine = new Engine(store, () => now, [investments, investmentReview]);
+  const snapshotRow = JSON.stringify({
+    provider: 'coingecko',
+    fetchedAt: now,
+    quotes: config.investments.assets.map((a) => ({
+      id: a.provider_id,
+      price: '100',
+      timestamp: now,
+      change24h: null,
+      high24h: null,
+      low24h: null,
+      volume24h: null,
+    })),
+  });
+  store.db
+    .prepare('INSERT INTO market_snapshots VALUES(?,?,?)')
+    .run(room.id, 'opening', snapshotRow);
+  const command = (type: Command['type'], payload?: Command['payload']): Command => ({
+    requestId: randomUUID(),
+    phaseInstance: store.room(room.id).phase_instance,
+    type,
+    payload,
+  });
+  engine.execute(host, room.id, command('phase.advance'));
+  engine.execute(host, room.id, command('phase.start'));
+  for (const [joined, amount] of [
+    [fox, 600],
+    [owl, 250],
+  ] as const)
+    engine.execute(
+      store.authenticate(joined.token, 'player', now, '')!,
+      room.id,
+      command('phase.action', {
+        action: 'invest',
+        data: {
+          allocations: [
+            { assetId: 'bitcoin', amount: amount - 50 },
+            { assetId: 'dogecoin', amount: 50 },
+          ],
+        },
+      }),
+    );
+  store.db
+    .prepare(
+      "UPDATE rooms SET phase='investment-review',phase_instance=phase_instance+1,status='open',deadline_at=NULL WHERE id=?",
+    )
+    .run(room.id);
+  const review = () => investmentReview.assertCanAdvance!(engine.context(store.room(room.id)));
+  assert.throws(review, /settle investments first/);
+  assert.equal(engine.snapshot({ role: 'display', roomId: room.id }).investments?.refunded, false);
+
+  const refund = command('phase.host', { action: 'refund' });
+  engine.execute(host, room.id, refund);
+  engine.execute(host, room.id, refund);
+  engine.execute(host, room.id, command('phase.host', { action: 'refund' }));
+  for (const joined of [fox, owl]) {
+    const player = store.player(joined.playerId);
+    assert.deepEqual([player.spendable, player.locked], [1000, 0]);
+  }
+  const refunds = store.db
+    .prepare("SELECT COUNT(*) AS n FROM ledger WHERE room_id=? AND reason='Investment refund'")
+    .get(room.id) as { n: number };
+  assert.equal(refunds.n, 4);
+  assert.doesNotThrow(review);
+  assert.equal(engine.snapshot({ role: 'display', roomId: room.id }).investments?.refunded, true);
+  // Settlement needs closing prices, and closing prices can no longer be prepared.
+  assert.throws(
+    () => engine.execute(host, room.id, command('phase.host', { action: 'settle' })),
+    /market snapshots/,
+  );
+  await assert.rejects(
+    prepareMarket(store, room.id, 'closing', fixtureProvider(), () => now),
+    /refunded/,
+  );
+  assert.equal(store.player(fox.playerId).spendable, 1000);
+});
+
+test('refund is refused once closing prices are saved, and an empty closing bell can finish', (t) => {
+  const store = new Store(':memory:');
+  t.after(() => store.close());
+  const config = loadConfig();
+  const now = 1000000;
+  const room = store.transaction(() => store.createRoom(config, 'party', now));
+  const host: Session = { role: 'host', roomId: null, playerId: null, tokenHash: '' };
+  const engine = new Engine(store, () => now, [investments, investmentReview]);
+  store.db
+    .prepare(
+      "UPDATE rooms SET phase='investment-review',phase_instance=1,status='open',deadline_at=NULL WHERE id=?",
+    )
+    .run(room.id);
+  // Nobody invested: nothing to settle, so missing closing prices do not block the party.
+  assert.doesNotThrow(() =>
+    investmentReview.assertCanAdvance!(engine.context(store.room(room.id))),
+  );
+  store.db
+    .prepare('INSERT INTO market_snapshots VALUES(?,?,?)')
+    .run(room.id, 'closing', JSON.stringify({ provider: 'coingecko', fetchedAt: now, quotes: [] }));
+  assert.throws(
+    () =>
+      engine.execute(host, room.id, {
+        requestId: randomUUID(),
+        phaseInstance: 1,
+        type: 'phase.host',
+        payload: { action: 'refund' },
+      }),
+    /Settle investments instead/,
+  );
+});

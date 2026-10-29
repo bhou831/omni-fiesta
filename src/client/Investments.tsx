@@ -6,6 +6,8 @@ type Props = {
   state: RoomSnapshot;
   command: CommandSender;
   disabled: boolean;
+  /** The command in flight (`type:action`), so the tapped button can show it is working. */
+  busyKey?: string | null;
   revealBalance?: boolean;
   /** Opens every card's details; used by tests and previews. */
   expandAll?: boolean;
@@ -122,6 +124,7 @@ export function InvestmentPlayer({
   state,
   command,
   disabled,
+  busyKey = null,
   revealBalance = false,
   expandAll = false,
 }: Props) {
@@ -132,6 +135,7 @@ export function InvestmentPlayer({
       state={state}
       command={command}
       disabled={disabled}
+      busyKey={busyKey}
       revealBalance={revealBalance}
       expandAll={expandAll}
     />
@@ -139,7 +143,7 @@ export function InvestmentPlayer({
 }
 
 /** Tick any assets, size each stake, then save the whole portfolio at once. */
-function InvestmentPicker({ state, command, disabled, revealBalance, expandAll }: Props) {
+function InvestmentPicker({ state, command, disabled, busyKey, revealBalance, expandAll }: Props) {
   const data = state.investments!;
   const saved = Object.fromEntries(data.positions.map((p) => [p.asset_id, String(p.principal)]));
   const key = `of_invest_draft_${state.room.code}_${state.room.phaseInstance}`;
@@ -387,11 +391,13 @@ function InvestmentPicker({ state, command, disabled, revealBalance, expandAll }
             })
           }
         >
-          {unchanged && data.positions.length
-            ? '✓ Investments saved'
-            : data.positions.length
-              ? 'Update investments'
-              : 'Save investments'}
+          {busyKey === 'phase.action:invest'
+            ? 'Saving…'
+            : unchanged && data.positions.length
+              ? '✓ Investments saved'
+              : data.positions.length
+                ? 'Update investments'
+                : 'Save investments'}
         </button>
       </div>
       <p
@@ -417,7 +423,7 @@ function InvestmentPicker({ state, command, disabled, revealBalance, expandAll }
             })
           }
         >
-          Cancel all investments
+          {busyKey === 'phase.action:cancel' ? 'Cancelling…' : 'Cancel all investments'}
         </button>
       )}
     </section>
@@ -438,6 +444,21 @@ function PersonalInvestmentResult({ data }: { data: InvestmentData }) {
         <p>No tokens invested. Enjoy the closing bell.</p>
       </section>
     );
+  if (data.refunded) {
+    const principal = data.positions.reduce((sum, p) => sum + p.principal, 0);
+    return (
+      <section className="investment-result market-flat" aria-live="polite">
+        <span className="eyebrow">Your game result</span>
+        <strong className="result-number">0</strong>
+        <p className="result-caption">tokens gained or lost</p>
+        <p>
+          Closing prices were unavailable, so your {principal.toLocaleString()} tokens were returned
+          in full.
+        </p>
+        <p className="settlement-status">✓ Returned tokens are available to play.</p>
+      </section>
+    );
+  }
   const rows = data.positions.map((pos) => {
     const asset = data.assets.find((a) => a.provider_id === pos.asset_id);
     const open = data.opening?.quotes.find((q) => q.id === pos.asset_id);
@@ -544,6 +565,13 @@ function PersonalInvestmentResult({ data }: { data: InvestmentData }) {
 }
 
 export function InvestmentReviewDisplay({ data }: { data: InvestmentData }) {
+  if (data.refunded)
+    return (
+      <section className="investment-refund">
+        <h2>Markets closed early.</h2>
+        <p>Closing prices were unavailable, so every investment was returned in full.</p>
+      </section>
+    );
   return (
     <section className="market-results" aria-label="Opening to closing market results">
       {data.assets.map((asset) => {

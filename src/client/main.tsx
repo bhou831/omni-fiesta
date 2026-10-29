@@ -482,6 +482,7 @@ function Player() {
               revealBalance={reveal}
               command={room.command}
               disabled={!open || !room.connected || room.busy}
+              busyKey={room.busyKey}
             />
           )}
         {state.costume && state.room.status !== 'pending' && (
@@ -524,6 +525,7 @@ function Player() {
             revealBalance={reveal}
             open={open}
             disabled={room.busy || !room.connected}
+            busyKey={room.busyKey}
             onBet={(color, amount) =>
               void room.command('phase.action', { action: 'bet', data: { color, amount } })
             }
@@ -542,13 +544,20 @@ function Player() {
     </div>
   );
 }
+const RANKING_PAGE = 4;
 function Ranking({ state, display = false }: { state: RoomSnapshot; display?: boolean }) {
-  const page = useRotatingPage(state.ranking?.length ?? 0, 6);
+  // The TV keeps the podium in place and rotates everyone else beneath it.
+  const podium = state.ranking?.filter((p) => p.rank <= 3) ?? [];
+  const rest = state.ranking?.filter((p) => p.rank > 3) ?? [];
+  const page = useRotatingPage(rest.length, RANKING_PAGE);
   return state.ranking ? (
     <section>
-      <h2>Final ranking</h2>
+      {!display && <h2>Final ranking</h2>}
       <ol className="ranking-list">
-        {(display ? state.ranking.slice(page * 6, page * 6 + 6) : state.ranking).map((p) => (
+        {(display
+          ? [...podium, ...rest.slice(page * RANKING_PAGE, page * RANKING_PAGE + RANKING_PAGE)]
+          : state.ranking
+        ).map((p) => (
           <li key={p.playerId} className={p.rank <= 3 ? `is-top rank-${p.rank}` : ''}>
             <span className="rank-number">{p.rank}</span>
             <span className="rank-name">
@@ -614,6 +623,8 @@ function Host() {
   const [creating, setCreating] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [recoveryLink, setRecoveryLink] = useState('');
+  // Requests outside the command channel: market prices, TV link, recovery link.
+  const [hostBusy, setHostBusy] = useState<string | null>(null);
   const createAttempt = useRef<string | null>(null);
   const [displayToken, setDisplayToken] = useState<string | undefined>(
     code ? (localStorage.getItem(`of_display_${code}`) ?? undefined) : undefined,
@@ -670,12 +681,45 @@ function Host() {
     }
   }
   async function makeDisplayLink() {
+    if (
+      !confirm(
+        'Create a new TV link? If a TV is already showing this party, its current link stops working and the TV must open the new link.',
+      )
+    )
+      return;
+    setHostBusy('display-link');
+    setError('');
     try {
       const data = await post<{ displayToken: string }>(`/api/rooms/${code}/display-link`, {});
       localStorage.setItem(`of_display_${code}`, data.displayToken);
       setDisplayToken(data.displayToken);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setHostBusy(null);
+    }
+  }
+  async function prepareMarket(kind: 'opening' | 'closing') {
+    setHostBusy('market');
+    setError('');
+    try {
+      await post(`/api/rooms/${code}/market/${kind}`, {});
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setHostBusy(null);
+    }
+  }
+  async function makeRecoveryLink(playerId: string) {
+    setHostBusy(`recovery:${playerId}`);
+    setError('');
+    try {
+      const data = await post<{ token: string }>(`/api/rooms/${code}/recovery`, { playerId });
+      setRecoveryLink(`${location.origin}/play?code=${code}#recover=${data.token}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setHostBusy(null);
     }
   }
   if (!session) return <Loading error={sessionError} />;
@@ -691,8 +735,12 @@ function Host() {
             <button
               className="text-button"
               onClick={async () => {
-                await post('/api/logout', {});
-                setSession({ authenticated: false });
+                try {
+                  await post('/api/logout', {});
+                  setSession({ authenticated: false });
+                } catch (err) {
+                  setError((err as Error).message);
+                }
               }}
             >
               Sign out
@@ -733,7 +781,7 @@ function Host() {
                 disabled={creating}
                 onClick={() => void create('party')}
               >
-                + New party
+                {creating ? 'Creating…' : '+ New party'}
               </button>
               {enabled && (
                 <details className="test-tools">
@@ -768,7 +816,7 @@ function Host() {
                   }
                   onClick={() => void archiveRoom(code, true)}
                 >
-                  Archive party
+                  {archiving ? 'Archiving…' : 'Archive party'}
                 </button>
               )}
             </div>
@@ -858,42 +906,89 @@ function Host() {
                 {state.room.mode === 'party' &&
                   (state.room.phase === 'lobby' ||
                     (state.room.phase === 'investments' && state.room.status === 'pending') ||
-                    (state.room.phase === 'investment-review' && !state.investments?.closing)) && (
+                    (state.room.phase === 'investment-review' &&
+                      !state.investments?.closing &&
+                      !state.investments?.refunded)) && (
                     <button
                       className="button secondary"
-                      onClick={async () => {
-                        try {
-                          setError('');
-                          await post(
-                            `/api/rooms/${code}/market/${state.room.phase === 'investment-review' ? 'closing' : 'opening'}`,
-                            {},
-                          );
-                        } catch (err) {
-                          setError((err as Error).message);
-                        }
-                      }}
+                      disabled={hostBusy === 'market'}
+                      onClick={() =>
+                        void prepareMarket(
+                          state.room.phase === 'investment-review' ? 'closing' : 'opening',
+                        )
+                      }
                     >
-                      {state.room.phase !== 'investment-review' && state.investments?.opening
-                        ? 'Refresh'
-                        : 'Prepare'}{' '}
-                      {state.room.phase === 'investment-review' ? 'closing' : 'opening'} prices
+                      {hostBusy === 'market'
+                        ? 'Loading prices…'
+                        : `${state.room.phase !== 'investment-review' && state.investments?.opening ? 'Refresh' : 'Prepare'} ${state.room.phase === 'investment-review' ? 'closing' : 'opening'} prices`}
                     </button>
                   )}
-                {state.room.phase === 'investment-review' && state.investments?.closing && (
-                  <button
-                    className="button secondary"
-                    disabled={room.busy}
-                    onClick={() => void room.command('phase.host', { action: 'settle' })}
-                  >
-                    Settle investments
-                  </button>
-                )}
+                {state.room.mode === 'party' &&
+                  ['lobby', 'investments', 'investment-review'].includes(state.room.phase) &&
+                  (state.room.phase === 'investment-review'
+                    ? state.investments?.closing
+                    : state.investments?.opening) && (
+                    <p className="fine-print" role="status">
+                      ✓ {state.room.phase === 'investment-review' ? 'Closing' : 'Opening'} prices
+                      saved at{' '}
+                      {new Date(
+                        (state.room.phase === 'investment-review'
+                          ? state.investments!.closing!
+                          : state.investments!.opening!
+                        ).fetchedAt,
+                      ).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                      .
+                    </p>
+                  )}
+                {state.room.phase === 'investment-review' &&
+                  !state.investments?.closing &&
+                  (state.investments?.refunded ? (
+                    <p role="status">✓ Investments refunded at cost.</p>
+                  ) : (
+                    state.host?.investments.some((p) => p.payout === null) && (
+                      <div className="refund-fallback">
+                        <p className="fine-print">
+                          If closing prices won’t load, return every stake in full instead.
+                        </p>
+                        <button
+                          className="button secondary"
+                          disabled={room.busy}
+                          onClick={() => {
+                            if (
+                              confirm(
+                                'Refund all investments? Every player gets back exactly what they invested, with no gain or loss. This cannot be undone.',
+                              )
+                            )
+                              void room.command('phase.host', { action: 'refund' });
+                          }}
+                        >
+                          {room.busyKey === 'phase.host:refund'
+                            ? 'Refunding…'
+                            : 'Refund all investments'}
+                        </button>
+                      </div>
+                    )
+                  ))}
+                {state.room.phase === 'investment-review' &&
+                  state.investments?.closing &&
+                  (state.host?.investments.every((p) => p.payout !== null) ? (
+                    <p role="status">✓ Investments settled.</p>
+                  ) : (
+                    <button
+                      className="button secondary"
+                      disabled={room.busy}
+                      onClick={() => void room.command('phase.host', { action: 'settle' })}
+                    >
+                      {room.busyKey === 'phase.host:settle' ? 'Settling…' : 'Settle investments'}
+                    </button>
+                  ))}
                 {state.costume && state.room.status !== 'pending' && (
                   <CostumeHost
                     state={state.costume}
                     players={state.players}
                     open={state.room.status === 'open'}
                     disabled={room.busy || !room.connected}
+                    busyKey={room.busyKey}
                     allowSelfVote={state.costume.allowSelfVote}
                     onVote={() => {}}
                     onReveal={() => void room.command('phase.host', { action: 'reveal' })}
@@ -915,6 +1010,7 @@ function Host() {
                     spendable={0}
                     open={state.room.status === 'open'}
                     disabled={room.busy || !room.connected}
+                    busyKey={room.busyKey}
                     onBet={() => {}}
                     onCancel={() => {}}
                     onDraw={() => void room.command('phase.host', { action: 'draw' })}
@@ -925,6 +1021,7 @@ function Host() {
                   <SomebodyCallingHost
                     state={state.calling.data}
                     disabled={room.busy || !room.connected}
+                    busyKey={room.busyKey}
                     command={room.command}
                   />
                 )}
@@ -935,7 +1032,7 @@ function Host() {
                       disabled={room.busy || !room.connected}
                       onClick={() => void room.command('phase.start')}
                     >
-                      Start timer
+                      {room.busyKey === 'phase.start:' ? 'Starting…' : 'Start timer'}
                     </button>
                   )}
                   {state.room.phase !== 'lobby' &&
@@ -946,7 +1043,7 @@ function Host() {
                         disabled={room.busy || !room.connected}
                         onClick={() => void room.command('phase.close')}
                       >
-                        Close round
+                        {room.busyKey === 'phase.close:' ? 'Closing…' : 'Close round'}
                       </button>
                     )}
                   <button
@@ -954,15 +1051,17 @@ function Host() {
                     disabled={room.busy || !room.connected || !state.room.canAdvance}
                     onClick={() => void room.command('phase.advance')}
                   >
-                    {state.room.phase === 'lobby'
-                      ? state.room.mode === 'party'
-                        ? 'Open investments →'
-                        : 'Open connection check →'
-                      : state.room.phase === 'finish'
+                    {room.busyKey === 'phase.advance:'
+                      ? 'Opening…'
+                      : state.room.phase === 'lobby'
                         ? state.room.mode === 'party'
-                          ? 'Party complete ✓'
-                          : 'Connection check complete ✓'
-                        : 'Next stage →'}
+                          ? 'Open investments →'
+                          : 'Open connection check →'
+                        : state.room.phase === 'finish'
+                          ? state.room.mode === 'party'
+                            ? 'Party complete ✓'
+                            : 'Connection check complete ✓'
+                          : 'Next stage →'}
                   </button>
                 </div>
                 {state.room.advanceBlocker && state.room.phase !== 'finish' && (
@@ -995,9 +1094,19 @@ function Host() {
                     Open TV display ↗
                   </a>
                 ) : (
-                  <button className="button secondary" onClick={() => void makeDisplayLink()}>
-                    Create TV link
-                  </button>
+                  <>
+                    <button
+                      className="button secondary"
+                      disabled={hostBusy === 'display-link'}
+                      onClick={() => void makeDisplayLink()}
+                    >
+                      {hostBusy === 'display-link' ? 'Creating link…' : 'Create TV link'}
+                    </button>
+                    <p className="fine-print">
+                      This browser has no TV link for this party. A new link replaces any link a TV
+                      is already using.
+                    </p>
+                  </>
                 )}
               </section>
             </div>
@@ -1030,21 +1139,10 @@ function Host() {
                         <p>Reserved: {p.accounts.reserved.toLocaleString()}</p>{' '}
                         <button
                           className="text-button"
-                          onClick={async () => {
-                            try {
-                              const data = await post<{ token: string }>(
-                                `/api/rooms/${code}/recovery`,
-                                { playerId: p.id },
-                              );
-                              setRecoveryLink(
-                                `${location.origin}/play?code=${code}#recover=${data.token}`,
-                              );
-                            } catch (err) {
-                              setError((err as Error).message);
-                            }
-                          }}
+                          disabled={hostBusy === `recovery:${p.id}`}
+                          onClick={() => void makeRecoveryLink(p.id)}
                         >
-                          Recover
+                          {hostBusy === `recovery:${p.id}` ? 'Creating link…' : 'Recover'}
                         </button>
                       </div>
                     </details>

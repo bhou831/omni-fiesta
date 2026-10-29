@@ -9,6 +9,8 @@ export interface CostumeViewProps {
   selfId?: string;
   open: boolean;
   disabled: boolean;
+  /** The command in flight (`type:action`), so the tapped button can show it is working. */
+  busyKey?: string | null;
   allowSelfVote: boolean;
   onVote: (candidateId: string) => void;
   onReveal: () => void;
@@ -100,7 +102,9 @@ export function CostumeHost(props: CostumeViewProps) {
           disabled={props.disabled || props.open}
           onClick={props.onRevote}
         >
-          Start re-vote between {tied.length} players
+          {props.busyKey === 'phase.host:revote'
+            ? 'Starting re-vote…'
+            : `Start re-vote between ${tied.length} players`}
         </button>
       )}
       {!props.state.revealed && (
@@ -109,16 +113,35 @@ export function CostumeHost(props: CostumeViewProps) {
           disabled={props.disabled || props.open || tied.length > 0}
           onClick={props.onReveal}
         >
-          Settle and reveal results
+          {props.busyKey === 'phase.host:reveal' ? 'Revealing…' : 'Settle and reveal results'}
         </button>
       )}
     </section>
   );
 }
+/** TV results: name over votes and tokens, flowed into columns so every guest fits on the stage. */
+function DisplayResults({ results }: { results: NonNullable<CostumeProjection['results']> }) {
+  return (
+    <ol className="costume-results">
+      {results.map((result) => (
+        <li key={result.playerId} className={result.place <= 3 ? 'is-top' : ''}>
+          <span className="rank-number">{result.place}</span>
+          <strong>
+            {result.emoji} {result.name}
+          </strong>
+          <span className="costume-result-meta">
+            {result.votes} {result.votes === 1 ? 'vote' : 'votes'} ·{' '}
+            {formatTokens(result.tokenChange, { signed: true })} tokens
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
 export function CostumeDisplay({ state }: Pick<CostumeViewProps, 'state'>) {
   return (
     <section>
-      {state.revealed && <Results state={state} />}
+      {state.revealed && state.results && <DisplayResults results={state.results} />}
       {!state.revealed && state.candidates && (
         <ul className="tie-candidates" aria-label="Tied for first">
           {state.candidates.map((c) => (

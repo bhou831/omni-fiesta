@@ -96,7 +96,11 @@ export function RoundDescription({ state }: { state: RoomSnapshot }) {
     case 'investment-review':
       return (
         <Rules>
-          <Rule>Investment results · {state.investments?.multiplier}× market returns.</Rule>
+          <Rule>
+            {state.investments?.refunded
+              ? 'Market prices were unavailable · every stake returned in full.'
+              : `Investment results · ${state.investments?.multiplier}× market returns.`}
+          </Rule>
         </Rules>
       );
     case 'somebody-calling':

@@ -3465,6 +3465,10 @@ td {
 .display-main.phase-finish .ranking-list .rank-3 {
   font-size: 1.25em;
 }
+/* Below the fixed podium, the rotating rows stay smaller so podium and page fit together. */
+.display-main.phase-finish .ranking-list li:not(.is-top) {
+  font-size: 0.75em;
+}
 .display-main.phase-finish .display-content > section > h2 {
   font-size: clamp(28px, calc(2.2 * var(--vw)), 40px);
 }
@@ -3479,4 +3483,53 @@ td {
   font-size: clamp(28px, calc(3 * var(--vw, 10px)), 56px);
   font-weight: 650;
   letter-spacing: -0.02em;
+}
+
+/* Costume results on the TV: three columns so a full party fits without scrolling. */
+.display-content .costume-results {
+  columns: 3;
+  column-gap: 40px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(18px, calc(1.5 * var(--vw)), 28px);
+  line-height: 1.25;
+}
+.display-content .costume-results li {
+  display: grid;
+  grid-template-columns: 1.8em minmax(0, 1fr);
+  break-inside: avoid;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.costume-results .rank-number {
+  grid-row: span 2;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.costume-results strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.costume-results .costume-result-meta {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.75em;
+}
+.costume-results .is-top .rank-number {
+  color: var(--ink);
+}
+.costume-results .is-top strong {
+  font-weight: 700;
+}
+
+/* Closing bell without closing prices: one plain statement instead of the market cards. */
+.investment-refund h2 {
+  margin: 0 0 16px;
+}
+.display-content .investment-refund h2 {
+  font-size: clamp(36px, calc(3.4 * var(--vw)), 64px);
+}
+.display-content .investment-refund p {
+  font-size: clamp(22px, calc(2 * var(--vw)), 36px);
 }

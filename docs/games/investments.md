@@ -14,7 +14,7 @@ Cards use the description, facts, and links defined in `spec.md`. Keep selection
 
 ## Review and settlement
 
-Fetch and accept one complete closing batch from the same provider and exact IDs, subject to freshness checks. No periodic feed is needed. A saved snapshot is immutable across retries. Failure keeps review pending; no partial payouts or substitution of a different feed.
+Fetch and accept one complete closing batch from the same provider and exact IDs, subject to freshness checks. No periodic feed is needed. A saved snapshot is immutable across retries. Failure keeps review pending; no partial payouts or substitution of a different feed. If closing prices cannot be loaded, the host may instead refund every unsettled position at its principal (no gain or loss), after a confirmation. Refund uses the same per-position settlement key, so a position pays out once either way. It is refused once a closing snapshot is saved, and closing prices cannot be prepared after a refund. Phones and the display say that stakes were returned in full. Review can advance once nothing is unsettled and either closing prices are saved, a refund happened, or nobody invested.
 
 Calculate using decimal arithmetic: `return = close/open - 1`; `gross_payout = floor(max(0, principal * (1 + multiplier * return)))`. Credit the gross payout and release locked principal once. Report principal, both snapshot prices/times, raw market return, multiplier, game P/L, and gross payout. Gains are uncapped; losses never exceed principal.
 
@@ -26,5 +26,5 @@ Calculate using decimal arithmetic: `return = close/open - 1`; `gross_payout = f
 - Holding 300 in one asset and 200 in another locks 500; a request totalling 601 is rejected, as is a repeated asset or an unknown asset. Each position settles once with its own payout.
 - For principal 600 and multiplier 20: +1% returns 720, -1% returns 480, -5% returns zero, and -8% also returns zero.
 - No submission before the deadline causes no debit. Researching offsite never pauses the timer.
-- A stale/missing/zero SPYx quote prevents opening or closing preparation, not a fabricated zero return. The host can retry.
+- A stale/missing/zero SPYx quote prevents opening or closing preparation, not a fabricated zero return. The host can retry. If closing prices remain unavailable, the host can refund every stake in full, and repeated refunds credit nothing further.
 - Refresh, disconnect, or server restart preserves the same position, opening snapshot, deadline, and any settled payout.

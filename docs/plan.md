@@ -266,3 +266,26 @@ Follow-up (2026-10-28): investment cards now lead with a live-chart link button,
 ### Ambient fireworks refinement (2026-10-28)
 
 Softened the background fireworks with muted colors, thinner rays, lower opacity and more time between bursts on TV and phone. Outcome fireworks remain event-driven. Reduced-motion and hidden-tab behavior are unchanged. Formatting and production build/typecheck passed; visual review remains pending.
+
+## Checkpoint: Saturday pre-production fixes (2026-10-29)
+
+From the pre-production review for a 15-player party:
+
+- The TV costume results now use a dedicated three-column list (`costume-results`), so all 15 guests are visible instead of roughly 8. Phones and the host view keep the single-column list.
+- The TV final ranking keeps places 1–3 fixed and rotates the remaining players four at a time beneath them. The duplicate "Final ranking" heading is removed on the TV.
+- "Create TV link" now warns, in place and in a confirmation dialog, that a new link replaces any link a TV is already using.
+- Button feedback: `useRoom` exposes the in-flight command (`busyKey`). Host and player buttons show a working label (Starting…, Closing…, Saving…, Drawing…, Revealing…, Settling…). Market preparation, the TV link and recovery links disable while loading. The host sees "✓ Opening/Closing prices saved at …" and "✓ Investments settled." instead of a button that stays clickable. Command errors clear when the stage changes, and sign-out failures are reported.
+
+Verified: `npm run format:check`, `npm run typecheck`, `npm test` (85 pass) and `npm run build`. Drove a 15-player fixture party on a local dev server and screenshotted the TV in headless Chrome at 1920×1080. Costume results show all 15 rows with the roster strip and footer. The final ranking shows the podium plus four rotating rows with a 27-character winner name. Not verified: physical TV/phones after these changes, and a 30-character winner name that wraps. Live CoinGecko freshness on Saturday is still open (no API key locally).
+
+### Closing-price refund fallback (2026-10-29)
+
+At the user's request, a host-only `refund` action on the closing bell returns every unsettled position at its principal when closing prices cannot be loaded. Assumption recorded: a refund (no gain or loss) is the fair outcome when no closing data exists. Prices are never synthesized.
+
+- Refund reuses the `investment-settlement:<asset>` ledger key with reason "Investment refund", so settle and refund are mutually exclusive per position and repeats are no-ops.
+- Refund is refused once closing prices are saved. Closing preparation is refused after a refund, checked both before the fetch and inside the commit transaction.
+- Review advances once nothing is unsettled and either closing prices are saved, a refund happened, or nobody invested. Previously an outage blocked the party even with no investors.
+- `investments.refunded` reaches every role. The host sees a confirmed "Refund all investments" button only while positions are unsettled and no closing prices exist. Phones show "returned in full", and the TV shows "Markets closed early."
+- Opening prices are still required to leave the lobby; there is no skip for investments.
+
+Verified: format check, typecheck, `npm test` (88 pass, including refund idempotency, settle/refund exclusion, closing refusal after refund, the empty-review advance and refunded phone/TV rendering) and `npm run build`. Also drove a 15-player fixture party on a local server through the refund path to the final ranking. All locked balances returned to 0, closing preparation was refused, and the TV screenshot shows the refund message. Not verified on physical devices.

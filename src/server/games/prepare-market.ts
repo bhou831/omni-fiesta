@@ -21,6 +21,17 @@ export async function prepareMarket(
     'INVALID_PHASE',
     'Market preparation is not available now.',
   );
+  // After a refund, closing prices would contradict the payouts players already received.
+  const assertNotRefunded = () =>
+    requireRule(
+      kind === 'opening' ||
+        !store.db
+          .prepare("SELECT 1 FROM ledger WHERE room_id=? AND reason='Investment refund' LIMIT 1")
+          .get(roomId),
+      'MARKET_LOCKED',
+      'Investments were refunded; closing prices are no longer needed.',
+    );
+  assertNotRefunded();
   const config = JSON.parse(room.config) as GameConfig;
   const existing = store.db
     .prepare('SELECT payload FROM market_snapshots WHERE room_id=? AND kind=?')
@@ -48,6 +59,7 @@ export async function prepareMarket(
       'The round changed while prices were loading.',
       409,
     );
+    assertNotRefunded();
     const currentSaved = store.db
       .prepare('SELECT payload FROM market_snapshots WHERE room_id=? AND kind=?')
       .get(roomId, kind) as { payload: string } | undefined;

@@ -12,7 +12,13 @@ import { Store, type RoomRow, type Session } from './store.js';
 import { requireRule } from './errors.js';
 import { connectionCheck, type PhaseModule } from './phases.js';
 import { validateSnapshot } from '../games/market.js';
-import { settleInvestments, snapshot as marketSnapshot, positions } from '../games/investments.js';
+import {
+  settleInvestments,
+  refundInvestments,
+  refunded,
+  snapshot as marketSnapshot,
+  positions,
+} from '../games/investments.js';
 import { costumeHostAction, costumeProjection } from '../games/costume.js';
 import { triviaHostAction, triviaProjection } from '../games/trivia.js';
 import { slotsPlayerState, slotsHostState, slotsDisplayState } from '../games/slots.js';
@@ -207,6 +213,9 @@ export class Engine {
             if (room.phase === 'investment-review' && action === 'settle') {
               settleInvestments(context);
               result = { settled: true };
+            } else if (room.phase === 'investment-review' && action === 'refund') {
+              refundInvestments(context);
+              result = { refunded: true };
             } else if (room.phase === 'costume') result = costumeHostAction(context, action);
             else if (room.phase === 'trivia') {
               requireRule(room.status === 'open', 'ROUND_CLOSED', 'Trivia is closed.');
@@ -369,6 +378,7 @@ export class Engine {
         snapshot.investments = {
           opening,
           closing: room.phase === 'investment-review' ? closing : null,
+          refunded: room.phase === 'investment-review' && refunded(context),
           assets: context.config.investments.assets,
           cap: context.config.investments.max_investment_tokens,
           multiplier: context.config.investments.return_multiplier,

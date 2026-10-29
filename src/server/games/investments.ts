@@ -101,16 +101,53 @@ export const investmentReview: PhaseModule = {
     throw new Error('No player action in investment review');
   },
   assertCanAdvance(context) {
-    const remaining = context.store.db
-      .prepare('SELECT 1 FROM investments WHERE room_id=? AND payout IS NULL LIMIT 1')
+    const any = context.store.db
+      .prepare('SELECT 1 FROM investments WHERE room_id=? LIMIT 1')
       .get(context.room.id);
+    // Settled at closing prices, refunded without them, or nobody invested.
     requireRule(
-      snapshot(context, 'closing') && !remaining,
+      (snapshot(context, 'closing') || refunded(context) || !any) && !unsettled(context),
       'REVIEW_PENDING',
       'Prepare closing prices and settle investments first.',
     );
   },
 };
+const unsettled = (context: PhaseContext) =>
+  !!context.store.db
+    .prepare('SELECT 1 FROM investments WHERE room_id=? AND payout IS NULL LIMIT 1')
+    .get(context.room.id);
+/** True once the host refunded every position because closing prices were unavailable. */
+export function refunded(context: PhaseContext): boolean {
+  return !!context.store.db
+    .prepare("SELECT 1 FROM ledger WHERE room_id=? AND reason='Investment refund' LIMIT 1")
+    .get(context.room.id);
+}
+/** Fallback when closing prices cannot be loaded: every position returns exactly its principal. */
+export function refundInvestments(context: PhaseContext): void {
+  requireRule(
+    !snapshot(context, 'closing'),
+    'MARKET_AVAILABLE',
+    'Closing prices are saved. Settle investments instead.',
+  );
+  const open = context.store.db
+    .prepare('SELECT player_id,asset_id,principal,payout FROM investments WHERE room_id=?')
+    .all(context.room.id) as unknown as Position[];
+  for (const item of open) {
+    if (item.payout !== null) continue;
+    // Same key as settlement, so a position can be paid out only once either way.
+    context.store.adjust(
+      context.room.id,
+      item.player_id,
+      `investment-settlement:${item.asset_id}`,
+      'Investment refund',
+      { spendable: item.principal, locked: -item.principal, reserved: 0 },
+      context.now,
+    );
+    context.store.db
+      .prepare('UPDATE investments SET payout=? WHERE room_id=? AND player_id=? AND asset_id=?')
+      .run(item.principal, context.room.id, item.player_id, item.asset_id);
+  }
+}
 export function settleInvestments(context: PhaseContext): void {
   const opening = snapshot(context, 'opening');
   const closing = snapshot(context, 'closing');

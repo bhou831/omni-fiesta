@@ -36,17 +36,17 @@ The private host view and TV display are separate so balances and the selected p
 
 ## Stage sequence
 
-| Order | Stage                | Behavior                                                                                                                           | Session countdown                                    |
-| ----- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 0     | Lobby                | Join, choose profile, mark ready; host starts.                                                                                     | None                                                 |
-| 1     | Investment selection | One or more assets per player, with the cap applying to the total; starting grant, investment cap, locked stake, amplified return. | Configuration: `timers.investment_selection_seconds` |
-| 2     | Costume contest      | One vote per player; award top three distinct vote groups; penalize lowest group when outside prize places.                        | Configuration: `timers.costume_voting_seconds`       |
-| 3     | Trivia               | Host assigns balanced teams, arms buzzer, judges answers, and awards each teammate.                                                | None                                                 |
-| 4     | Slots                | Optional paid spins with immediate independent results, up to configured limit.                                                    | Configuration: `timers.slots_seconds`                |
-| 5     | Powerball            | Red/blue proportional pool betting; host locks, draws, and reveals.                                                                | Configuration: `timers.powerball_betting_seconds`    |
-| 6     | Investment review    | Fetch one closing snapshot and settle all locked investments once.                                                                 | None                                                 |
-| 7     | Somebody's Calling   | Free entry; one private random player selection; host calls manually, then reveals and awards.                                     | None                                                 |
-| 8     | Finish               | Show the complete final ranking from first through last.                                                                           | None                                                 |
+| Order | Stage                | Behavior                                                                                                                            | Session countdown                                    |
+| ----- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 0     | Lobby                | Join, choose profile, mark ready; host starts.                                                                                      | None                                                 |
+| 1     | Investment selection | One or more assets per player, with the cap applying to the total; starting grant, investment cap, locked stake, amplified return.  | Configuration: `timers.investment_selection_seconds` |
+| 2     | Costume contest      | One vote per player; award top three distinct vote groups; penalize lowest group when outside prize places.                         | Configuration: `timers.costume_voting_seconds`       |
+| 3     | Trivia               | Host assigns balanced teams, arms buzzer, judges answers, and awards each teammate.                                                 | None                                                 |
+| 4     | Slots                | Optional paid spins with immediate independent results, up to configured limit.                                                     | Configuration: `timers.slots_seconds`                |
+| 5     | Powerball            | Red/blue proportional pool betting; host locks, draws, and reveals.                                                                 | Configuration: `timers.powerball_betting_seconds`    |
+| 6     | Investment review    | Fetch one closing snapshot and settle all locked investments once. If closing prices are unavailable, the host refunds every stake. | None                                                 |
+| 7     | Somebody's Calling   | Free entry; one private random player selection; host calls manually, then reveals and awards.                                      | None                                                 |
+| 8     | Finish               | Show the complete final ranking from first through last.                                                                            | None                                                 |
 
 Only those four action sessions have countdowns. Advancing to a timed stage places it in a waiting state; the host starts its timer explicitly, and player actions open at that moment. Display the same server-based countdown on phones, the TV, and optionally the host. Unsubmitted actions expire with no automatic choice, charge, vote, bet, or spin. Previously accepted actions remain valid and still settle. After expiry, show a waiting state until the host proceeds.
 

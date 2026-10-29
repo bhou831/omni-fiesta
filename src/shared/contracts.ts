@@ -103,6 +103,8 @@ export interface RoomSnapshot {
   investments?: {
     opening: import('../server/games/market.js').MarketSnapshot | null;
     closing: import('../server/games/market.js').MarketSnapshot | null;
+    /** Closing prices were unavailable, so the host returned every stake in full. */
+    refunded: boolean;
     assets: import('../server/config.js').GameConfig['investments']['assets'];
     cap: number;
     multiplier: number;

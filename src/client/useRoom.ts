@@ -8,7 +8,8 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
   const [clockOffset, setClockOffset] = useState(0);
-  const [busy, setBusy] = useState(false);
+  // The command in flight, e.g. `phase.host:settle`, so the clicked button can say it is working.
+  const [busyKey, setBusyKey] = useState<string | null>(null);
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
   const sending = useRef(false);
   const pending = useRef<{ key: string; command: Command } | null>(null);
@@ -91,7 +92,7 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
             ...(payload ? { payload } : {}),
           },
         };
-      setBusy(true);
+      setBusyKey(`${type}:${payload?.action ?? ''}`);
       setError('');
       try {
         const response = await post<CommandResult>(
@@ -107,10 +108,13 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
         socketRef.current?.emit('sync');
       } finally {
         sending.current = false;
-        setBusy(false);
+        setBusyKey(null);
       }
     },
-    [state, code, role, busy, connected],
+    [state, code, role, connected],
   );
-  return { state, connected, error, clockOffset, command, busy };
+  // An error from the previous round would read as a failure in the new one.
+  const phaseInstance = state?.room.phaseInstance;
+  useEffect(() => setError(''), [phaseInstance]);
+  return { state, connected, error, clockOffset, command, busy: busyKey !== null, busyKey };
 }
