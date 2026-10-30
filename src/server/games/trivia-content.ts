@@ -1,9 +1,12 @@
 /** Server-only bank loading. Event answers stay outside the public client bundle. */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 const id = z.string().regex(/^[a-z0-9-]{1,80}$/);
+// The source and compiled module both live three directories below the project root.
+const projectFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
 const locationSchema = z
   .object({
     countryCode: z.string().regex(/^[A-Z]{2}$/),
@@ -99,7 +102,7 @@ const bankSchema = z
   .strict();
 export type TriviaClue = z.infer<typeof clueSchema>;
 export type TriviaContent = z.infer<typeof bankSchema>;
-export const DEMO_TRIVIA_BANK = resolve('config/trivia-demo.json');
+export const DEMO_TRIVIA_BANK = projectFile('config/trivia-demo.json');
 
 export function isApprovedApplePreviewUrl(value: string): boolean {
   try {
@@ -165,7 +168,11 @@ export function validateTriviaContent(content: unknown): asserts content is Triv
       (c) =>
         c.adventureVariant === 'photo-recreation' &&
         !c.unavailableReason &&
-        c.referenceImages?.some((image) => !existsSync(resolve('public', image.slice(1)))),
+        c.referenceImages?.some(
+          (image) =>
+            !existsSync(projectFile(`public${image}`)) &&
+            !existsSync(projectFile(`dist/client${image}`)),
+        ),
     )
   )
     throw new Error('Photo recreation reference image is missing.');
@@ -236,7 +243,7 @@ export function eventTriviaBankFile(): string {
   if (process.env.TRIVIA_EVENT_BANK_FILE) return process.env.TRIVIA_EVENT_BANK_FILE;
   if (process.env.TRIVIA_BANK_FILE && resolve(process.env.TRIVIA_BANK_FILE) !== DEMO_TRIVIA_BANK)
     return process.env.TRIVIA_BANK_FILE;
-  return resolve('config/trivia-event.json');
+  return projectFile('config/trivia-event.json');
 }
 export function triviaContentForMode(values: number[], demo: boolean): TriviaContent {
   const content = createTriviaContent(values, demo ? DEMO_TRIVIA_BANK : eventTriviaBankFile());
