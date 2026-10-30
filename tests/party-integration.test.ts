@@ -26,7 +26,7 @@ for (const count of [15, 100])
     const players = Array.from({ length: count }, (_, i) => {
       const joined = store.join(
         store.room(room.id),
-        { name: `Guest ${i}`, emoji: '🦊', email: `guest${i}@example.test`, phone: '2125550100' },
+        { name: `Guest ${i}`, emoji: '🦦', email: `guest${i}@example.test`, phone: '2125550100' },
         randomUUID(),
         now,
       );

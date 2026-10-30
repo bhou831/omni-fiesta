@@ -57,6 +57,14 @@ Open `http://localhost:3000`. The setup command creates an ignored `.env` with a
 
 The TV link contains only a public-display capability in its URL fragment; it grants no host access. Use an extended screen for the TV so private host information is not projected.
 
+For a Mac connected to HDMI with a phone/iPad controller:
+
+1. On the phone/iPad, sign in at `/host` and create or select the party.
+2. On the Mac, open `/screen` (also linked as **TV display** on the home page), sign in with the same host password, and choose the matching room code. Keep this public view on the monitor.
+3. Guests scan the lobby QR on the monitor to join on their own phones.
+
+Host sign-ins on different devices coexist; signing out affects only that browser's session. The signed-in Mac's TV view receives only public display state, with no private balances or phone numbers. It does not create or replace a TV capability link. Existing fragment links still work without host sign-in; **Create TV link** deliberately replaces the previous capability, so avoid generating replacements during play. An expired link offers **Set up TV again**. For local phone tests, use the same reachable LAN address on both devices, not `localhost` on the phone; for deployment, use the same HTTPS domain.
+
 State is saved in `data/party.sqlite` by default. Stop/restart the server with the same `.env` and database to resume. Editing `config/game.yaml` affects newly created rooms; saved parties keep their original settings. For phones on the same local network, open the computer's LAN address on port 3000 and create/share links through that address, or use HTTPS in deployment. Physical iPhone rehearsal is still required.
 
 ## Preview individual games

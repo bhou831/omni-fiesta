@@ -24,7 +24,7 @@ test('secret draw includes disconnected players, does not affect balances, and r
   const room = store.transaction(() => store.createRoom(config, 'party', now));
   const one = store.join(
     store.room(room.id),
-    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '1112223333' },
+    { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '1112223333' },
     randomUUID(),
     now,
   );
@@ -84,7 +84,7 @@ test('selection and reveal survive restart, and a failed reveal rolls back its a
   const room = store.transaction(() => store.createRoom(config, 'party', now));
   const joined = store.join(
     store.room(room.id),
-    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '1112223333' },
+    { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '1112223333' },
     randomUUID(),
     now,
   );

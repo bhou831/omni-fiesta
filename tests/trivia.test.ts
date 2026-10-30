@@ -22,7 +22,7 @@ function fixture(count: number) {
     (_, i) =>
       store.join(
         store.room(room.id),
-        { name: `Player ${i}`, emoji: '🦊', email: `person${i}@example.test`, phone: '2125550100' },
+        { name: `Player ${i}`, emoji: '🦦', email: `person${i}@example.test`, phone: '2125550100' },
         randomUUID(),
         1000,
       ).playerId,

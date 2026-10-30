@@ -31,7 +31,7 @@ test('only the host sees the whole ranking before the last announcement', (t) =>
   const players = Array.from({ length: 5 }, (_, i) =>
     store.join(
       store.room(room.id),
-      { name: `Guest ${i}`, emoji: '🦊', email: `g${i}@example.test`, phone: '2125550100' },
+      { name: `Guest ${i}`, emoji: '🦦', email: `g${i}@example.test`, phone: '2125550100' },
       randomUUID(),
       time + i,
     ),
@@ -84,7 +84,7 @@ test('finish reveal rejects a stale step and a tie for first skips 2nd place', (
   for (let i = 0; i < 4; i++)
     store.join(
       store.room(room.id),
-      { name: `Guest ${i}`, emoji: '🦊', email: `g${i}@example.test`, phone: '2125550100' },
+      { name: `Guest ${i}`, emoji: '🦦', email: `g${i}@example.test`, phone: '2125550100' },
       randomUUID(),
       time + i,
     );

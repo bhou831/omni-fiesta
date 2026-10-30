@@ -64,6 +64,8 @@ Guest sessions survive a tab refresh and reconnect, using secure server-issued c
 
 Host authentication uses a private configured credential and secure session; store secrets in environment/secrets configuration. Host/display route differences are not authorization. A display token grants only public room access.
 
+Each host login creates an independent session; another device's login or logout never invalidates it. `/screen` can sign in and choose an active room directly, using that browser's host session solely to authorize the **display** projection. Both HTTP and WebSocket delivery remain role-filtered, and logout disconnects only sockets bound to that session. Explicit display tokens must still validate even if a host cookie is present; invalid/stale tokens never fall back silently to host authorization. Opening a session-backed TV never rotates a capability link. The Mac setup/browser retains host authentication, so keep private host tabs off the projected monitor.
+
 ## Determinism, randomness, and recovery
 
 Inject clock, random draw, and market-provider dependencies for tests. Production outcomes use cryptographic server randomness. Resolve a draw once, persist it, and reuse it after retries/restarts. Do not reroll pending reveals. Use a question/window ID so a late buzz cannot win a new question.

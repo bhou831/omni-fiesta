@@ -21,7 +21,7 @@ test('normal app registers every party phase and opens investments', async (t) =
   const room = server.store.createRoom(loadConfig(), 'party', 1000000, 'fixture');
   server.store.join(
     server.store.room(room.id),
-    { name: 'Guest', emoji: '🦊', email: 'guest@example.test', phone: '2125550100' },
+    { name: 'Guest', emoji: '🦦', email: 'guest@example.test', phone: '2125550100' },
     randomUUID(),
     1000000,
   );

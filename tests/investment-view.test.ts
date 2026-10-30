@@ -16,7 +16,7 @@ function view(multiplier: number, low: number | null, high: number | null) {
     const room = store.transaction(() => store.createRoom(config, 'party', 1000000));
     const player = store.join(
       store.room(room.id),
-      { name: 'Test', emoji: '🦊', email: 'test@example.test', phone: '2125550100' },
+      { name: 'Test', emoji: '🦦', email: 'test@example.test', phone: '2125550100' },
       randomUUID(),
       1000000,
     );

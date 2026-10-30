@@ -66,7 +66,7 @@ test('investment HTTP and sockets preserve role privacy and committed state', as
   ).data;
   const joined = await request(`/api/rooms/${room.code}/join`, {
     joinKey: randomUUID(),
-    profile: { name: 'Fox', emoji: '🦊', email: 'private@example.test', phone: '2125550100' },
+    profile: { name: 'Fox', emoji: '🦦', email: 'private@example.test', phone: '2125550100' },
   });
   assert.equal(
     (await request(`/api/rooms/${room.code}/market/opening`, {}, joined.cookie)).status,

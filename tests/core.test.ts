@@ -18,7 +18,7 @@ function fixture() {
   config.timers.investment_selection_seconds = 2;
   const room = store.transaction(() => store.createRoom(config, 'rehearsal', now));
   const joinKey = randomUUID();
-  const profile = { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '+1 212 555 0100' };
+  const profile = { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '+1 212 555 0100' };
   const joined = store.join(store.room(room.id), profile, joinKey, now);
   const player = store.authenticate(joined.token, 'player', now, '')!;
   const host: Session = { role: 'host', roomId: null, playerId: null, tokenHash: '' };
@@ -278,7 +278,7 @@ test('saved configuration, sessions, ledger, and expired deadline survive reopen
     const room = store.createRoom(config, 'rehearsal', 1000);
     const profile = {
       name: 'Fox',
-      emoji: '🦊',
+      emoji: '🦦',
       email: 'fox@example.test',
       phone: '+1 212 555 0100',
     };
@@ -407,7 +407,7 @@ test('pending timer survives restart without losing any of its duration', (t) =>
   const room = store.transaction(() => store.createRoom(config, 'rehearsal', 1000));
   store.join(
     store.room(room.id),
-    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '2125550100' },
+    { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '2125550100' },
     randomUUID(),
     1000,
   );
@@ -465,7 +465,7 @@ test('recovery retry survives a server restart without issuing a second grant', 
   const room = store.transaction(() => store.createRoom(config, 'party', 1000));
   const player = store.join(
     store.room(room.id),
-    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '2125550100' },
+    { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '2125550100' },
     randomUUID(),
     1000,
   );

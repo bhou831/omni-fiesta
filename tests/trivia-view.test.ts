@@ -13,7 +13,7 @@ const trivia: TriviaProjection = {
       color: '#8d2727',
       excluded: false,
       members: [
-        { id: 'a', name: 'Alex', emoji: '🦊' },
+        { id: 'a', name: 'Alex', emoji: '🦦' },
         { id: 'b', name: 'Sam', emoji: '🐸' },
       ],
     },

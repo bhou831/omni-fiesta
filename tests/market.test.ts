@@ -162,7 +162,7 @@ test('stale opening prices can refresh only before investments open', async (t) 
   const room = store.transaction(() => store.createRoom(config, 'party', clock, 'fixture'));
   store.join(
     store.room(room.id),
-    { name: 'Test', email: 'test@example.test', phone: '2125550100', emoji: '🦊' },
+    { name: 'Test', email: 'test@example.test', phone: '2125550100', emoji: '🦦' },
     randomUUID(),
     clock,
   );

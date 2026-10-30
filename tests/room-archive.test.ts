@@ -12,7 +12,7 @@ import { loadConfig } from '../src/server/config.js';
 
 const profile = {
   name: 'Archive Test',
-  emoji: '🦊',
+  emoji: '🦦',
   email: 'archive@example.test',
   phone: '2125550100',
 };
