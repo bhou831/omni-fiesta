@@ -26,7 +26,7 @@ for (const count of [15, 100])
     const players = Array.from({ length: count }, (_, i) => {
       const joined = store.join(
         store.room(room.id),
-        { name: `Guest ${i}`, emoji: '🦊', email: `guest${i}@example.test`, phone: '2125550100' },
+        { name: `Guest ${i}`, emoji: '🦦', email: `guest${i}@example.test`, phone: '2125550100' },
         randomUUID(),
         now,
       );
@@ -83,15 +83,16 @@ for (const count of [15, 100])
     hostAction('lock');
     advance();
     hostAction('assign', { count: 4 });
-    hostAction('new-question');
-    hostAction('arm');
+    hostAction('select-cell', { cellId: 'childhood-1' });
+    hostAction('arm', { cellId: 'childhood-1' });
     const window = engine.snapshot({
       role: 'player',
       roomId: room.id,
       playerId: players[0].playerId!,
     }).trivia!.windowId;
     execute(players[0], 'phase.action', { action: 'buzz', data: { windowId: window } });
-    hostAction('award', { teamId: 1, amount: 100 });
+    hostAction('award', { teamId: 1, amount: 100, cellId: 'childhood-1' });
+    hostAction('finish-cell', { cellId: 'childhood-1' });
     close();
     advance();
     players.forEach((p) => execute(p, 'phase.action', { action: 'spin' }));

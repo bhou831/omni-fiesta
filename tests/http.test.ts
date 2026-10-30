@@ -88,7 +88,7 @@ test('HTTP and sockets enforce roles, synchronize players/TV, and preserve accep
     ).status,
     403,
   );
-  const profile = { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '+1 212 555 0100' };
+  const profile = { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '+1 212 555 0100' };
   const joinBody = { joinKey: randomUUID(), profile };
   const player = await f.request(`/api/rooms/${f.room.code}/join`, joinBody);
   assert.equal(player.status, 200);
@@ -241,7 +241,7 @@ test('email is optional at registration; provided addresses are validated and re
   for (const [index, email] of [undefined, '', '   ', 'guest@example.test'].entries()) {
     const profile = {
       name: `Guest ${index}`,
-      emoji: '🦊',
+      emoji: '🦦',
       phone: '2125550100',
       ...(email === undefined ? {} : { email }),
     };
@@ -256,7 +256,7 @@ test('email is optional at registration; provided addresses are validated and re
   }
   const invalid = await f.request(`/api/rooms/${f.room.code}/join`, {
     joinKey: randomUUID(),
-    profile: { name: 'Invalid', emoji: '🦊', phone: '2125550100', email: 'not-an-email' },
+    profile: { name: 'Invalid', emoji: '🦦', phone: '2125550100', email: 'not-an-email' },
   });
   assert.equal(invalid.status, 400);
   assert.equal(f.server.store.players(f.room.id).length, 4);

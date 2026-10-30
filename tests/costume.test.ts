@@ -25,7 +25,7 @@ function setup(count: number) {
   const players = Array.from({ length: count }, (_, i) =>
     store.join(
       store.room(room.id),
-      { name: `Guest ${i}`, emoji: '🦊', email: `guest${i}@example.test`, phone: '2125550100' },
+      { name: `Guest ${i}`, emoji: '🦦', email: `guest${i}@example.test`, phone: '2125550100' },
       randomUUID(),
       time + i,
     ),
@@ -381,7 +381,7 @@ test('reveal groups share a step for ties, skip empty places, and collapse for s
   const r = (playerId: string, place: number) => ({
     playerId,
     name: playerId,
-    emoji: '🦊',
+    emoji: '🦦',
     place,
     votes: 0,
     tokenChange: 0,

@@ -7,9 +7,13 @@ import { configHash, type GameConfig } from '../config.js';
 import { requireRule } from './errors.js';
 import { costumeSchema } from '../games/costume.js';
 import { slotsSchema } from '../games/slots.js';
-import { TRIVIA_SCHEMA, TRIVIA_RECEIPTS_SCHEMA } from '../games/trivia.js';
+import { TRIVIA_SCHEMA, TRIVIA_RECEIPTS_SCHEMA, TRIVIA_BOARD_SCHEMA } from '../games/trivia.js';
 import { somebodyCallingSchema } from '../games/somebody-calling.js';
 import { powerballSchema } from '../games/powerball.js';
+
+const REVEAL_SCHEMA = `CREATE TABLE IF NOT EXISTS costume_locks(room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL, locked_at INTEGER NOT NULL, PRIMARY KEY(room_id,phase_instance));
+        CREATE TABLE IF NOT EXISTS costume_reveal_progress(room_id TEXT PRIMARY KEY REFERENCES rooms(id), step INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS finish_reveal_progress(room_id TEXT PRIMARY KEY REFERENCES rooms(id), step INTEGER NOT NULL);`;
 
 export const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 export interface RoomRow {
@@ -52,7 +56,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 13) {
+    if (schemaVersion > 14) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -121,10 +125,13 @@ export class Store {
     // Costume results are locked at voting time and announced later, a step at a time; so is the final ranking.
     if (schemaVersion < 13)
       this.db.exec(`BEGIN IMMEDIATE;
-        CREATE TABLE IF NOT EXISTS costume_locks(room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL, locked_at INTEGER NOT NULL, PRIMARY KEY(room_id,phase_instance));
-        CREATE TABLE IF NOT EXISTS costume_reveal_progress(room_id TEXT PRIMARY KEY REFERENCES rooms(id), step INTEGER NOT NULL);
-        CREATE TABLE IF NOT EXISTS finish_reveal_progress(room_id TEXT PRIMARY KEY REFERENCES rooms(id), step INTEGER NOT NULL);
+        ${REVEAL_SCHEMA}
         PRAGMA user_version=13; COMMIT;`);
+    // Also repair early local trivia-only v13 databases, which predated the upstream reveal tables.
+    if (schemaVersion < 14)
+      this.db.exec(
+        `BEGIN IMMEDIATE; ${REVEAL_SCHEMA} ${TRIVIA_BOARD_SCHEMA} PRAGMA user_version=14; COMMIT;`,
+      );
   }
 
   transaction<T>(run: () => T): T {

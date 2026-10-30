@@ -78,6 +78,15 @@ export const gameConfigSchema = z
       .strict(),
     trivia: z
       .object({
+        // Absent in saved pre-board rooms: preserve their numbered-question flow.
+        board_values: z
+          .array(z.number().int().positive().max(Number.MAX_SAFE_INTEGER))
+          .length(5)
+          .refine(
+            (values) => values.every((v, i) => i === 0 || v > values[i - 1]),
+            'Board values must increase',
+          )
+          .optional(),
         default_team_count: z.number().int().min(1).max(100),
         award_scope: z.literal('each_team_member'),
         buzzer_policy: z.literal('first_server_accepted'),

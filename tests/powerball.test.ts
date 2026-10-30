@@ -22,7 +22,7 @@ function setup(n: number) {
   const players = Array.from({ length: n }, (_, i) =>
     store.join(
       store.room(room.id),
-      { name: `P${i}`, emoji: '🦊', email: `p${i}@example.test`, phone: '2125550100' },
+      { name: `P${i}`, emoji: '🦦', email: `p${i}@example.test`, phone: '2125550100' },
       randomUUID(),
       now + i,
     ),

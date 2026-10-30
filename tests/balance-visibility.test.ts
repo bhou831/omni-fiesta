@@ -18,7 +18,7 @@ test('game panels reveal spendable balances only when the player opts in', (t) =
   const room = store.transaction(() => store.createRoom(config, 'party', 1000000));
   const player = store.join(
     store.room(room.id),
-    { name: 'Privacy Test', emoji: '🦊', email: 'privacy@example.test', phone: '2125550100' },
+    { name: 'Privacy Test', emoji: '🦦', email: 'privacy@example.test', phone: '2125550100' },
     randomUUID(),
     1000000,
   );

@@ -132,8 +132,8 @@ try {
     await action('lock');
     await advance();
     await action('assign', { count: Math.min(4, count) });
-    await action('new-question');
-    await action('arm');
+    await action('select-cell', { cellId: 'childhood-1' });
+    await action('arm', { cellId: 'childhood-1' });
     const current = await state();
     await request(
       `/api/rooms/${room.code}/commands`,
@@ -145,7 +145,8 @@ try {
       },
       players[0].cookie,
     );
-    await action('award', { teamId: 1, amount: 100 });
+    await action('award', { teamId: 1, amount: 100, cellId: 'childhood-1' });
+    await action('finish-cell', { cellId: 'childhood-1' });
     await close();
     await advance();
     await playerActions('spin', () => ({}));

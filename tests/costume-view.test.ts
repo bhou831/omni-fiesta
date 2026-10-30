@@ -13,7 +13,7 @@ import type { CostumeProjection, CostumeRevealGroup } from '../src/server/games/
 const result = (i: number, place: number, tokenChange: number) => ({
   playerId: `p${i}`,
   name: `Guest ${i}`,
-  emoji: '🦊',
+  emoji: '🦦',
   place,
   votes: Math.max(0, 4 - place),
   tokenChange,

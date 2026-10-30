@@ -1,3 +1,10 @@
+import {
+  createTriviaContent,
+  eventTriviaBankFile,
+  triviaContentForMode,
+  type TriviaContent,
+} from './trivia-content.js';
+import { existsSync } from 'node:fs';
 import { randomInt } from 'node:crypto';
 import type { PhaseContext, PhaseModule } from '../core/phases.js';
 import { requireRule } from '../core/errors.js';
@@ -16,12 +23,47 @@ question INTEGER,created_at INTEGER,undone_at INTEGER,
 PRIMARY KEY(room_id,phase_instance,award_id),
 FOREIGN KEY(room_id,phase_instance,award_id) REFERENCES trivia_awards(room_id,phase_instance,request_id));`;
 
+export const TRIVIA_BOARD_SCHEMA = `
+CREATE TABLE IF NOT EXISTS trivia_boards(room_id TEXT NOT NULL REFERENCES rooms(id),phase_instance INTEGER NOT NULL,content TEXT NOT NULL,selected_cell TEXT,revealed INTEGER NOT NULL DEFAULT 0,begun INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(room_id,phase_instance));
+CREATE TABLE IF NOT EXISTS trivia_cells(room_id TEXT NOT NULL,phase_instance INTEGER NOT NULL,cell_id TEXT NOT NULL,question INTEGER NOT NULL,completed_at INTEGER,PRIMARY KEY(room_id,phase_instance,cell_id),FOREIGN KEY(room_id,phase_instance) REFERENCES trivia_boards(room_id,phase_instance));
+CREATE TABLE IF NOT EXISTS trivia_cell_awards(room_id TEXT NOT NULL,phase_instance INTEGER NOT NULL,award_id TEXT NOT NULL,cell_id TEXT NOT NULL,PRIMARY KEY(room_id,phase_instance,award_id),FOREIGN KEY(room_id,phase_instance,award_id) REFERENCES trivia_awards(room_id,phase_instance,request_id));`;
+
+type BoardRow = { content: string; selected_cell: string | null; revealed: number; begun: number };
+const boardState = (c: PhaseContext) =>
+  c.store.db
+    .prepare('SELECT * FROM trivia_boards WHERE room_id=? AND phase_instance=?')
+    .get(c.room.id, c.room.phase_instance) as BoardRow | undefined;
+const contentOf = (board: BoardRow): TriviaContent => JSON.parse(board.content);
+export type TriviaBoard = {
+  version: string;
+  categories: { id: string; name: string }[];
+  cells: { id: string; categoryId: string; value: number; used: boolean; available: boolean }[];
+  selected: {
+    id: string;
+    categoryId: string;
+    value: number;
+    publicPrompt: string;
+    answer?: string;
+    hostNotes?: string;
+  } | null;
+  revealed: boolean;
+  canCancel: boolean;
+  /** Host-only review data; never sent to the TV or phones. */
+  review?: {
+    id: string;
+    value: number;
+    categoryId: string;
+    reason: string;
+    musicCandidates?: string[];
+  }[];
+};
 export type TriviaAward = {
   id: string;
   teamId: number;
   amount: number;
   question: number | null;
   undone: boolean;
+  cellId?: string | null;
 };
 
 type State = {
@@ -40,6 +82,7 @@ export type TriviaProjection = {
     color: string;
     members: { id: string; name: string; emoji: string }[];
     excluded: boolean;
+    score?: number;
   }[];
   question: number;
   windowId: number;
@@ -47,8 +90,13 @@ export type TriviaProjection = {
   winner: { playerId: string; teamId: number } | null;
   ownTeamId: number | null;
   defaultTeamCount: number;
+  bankLabel?: string;
+  demo?: boolean;
+  /** Only the host receives switching availability. */
+  bankSwitch?: { allowed: boolean; eventAvailable: boolean };
   /** Included only in authenticated host snapshots. */
   awardHistory?: TriviaAward[];
+  board?: TriviaBoard;
 };
 const colors = [
   '#8d2727',
@@ -81,9 +129,15 @@ export function createTrivia(): PhaseModule {
     id: 'trivia',
     durationSeconds: () => null,
     open(c) {
-      c.store.db
+      const inserted = c.store.db
         .prepare('INSERT OR IGNORE INTO trivia_state(room_id,phase_instance) VALUES(?,?)')
         .run(c.room.id, c.room.phase_instance);
+      if (inserted.changes && c.config.trivia.board_values) {
+        const content = createTriviaContent(c.config.trivia.board_values);
+        c.store.db
+          .prepare('INSERT INTO trivia_boards(room_id,phase_instance,content) VALUES(?,?,?)')
+          .run(c.room.id, c.room.phase_instance, JSON.stringify(content));
+      }
     },
     action(c, playerId, action, data) {
       requireRule(action === 'buzz', 'UNKNOWN_ACTION', 'That action is not part of trivia.');
@@ -93,10 +147,10 @@ export function createTrivia(): PhaseModule {
           Number.isSafeInteger(data.windowId) &&
           data.windowId === current.window,
         'STALE_WINDOW',
-        'That buzzer window has ended.',
+        '此抢答轮次已结束，请等待主持人。',
         409,
       );
-      requireRule(current.status === 'armed', 'BUZZER_CLOSED', 'The buzzer is closed.');
+      requireRule(current.status === 'armed', 'BUZZER_CLOSED', '抢答已关闭。');
       const team = members(c).find((m) => m.player_id === playerId)?.team;
       requireRule(team !== undefined, 'TEAM_REQUIRED', 'Wait for your team assignment.');
       requireRule(
@@ -106,17 +160,25 @@ export function createTrivia(): PhaseModule {
           )
           .get(c.room.id, c.room.phase_instance, current.question, team),
         'TEAM_EXCLUDED',
-        'Your team cannot buzz again on this question.',
+        '本队本题已答错，请等待下一题。',
       );
       const result = c.store.db
         .prepare(
           "UPDATE trivia_state SET status='locked',winner_player=?,winner_team=? WHERE room_id=? AND phase_instance=? AND window=? AND status='armed'",
         )
         .run(playerId, team, c.room.id, c.room.phase_instance, current.window);
-      requireRule(result.changes === 1, 'BUZZER_CLOSED', 'Another player buzzed first.');
+      requireRule(result.changes === 1, 'BUZZER_CLOSED', '其他玩家已先抢到。');
+      c.store.db
+        .prepare('UPDATE trivia_boards SET begun=1 WHERE room_id=? AND phase_instance=?')
+        .run(c.room.id, c.room.phase_instance);
       return { accepted: true, windowId: current.window };
     },
     close(c) {
+      requireRule(
+        !boardState(c)?.selected_cell,
+        'CELL_UNFINISHED',
+        '请先完成当前题目，再结束本轮。',
+      );
       c.store.db
         .prepare(
           "UPDATE trivia_state SET status='idle' WHERE room_id=? AND phase_instance=? AND status='armed'",
@@ -124,6 +186,11 @@ export function createTrivia(): PhaseModule {
         .run(c.room.id, c.room.phase_instance);
     },
     assertCanAdvance(c) {
+      requireRule(
+        !boardState(c)?.selected_cell,
+        'CELL_UNFINISHED',
+        '请先完成当前题目，再进入下一轮。',
+      );
       requireRule(state(c).status !== 'armed', 'BUZZER_OPEN', 'Close the buzzer before advancing.');
     },
   };
@@ -141,6 +208,141 @@ export function triviaHostAction(
   const current = state(c);
   const room = c.room.id;
   const phase = c.room.phase_instance;
+  const board = boardState(c);
+  const content = board ? contentOf(board) : undefined;
+  const selected = content?.cells.find((cell) => cell.id === board?.selected_cell);
+  const selectedAction = [
+    'cancel-selection',
+    'arm',
+    'close-buzzer',
+    'incorrect',
+    'reveal-answer',
+    'finish-cell',
+  ].includes(action);
+  if (board && selectedAction)
+    requireRule(
+      selected && data.cellId === selected.id,
+      'STALE_CELL',
+      '题目已变更，请刷新后重试。',
+      409,
+    );
+  const activeAward = (cellId: string) =>
+    c.store.db
+      .prepare(
+        `SELECT 1 FROM trivia_cell_awards b LEFT JOIN trivia_award_receipts r ON r.room_id=b.room_id AND r.phase_instance=b.phase_instance AND r.award_id=b.award_id WHERE b.room_id=? AND b.phase_instance=? AND b.cell_id=? AND r.undone_at IS NULL`,
+      )
+      .get(room, phase, cellId);
+  if (action === 'set-demo-mode') {
+    requireRule(
+      board && content && c.config.trivia.board_values,
+      'BOARD_REQUIRED',
+      '本轮使用旧版编号题目。',
+    );
+    requireRule(typeof data.demo === 'boolean', 'INVALID_MODE', '请选择演示模式或正式题库。');
+    requireRule(
+      data.expectedBankVersion === content.version,
+      'STALE_BANK',
+      '题库已变更，请刷新后重试。',
+      409,
+    );
+    requireRule(
+      canSwitchBank(c, board, current),
+      'BANK_LOCKED',
+      '已经选题或计分，不能切换题库。请新建派对。',
+    );
+    if ((content.mode === 'demo') === data.demo) return { demo: data.demo };
+    let nextContent: TriviaContent;
+    try {
+      nextContent = triviaContentForMode(c.config.trivia.board_values, data.demo);
+    } catch {
+      requireRule(false, 'BANK_UNAVAILABLE', '无法读取或验证本机题库，请检查本地题库文件。');
+    }
+    c.store.db
+      .prepare(
+        'UPDATE trivia_boards SET content=?,revealed=0,begun=0 WHERE room_id=? AND phase_instance=?',
+      )
+      .run(JSON.stringify(nextContent), room, phase);
+    return { demo: data.demo };
+  }
+  if (action === 'select-cell') {
+    requireRule(board && content, 'BOARD_REQUIRED', '本轮使用旧版编号题目。');
+    requireRule(members(c).length > 0, 'TEAM_REQUIRED', '请先分队。');
+    requireRule(
+      !board.selected_cell && current.status === 'idle',
+      'CELL_UNFINISHED',
+      '请先完成当前题目。',
+    );
+    const cell = content.cells.find((cell) => cell.id === data.cellId);
+    requireRule(cell && !cell.unavailableReason, 'CELL_UNAVAILABLE', '此题尚未准备完成。');
+    requireRule(
+      !c.store.db
+        .prepare('SELECT 1 FROM trivia_cells WHERE room_id=? AND phase_instance=? AND cell_id=?')
+        .get(room, phase, cell.id),
+      'CELL_USED',
+      '此题已经完成。',
+    );
+    c.store.db
+      .prepare('INSERT INTO trivia_cells VALUES(?,?,?,?,NULL)')
+      .run(room, phase, cell.id, current.question + 1);
+    c.store.db
+      .prepare(
+        'UPDATE trivia_boards SET selected_cell=?,revealed=0,begun=0 WHERE room_id=? AND phase_instance=?',
+      )
+      .run(cell.id, room, phase);
+    c.store.db
+      .prepare(
+        "UPDATE trivia_state SET question=question+1,status='idle',winner_player=NULL,winner_team=NULL WHERE room_id=? AND phase_instance=?",
+      )
+      .run(room, phase);
+    return { selected: cell.id };
+  }
+  if (board && action === 'cancel-selection') {
+    requireRule(
+      !board.begun && current.status !== 'armed',
+      'CELL_STARTED',
+      '已经开始作答，请使用完成本题。',
+    );
+    c.store.db
+      .prepare('DELETE FROM trivia_cells WHERE room_id=? AND phase_instance=? AND cell_id=?')
+      .run(room, phase, selected!.id);
+    c.store.db
+      .prepare(
+        'UPDATE trivia_boards SET selected_cell=NULL,revealed=0,begun=0 WHERE room_id=? AND phase_instance=?',
+      )
+      .run(room, phase);
+    return { cancelled: true };
+  }
+  if (board && action === 'reveal-answer') {
+    requireRule(!board.revealed, 'ANSWER_REVEALED', '答案已经公布。');
+    c.store.db
+      .prepare('UPDATE trivia_boards SET revealed=1,begun=1 WHERE room_id=? AND phase_instance=?')
+      .run(room, phase);
+    c.store.db
+      .prepare(
+        "UPDATE trivia_state SET status=CASE WHEN status='armed' THEN 'idle' ELSE status END WHERE room_id=? AND phase_instance=?",
+      )
+      .run(room, phase);
+    return { revealed: true };
+  }
+  if (board && action === 'finish-cell') {
+    requireRule(current.status !== 'armed', 'BUZZER_OPEN', '请先关闭抢答。');
+    c.store.db
+      .prepare(
+        'UPDATE trivia_cells SET completed_at=? WHERE room_id=? AND phase_instance=? AND cell_id=? AND completed_at IS NULL',
+      )
+      .run(c.now, room, phase, selected!.id);
+    c.store.db
+      .prepare(
+        'UPDATE trivia_boards SET selected_cell=NULL,revealed=0,begun=0 WHERE room_id=? AND phase_instance=?',
+      )
+      .run(room, phase);
+    c.store.db
+      .prepare(
+        "UPDATE trivia_state SET status='idle',winner_player=NULL,winner_team=NULL WHERE room_id=? AND phase_instance=?",
+      )
+      .run(room, phase);
+    return { finished: selected!.id };
+  }
   if (action === 'assign') {
     const count = data.count;
     const players = c.store.players(room);
@@ -177,6 +379,7 @@ export function triviaHostAction(
     return { assigned: true, count };
   }
   if (action === 'new-question') {
+    requireRule(!board, 'BOARD_MODE', '请在题板上选择题目。');
     requireRule(members(c).length > 0, 'TEAM_REQUIRED', 'Assign teams first.');
     requireRule(current.status !== 'armed', 'BUZZER_OPEN', 'Close the buzzer first.');
     c.store.db
@@ -187,6 +390,18 @@ export function triviaHostAction(
     return { question: current.question + 1 };
   }
   if (action === 'arm') {
+    if (board) {
+      requireRule(
+        !board.revealed && !activeAward(selected!.id),
+        'CELL_RESOLVED',
+        '此题已揭晓或已计分，请完成本题。',
+      );
+      requireRule(
+        triviaProjection(c).teams.some((t) => !t.excluded),
+        'NO_ELIGIBLE_TEAMS',
+        '所有队伍均已答错，可以公布答案并完成本题。',
+      );
+    }
     requireRule(
       current.question > 0 && current.status === 'idle',
       'INVALID_BUZZER',
@@ -207,6 +422,12 @@ export function triviaHostAction(
     return { closed: true };
   }
   if (action === 'incorrect') {
+    if (board)
+      requireRule(
+        !board.revealed && !activeAward(selected!.id),
+        'CELL_RESOLVED',
+        '此题已揭晓或已计分。',
+      );
     requireRule(
       current.status === 'locked' && current.winner_team !== null,
       'INVALID_BUZZER',
@@ -251,6 +472,35 @@ export function triviaHostAction(
       );
       return { awarded: true, teamId: team, amount, awardId: requestId };
     }
+    let awardCell: typeof selected;
+    let awardQuestion = current.question;
+    if (board && content) {
+      awardCell = content.cells.find((cell) => cell.id === data.cellId);
+      const prior =
+        awardCell &&
+        (c.store.db
+          .prepare(
+            'SELECT question,completed_at FROM trivia_cells WHERE room_id=? AND phase_instance=? AND cell_id=?',
+          )
+          .get(room, phase, awardCell.id) as
+          { question: number; completed_at: number | null } | undefined);
+      requireRule(awardCell && prior, 'INVALID_CELL', '请选择当前题目或历史计分题目。');
+      requireRule(current.status !== 'armed', 'BUZZER_OPEN', '请先关闭抢答再计分。');
+      requireRule(
+        awardCell.id === selected?.id ||
+          (prior.completed_at !== null &&
+            !!c.store.db
+              .prepare(
+                'SELECT 1 FROM trivia_cell_awards WHERE room_id=? AND phase_instance=? AND cell_id=?',
+              )
+              .get(room, phase, awardCell.id)),
+        'INVALID_CORRECTION',
+        '只能修正已有计分的题目。',
+      );
+      requireRule(amount === awardCell.value, 'INVALID_AWARD', '每名队员的奖励必须等于本题分值。');
+      requireRule(!activeAward(awardCell.id), 'CELL_AWARDED', '此题已计分，请先撤销原计分。');
+      awardQuestion = prior.question;
+    }
     for (const member of teamMembers)
       c.store.adjust(
         room,
@@ -265,7 +515,16 @@ export function triviaHostAction(
       .run(room, phase, requestId, team, amount);
     c.store.db
       .prepare('INSERT INTO trivia_award_receipts VALUES(?,?,?,?,?,NULL)')
-      .run(room, phase, requestId, current.question, c.now);
+      .run(room, phase, requestId, awardQuestion, c.now);
+    if (awardCell) {
+      c.store.db
+        .prepare('INSERT INTO trivia_cell_awards VALUES(?,?,?,?)')
+        .run(room, phase, requestId, awardCell.id);
+      if (selected?.id === awardCell.id)
+        c.store.db
+          .prepare('UPDATE trivia_boards SET begun=1 WHERE room_id=? AND phase_instance=?')
+          .run(room, phase);
+    }
     c.store.db
       .prepare('UPDATE trivia_state SET awards=awards+1 WHERE room_id=? AND phase_instance=?')
       .run(room, phase);
@@ -315,7 +574,7 @@ export function triviaHostAction(
   requireRule(false, 'UNKNOWN_ACTION', 'That host action is not part of trivia.');
 }
 
-/** Public-only projection: callers may send it to any room role. */
+/** Explicit role projection: answers/notes only to host; phone receives no board content. */
 export function triviaProjection(
   c: PhaseContext,
   playerId?: string,
@@ -334,10 +593,23 @@ export function triviaProjection(
     ).map((r) => r.team),
   );
   const ids = [...new Set(all.map((m) => m.team))].sort((a, b) => a - b);
+  const board = boardState(c);
+  const history = triviaAwardHistory(c);
   return {
+    ...(board && !playerId ? { board: projectBoard(c, board, includeAwards) } : {}),
+    ...(board
+      ? { bankLabel: contentOf(board).label ?? '问答题库', demo: contentOf(board).mode === 'demo' }
+      : {}),
     teams: ids.map((id) => ({
       id,
-      name: `Team ${id}`,
+      name: `第 ${id} 队`,
+      ...(board && !playerId
+        ? {
+            score: history
+              .filter((a) => a.cellId && !a.undone && a.teamId === id)
+              .reduce((sum, a) => sum + a.amount, 0),
+          }
+        : {}),
       color: colors[(id - 1) % colors.length],
       members: all
         .filter((m) => m.team === id)
@@ -356,20 +628,99 @@ export function triviaProjection(
         : null,
     ownTeamId: playerId ? (all.find((m) => m.player_id === playerId)?.team ?? null) : null,
     defaultTeamCount: Math.min(c.config.trivia.default_team_count, players.length),
-    ...(includeAwards ? { awardHistory: triviaAwardHistory(c) } : {}),
+    ...(includeAwards
+      ? {
+          awardHistory: history,
+          ...(board
+            ? {
+                bankSwitch: {
+                  allowed: c.room.status === 'open' && canSwitchBank(c, board, current),
+                  eventAvailable: existsSync(eventTriviaBankFile()),
+                },
+              }
+            : {}),
+        }
+      : {}),
   };
 }
 
 function triviaAwardHistory(c: PhaseContext): TriviaAward[] {
   const rows = c.store.db
     .prepare(
-      `SELECT a.request_id AS id,a.team AS teamId,a.amount,r.question,r.undone_at
+      `SELECT a.request_id AS id,a.team AS teamId,a.amount,r.question,r.undone_at,b.cell_id AS cellId
     FROM trivia_awards a LEFT JOIN trivia_award_receipts r
     ON r.room_id=a.room_id AND r.phase_instance=a.phase_instance AND r.award_id=a.request_id
+    LEFT JOIN trivia_cell_awards b ON b.room_id=a.room_id AND b.phase_instance=a.phase_instance AND b.award_id=a.request_id
     WHERE a.room_id=? AND a.phase_instance=? ORDER BY a.rowid DESC`,
     )
     .all(c.room.id, c.room.phase_instance) as unknown as (Omit<TriviaAward, 'undone'> & {
     undone_at: number | null;
   })[];
   return rows.map(({ undone_at, ...award }) => ({ ...award, undone: undone_at !== null }));
+}
+
+function projectBoard(c: PhaseContext, board: BoardRow, host: boolean): TriviaBoard {
+  const content = contentOf(board);
+  const used = new Set(
+    (
+      c.store.db
+        .prepare(
+          'SELECT cell_id FROM trivia_cells WHERE room_id=? AND phase_instance=? AND completed_at IS NOT NULL',
+        )
+        .all(c.room.id, c.room.phase_instance) as { cell_id: string }[]
+    ).map((r) => r.cell_id),
+  );
+  const clue = content.cells.find((cell) => cell.id === board.selected_cell);
+  return {
+    version: content.version,
+    categories:
+      content.mode === 'demo'
+        ? content.categories.map((category, index) => ({ ...category, name: `类别 ${index + 1}` }))
+        : content.categories,
+    cells: content.cells.map((cell) => ({
+      id: cell.id,
+      categoryId: cell.categoryId,
+      value: cell.value,
+      used: used.has(cell.id),
+      available: !cell.unavailableReason,
+    })),
+    selected: clue
+      ? {
+          id: clue.id,
+          categoryId: clue.categoryId,
+          value: clue.value,
+          publicPrompt: clue.publicPrompt,
+          ...(host || board.revealed ? { answer: clue.hostAnswer } : {}),
+          ...(host ? { hostNotes: clue.hostNotes } : {}),
+        }
+      : null,
+    revealed: !!board.revealed,
+    canCancel: !!clue && !board.begun && state(c).status !== 'armed',
+    ...(host
+      ? {
+          review: content.cells
+            .filter((cell) => cell.unavailableReason)
+            .map((cell) => ({
+              id: cell.id,
+              value: cell.value,
+              categoryId: cell.categoryId,
+              reason: cell.unavailableReason!,
+              ...(cell.musicCandidates ? { musicCandidates: cell.musicCandidates } : {}),
+            })),
+        }
+      : {}),
+  };
+}
+
+function canSwitchBank(c: PhaseContext, board: BoardRow, current: State): boolean {
+  return (
+    !board.selected_cell &&
+    !board.begun &&
+    current.question === 0 &&
+    current.awards === 0 &&
+    current.status === 'idle' &&
+    !c.store.db
+      .prepare('SELECT 1 FROM trivia_cells WHERE room_id=? AND phase_instance=? LIMIT 1')
+      .get(c.room.id, c.room.phase_instance)
+  );
 }

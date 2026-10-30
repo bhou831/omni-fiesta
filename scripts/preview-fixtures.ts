@@ -11,7 +11,7 @@ export const PREVIEW_SCENARIOS = [
   { key: 'investments', stage: 'investments', label: 'Investment cards' },
   { key: 'costume', stage: 'costume', label: 'Costume voting' },
   { key: 'costume-results', stage: 'costume-reveal', label: 'Costume winners (3rd revealed)' },
-  { key: 'trivia', stage: 'trivia', label: 'Trivia buzzer' },
+  { key: 'trivia', stage: 'trivia', label: '中文趣味问答题板' },
   { key: 'slots', stage: 'slots', label: 'Slot machine' },
   { key: 'powerball', stage: 'powerball', label: 'Powerball betting / animation' },
   { key: 'powerball-results', stage: 'powerball', label: 'Powerball results' },
@@ -22,10 +22,15 @@ export const PREVIEW_SCENARIOS = [
 ] as const;
 export type PreviewScenario = (typeof PREVIEW_SCENARIOS)[number];
 
-export async function seedPreviewRoom(engine: Engine, scenario: PreviewScenario) {
+export async function seedPreviewRoom(
+  engine: Engine,
+  scenario: PreviewScenario,
+  legacyTrivia = false,
+) {
   const { store } = engine;
   const now = engine.now();
   const config = loadConfig();
+  if (legacyTrivia) delete config.trivia.board_values;
   // Generous inspection windows belong only to these disposable fixture rooms.
   for (const key of Object.keys(config.timers) as (keyof typeof config.timers)[])
     config.timers[key] = 900;
@@ -112,8 +117,10 @@ export async function seedPreviewRoom(engine: Engine, scenario: PreviewScenario)
   if (scenario.stage !== 'lobby' && scenario.key !== 'costume-results') stage(scenario.stage);
   if (scenario.stage === 'trivia') {
     hostAction('assign', { count: 2 });
-    hostAction('new-question');
-    hostAction('arm');
+    if (legacyTrivia) {
+      hostAction('new-question');
+      hostAction('arm');
+    }
   }
   if (scenario.stage === 'powerball') {
     for (let i = 1; i < people.length; i++)

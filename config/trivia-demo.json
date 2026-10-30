@@ -1,0 +1,239 @@
+{
+  "version": "demo-2",
+  "label": "演示题库 · 非正式题目",
+  "mode": "demo",
+  "categories": [
+    {
+      "id": "childhood",
+      "name": "类别 1"
+    },
+    {
+      "id": "music",
+      "name": "类别 2"
+    },
+    {
+      "id": "adventure",
+      "name": "类别 3"
+    },
+    {
+      "id": "geography",
+      "name": "类别 4"
+    },
+    {
+      "id": "random",
+      "name": "类别 5"
+    }
+  ],
+  "cells": [
+    {
+      "id": "childhood-1",
+      "categoryId": "childhood",
+      "value": 100,
+      "kind": "text",
+      "publicPrompt": "哪位蓝色机器猫有一个能拿出各种道具的四次元口袋？",
+      "hostAnswer": "哆啦A梦。",
+      "hostNotes": "答「机器猫」也可。"
+    },
+    {
+      "id": "childhood-2",
+      "categoryId": "childhood",
+      "value": 200,
+      "kind": "text",
+      "publicPrompt": "《西游记》中，使用金箍棒的角色是谁？",
+      "hostAnswer": "孙悟空。",
+      "hostNotes": "答「美猴王」或「齐天大圣」也可。"
+    },
+    {
+      "id": "childhood-3",
+      "categoryId": "childhood",
+      "value": 300,
+      "kind": "text",
+      "publicPrompt": "《海绵宝宝》的主角住在什么水果形状的房子里？",
+      "hostAnswer": "菠萝。",
+      "hostNotes": "答「凤梨」也可。"
+    },
+    {
+      "id": "childhood-4",
+      "categoryId": "childhood",
+      "value": 400,
+      "kind": "text",
+      "publicPrompt": "《猫和老鼠》中，猫和老鼠分别叫什么名字？",
+      "hostAnswer": "猫是汤姆，老鼠是杰瑞。",
+      "hostNotes": "两者都说对才得分。"
+    },
+    {
+      "id": "childhood-5",
+      "categoryId": "childhood",
+      "value": 500,
+      "kind": "text",
+      "publicPrompt": "皮卡丘通常被归为哪一种宝可梦属性？",
+      "hostAnswer": "电属性。"
+    },
+    {
+      "id": "music-1",
+      "categoryId": "music",
+      "value": 100,
+      "kind": "text",
+      "publicPrompt": "简谱中的 1、2、3 对应哪三个唱名？",
+      "hostAnswer": "do、re、mi。",
+      "hostNotes": "口头唱出三个唱名即可。"
+    },
+    {
+      "id": "music-2",
+      "categoryId": "music",
+      "value": 200,
+      "kind": "text",
+      "publicPrompt": "吉他和小提琴中，哪一种通常有六根弦？",
+      "hostAnswer": "吉他。"
+    },
+    {
+      "id": "music-3",
+      "categoryId": "music",
+      "value": 300,
+      "kind": "text",
+      "publicPrompt": "「独唱」和「合唱」中，哪个通常指多人一起演唱？",
+      "hostAnswer": "合唱。"
+    },
+    {
+      "id": "music-4",
+      "categoryId": "music",
+      "value": 400,
+      "kind": "text",
+      "publicPrompt": "标准钢琴通常有多少个琴键？",
+      "hostAnswer": "88 个。"
+    },
+    {
+      "id": "music-5",
+      "categoryId": "music",
+      "value": 500,
+      "kind": "text",
+      "publicPrompt": "音乐中的 BPM 通常表示什么？",
+      "hostAnswer": "每分钟的拍数。",
+      "hostNotes": "可答「速度」并说明是每分钟多少拍。"
+    },
+    {
+      "id": "adventure-1",
+      "categoryId": "adventure",
+      "value": 100,
+      "kind": "text",
+      "publicPrompt": "什么东西帮人擦干身体，自己却越来越湿？",
+      "hostAnswer": "毛巾。",
+      "hostNotes": "浴巾等合理答案也可。"
+    },
+    {
+      "id": "adventure-2",
+      "categoryId": "adventure",
+      "value": 200,
+      "kind": "text",
+      "publicPrompt": "什么日常用品有很多「齿」，却不能吃东西，还能整理头发？",
+      "hostAnswer": "梳子。"
+    },
+    {
+      "id": "adventure-3",
+      "categoryId": "adventure",
+      "value": 300,
+      "kind": "text",
+      "publicPrompt": "一条带子剪成三段，最少剪几次？每次只剪一处，而且不能折叠。",
+      "hostAnswer": "两次。"
+    },
+    {
+      "id": "adventure-4",
+      "categoryId": "adventure",
+      "value": 400,
+      "kind": "text",
+      "publicPrompt": "盒里有 3 个红球和 2 个蓝球。闭眼取球，至少取几个才能保证拿到一个红球？",
+      "hostAnswer": "3 个。",
+      "hostNotes": "最坏情况先取出两个蓝球。"
+    },
+    {
+      "id": "adventure-5",
+      "categoryId": "adventure",
+      "value": 500,
+      "kind": "text",
+      "publicPrompt": "两名父亲和两名儿子每人拿到一个苹果，总共只用了三个苹果。这三个人是什么关系？",
+      "hostAnswer": "祖父、父亲、儿子。",
+      "hostNotes": "中间的人同时是父亲和儿子。"
+    },
+    {
+      "id": "geography-1",
+      "categoryId": "geography",
+      "value": 100,
+      "kind": "text",
+      "publicPrompt": "白天和黑夜主要由地球的自转还是公转形成？",
+      "hostAnswer": "自转。"
+    },
+    {
+      "id": "geography-2",
+      "categoryId": "geography",
+      "value": 200,
+      "kind": "text",
+      "publicPrompt": "法国的首都是哪座城市？",
+      "hostAnswer": "巴黎。"
+    },
+    {
+      "id": "geography-3",
+      "categoryId": "geography",
+      "value": 300,
+      "kind": "text",
+      "publicPrompt": "七大洲中，面积最大的是哪个洲？",
+      "hostAnswer": "亚洲。"
+    },
+    {
+      "id": "geography-4",
+      "categoryId": "geography",
+      "value": 400,
+      "kind": "text",
+      "publicPrompt": "赤道把地球分为哪两个半球？",
+      "hostAnswer": "北半球和南半球。",
+      "hostNotes": "顺序不限。"
+    },
+    {
+      "id": "geography-5",
+      "categoryId": "geography",
+      "value": 500,
+      "kind": "text",
+      "publicPrompt": "世界上面积最大的海洋是什么？",
+      "hostAnswer": "太平洋。"
+    },
+    {
+      "id": "random-1",
+      "categoryId": "random",
+      "value": 100,
+      "kind": "text",
+      "publicPrompt": "「一打」通常表示多少个？",
+      "hostAnswer": "12 个。"
+    },
+    {
+      "id": "random-2",
+      "categoryId": "random",
+      "value": 200,
+      "kind": "text",
+      "publicPrompt": "一个八边形有几条边？",
+      "hostAnswer": "8 条。"
+    },
+    {
+      "id": "random-3",
+      "categoryId": "random",
+      "value": 300,
+      "kind": "text",
+      "publicPrompt": "二进制数 10 等于十进制的几？",
+      "hostAnswer": "2。"
+    },
+    {
+      "id": "random-4",
+      "categoryId": "random",
+      "value": 400,
+      "kind": "text",
+      "publicPrompt": "1 公里等于多少米？",
+      "hostAnswer": "1000 米。"
+    },
+    {
+      "id": "random-5",
+      "categoryId": "random",
+      "value": 500,
+      "kind": "text",
+      "publicPrompt": "公历闰年的二月有多少天？",
+      "hostAnswer": "29 天。"
+    }
+  ]
+}

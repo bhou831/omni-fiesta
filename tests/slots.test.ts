@@ -23,7 +23,7 @@ function setup(samples: bigint[] = []) {
   const room = store.transaction(() => store.createRoom(config, 'party', now));
   const joined = store.join(
     store.room(room.id),
-    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '2125550100' },
+    { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '2125550100' },
     randomUUID(),
     now,
   );

@@ -15,13 +15,14 @@ function fixture(count: number) {
   const store = new Store(':memory:');
   store.db.exec(TRIVIA_SCHEMA);
   const config = loadConfig();
+  delete config.trivia.board_values;
   const room = store.transaction(() => store.createRoom(config, 'party', 1000));
   const players = Array.from(
     { length: count },
     (_, i) =>
       store.join(
         store.room(room.id),
-        { name: `Player ${i}`, emoji: '🦊', email: `person${i}@example.test`, phone: '2125550100' },
+        { name: `Player ${i}`, emoji: '🦦', email: `person${i}@example.test`, phone: '2125550100' },
         randomUUID(),
         1000,
       ).playerId,

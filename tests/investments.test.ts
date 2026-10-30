@@ -15,7 +15,7 @@ test('investment reservations and settlement are atomic and retry-safe', (t) => 
   const room = store.transaction(() => store.createRoom(config, 'party', now));
   const joined = store.join(
     store.room(room.id),
-    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '2125550100' },
+    { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '2125550100' },
     randomUUID(),
     now,
   );
@@ -110,7 +110,7 @@ test('additive migration and restart preserve old rooms and locked investments',
   const room = store.transaction(() => store.createRoom(config, 'party', now));
   const joined = store.join(
     store.room(room.id),
-    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '2125550100' },
+    { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '2125550100' },
     randomUUID(),
     now,
   );
@@ -182,7 +182,7 @@ test('a player can hold several positions, revise them together and settle each 
   const room = store.transaction(() => store.createRoom(config, 'party', now));
   const joined = store.join(
     store.room(room.id),
-    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '2125550100' },
+    { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '2125550100' },
     randomUUID(),
     now,
   );
@@ -298,7 +298,7 @@ test('version-10 databases keep their single position when upgraded to per-asset
   const room = store.transaction(() => store.createRoom(config, 'party', 1000000));
   const joined = store.join(
     store.room(room.id),
-    { name: 'Fox', emoji: '🦊', email: 'fox@example.test', phone: '2125550100' },
+    { name: 'Fox', emoji: '🦦', email: 'fox@example.test', phone: '2125550100' },
     randomUUID(),
     1000000,
   );
@@ -311,7 +311,7 @@ test('version-10 databases keep their single position when upgraded to per-asset
   store.close();
   store = new Store(path);
   t.after(() => store.close());
-  assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 13);
+  assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 14);
   assert.deepEqual(
     store.db
       .prepare('SELECT asset_id,principal FROM investments WHERE player_id=?')
@@ -336,7 +336,7 @@ test('without closing prices the host refunds every stake once, and the closing 
   const join = (name: string) =>
     store.join(
       store.room(room.id),
-      { name, emoji: '🦊', email: `${name}@example.test`, phone: '2125550100' },
+      { name, emoji: '🦦', email: `${name}@example.test`, phone: '2125550100' },
       randomUUID(),
       now,
     );
