@@ -1197,7 +1197,9 @@ function Host() {
                 </div>
                 {state.room.advanceBlocker && state.room.phase !== 'finish' && (
                   <p className="fine-print">
-                    {state.room.phase === 'trivia' && state.room.status !== 'closed'
+                    {state.room.phase === 'trivia' &&
+                    state.room.status !== 'closed' &&
+                    state.trivia?.board?.selected
                       ? '请完成当前题目并结束问答，再进入下一环节。'
                       : state.room.advanceBlocker}
                   </p>
