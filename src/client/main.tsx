@@ -43,11 +43,11 @@ function ErrorNote({ text }: { text: string }) {
     </p>
   ) : null;
 }
-function Connection({ connected }: { connected: boolean }) {
+function Connection({ connected, chinese = false }: { connected: boolean; chinese?: boolean }) {
   return (
     <span className={`connection ${connected ? 'is-online' : ''}`} role="status">
       <span />
-      {connected ? 'Connected' : 'Reconnecting…'}
+      {chinese ? (connected ? '已连接' : '正在重连…') : connected ? 'Connected' : 'Reconnecting…'}
     </span>
   );
 }
@@ -391,11 +391,19 @@ function Player() {
         right={
           <button
             className="balance-toggle"
-            aria-label={reveal ? 'Hide token balance' : 'Reveal token balance'}
+            aria-label={
+              state.room.phase === 'trivia'
+                ? reveal
+                  ? '隐藏代币余额'
+                  : '显示代币余额'
+                : reveal
+                  ? 'Hide token balance'
+                  : 'Reveal token balance'
+            }
             aria-pressed={reveal}
             onClick={() => setReveal(!reveal)}
           >
-            <span>Tokens</span>
+            <span>{state.room.phase === 'trivia' ? '代币' : 'Tokens'}</span>
             <strong>{reveal ? state.self.accounts.spendable.toLocaleString() : '••••'}</strong>
           </button>
         }
@@ -415,10 +423,16 @@ function Player() {
             </span>
             {state.room.status !== 'pending' && state.room.phase !== 'lobby' && (
               <span className={`phase-pill is-${state.room.status}`}>
-                {open ? 'Open' : 'Closed'}
+                {state.room.phase === 'trivia'
+                  ? open
+                    ? '进行中'
+                    : '已结束'
+                  : open
+                    ? 'Open'
+                    : 'Closed'}
               </span>
             )}
-            <Connection connected={room.connected} />
+            <Connection connected={room.connected} chinese={state?.room.phase === 'trivia'} />
           </span>
         </div>
         <h1>
@@ -521,7 +535,9 @@ function Player() {
             command={room.command}
           />
         )}
-        {state.room.marketSource === 'fixture' && <p>Fixture prices · test party</p>}
+        {state.room.marketSource === 'fixture' && (
+          <p>{state.room.phase === 'trivia' ? '本地测试派对' : 'Fixture prices · test party'}</p>
+        )}
         {state.powerball && state.room.status !== 'pending' && (
           <PowerballPlayer
             state={state.powerball}
@@ -662,7 +678,7 @@ const PHASE_LABELS: Record<string, string> = {
   investments: 'Investments',
   costume: 'Costume voting',
   'costume-reveal': 'Costume winners',
-  trivia: 'Trivia',
+  trivia: '趣味问答',
   slots: 'Slots',
   powerball: 'Powerball',
   'investment-review': 'Closing bell',
@@ -795,7 +811,9 @@ function Host() {
       <Header
         right={
           <div className="header-actions">
-            <span className="tag">Host controls</span>
+            <span className="tag">
+              {state?.room.phase === 'trivia' ? '主持人控制台' : 'Host controls'}
+            </span>
             <button
               className="text-button"
               onClick={async () => {
@@ -815,7 +833,9 @@ function Host() {
       <main className="host-main">
         <div className="host-heading">
           <div>
-            <span className="eyebrow">Private host view</span>
+            <span className="eyebrow">
+              {state?.room.phase === 'trivia' ? '主持人私密视图' : 'Private host view'}
+            </span>
             <h1>
               {state?.room.phase && state.room.phase !== 'lobby'
                 ? state.room.title
@@ -942,9 +962,11 @@ function Host() {
                       ? state.room.mode === 'party'
                         ? 'Up next: Investments'
                         : 'Up next: Connection check'
-                      : 'Current round'}
+                      : state.room.phase === 'trivia'
+                        ? '当前环节'
+                        : 'Current round'}
                   </span>
-                  <Connection connected={room.connected} />
+                  <Connection connected={room.connected} chinese={state?.room.phase === 'trivia'} />
                 </div>
                 {state.room.phase === 'lobby' && (
                   <>
@@ -966,7 +988,11 @@ function Host() {
                     timer.
                   </p>
                 )}
-                {state.room.marketSource === 'fixture' && <p>Fixture prices · test party</p>}
+                {state.room.marketSource === 'fixture' && (
+                  <p>
+                    {state.room.phase === 'trivia' ? '本地测试派对' : 'Fixture prices · test party'}
+                  </p>
+                )}
                 {state.room.mode === 'party' &&
                   (state.room.phase === 'lobby' ||
                     (state.room.phase === 'investments' && state.room.status === 'pending') ||
@@ -1135,10 +1161,16 @@ function Host() {
                     (state.room.status === 'open' || state.room.status === 'pending') && (
                       <button
                         className="button secondary"
-                        disabled={room.busy || !room.connected}
+                        disabled={room.busy || !room.connected || !!state.trivia?.board?.selected}
                         onClick={() => void room.command('phase.close')}
                       >
-                        {room.busyKey === 'phase.close:' ? 'Closing…' : 'Close round'}
+                        {room.busyKey === 'phase.close:'
+                          ? state.room.phase === 'trivia'
+                            ? '正在结束…'
+                            : 'Closing…'
+                          : state.room.phase === 'trivia'
+                            ? '结束问答'
+                            : 'Close round'}
                       </button>
                     )}
                   <button
@@ -1147,7 +1179,9 @@ function Host() {
                     onClick={() => void room.command('phase.advance')}
                   >
                     {room.busyKey === 'phase.advance:'
-                      ? 'Opening…'
+                      ? state.room.phase === 'trivia'
+                        ? '正在进入下一环节…'
+                        : 'Opening…'
                       : state.room.phase === 'lobby'
                         ? state.room.mode === 'party'
                           ? 'Open investments →'
@@ -1156,11 +1190,17 @@ function Host() {
                           ? state.room.mode === 'party'
                             ? 'Party complete ✓'
                             : 'Connection check complete ✓'
-                          : 'Next stage →'}
+                          : state.room.phase === 'trivia'
+                            ? '下一环节 →'
+                            : 'Next stage →'}
                   </button>
                 </div>
                 {state.room.advanceBlocker && state.room.phase !== 'finish' && (
-                  <p className="fine-print">{state.room.advanceBlocker}</p>
+                  <p className="fine-print">
+                    {state.room.phase === 'trivia' && state.room.status !== 'closed'
+                      ? '请完成当前题目并结束问答，再进入下一环节。'
+                      : state.room.advanceBlocker}
+                  </p>
                 )}
               </section>
               <section className="panel invite-panel">
@@ -1353,12 +1393,14 @@ function Display() {
               <span className="tag">
                 {state.room.code} ·{' '}
                 {state.room.marketSource === 'fixture'
-                  ? 'Fixture party'
+                  ? state.room.phase === 'trivia'
+                    ? '测试派对'
+                    : 'Fixture party'
                   : state.room.mode === 'party'
                     ? 'Party'
                     : 'Connection check'}
               </span>
-              <Connection connected={room.connected} />
+              <Connection connected={room.connected} chinese={state?.room.phase === 'trivia'} />
             </div>
           }
         />
@@ -1489,8 +1531,9 @@ function Display() {
                       ))}
                     </span>
                     <span>
-                      {state.players.length} {state.players.length === 1 ? 'player' : 'players'} in
-                      the room
+                      {state.room.phase === 'trivia'
+                        ? `${state.players.length} 位玩家在场`
+                        : `${state.players.length} ${state.players.length === 1 ? 'player' : 'players'} in the room`}
                     </span>
                   </div>
                 )
@@ -1507,8 +1550,12 @@ function Display() {
             {state.room.mode === 'rehearsal'
               ? 'Connection check · No tokens spent'
               : state.room.marketSource === 'fixture'
-                ? 'Fixture prices · test party'
-                : 'Party games'}
+                ? state.room.phase === 'trivia'
+                  ? '本地测试派对'
+                  : 'Fixture prices · test party'
+                : state.room.phase === 'trivia'
+                  ? '趣味问答'
+                  : 'Party games'}
           </span>
         </footer>
       </div>

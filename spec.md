@@ -32,7 +32,7 @@ For local UI development, `just preview [game]` opens an isolated, in-memory gal
 
 The lobby lists actual joined players only. There is no expected guest list or missing-guest comparison. Profiles require name, phone, and an emoji from a provided set of 24 (decided 2026-10-28: custom emoji were considered and dropped for simplicity). Email is optional and unused by gameplay; omitted or blank email is accepted, and a supplied address is validated. Email/SMS verification is not required for this version. Persistent player sessions support rejoining. Use an authenticated host session; knowing `/host` is not authorization.
 
-The private host view and TV display are separate so balances and the selected phone number stay private until intentional reveals. A host browser uses an extended screen or a separate control device. Trivia questions remain in external PowerPoint slides.
+The private host view and TV display are separate so balances and the selected phone number stay private until intentional reveals. A host browser uses an extended screen or a separate control device. New rooms present Chinese trivia on a saved host-controlled 5×5 board; the TV shows questions and phones focus on buzzing. Existing numbered trivia rooms retain their legacy flow.
 
 ## Stage sequence
 
@@ -41,7 +41,7 @@ The private host view and TV display are separate so balances and the selected p
 | 0     | Lobby                | Join, choose profile, mark ready; host starts.                                                                                                                         | None                                                 |
 | 1     | Investment selection | One or more assets per player, with the cap applying to the total; starting grant, investment cap, locked stake, amplified return.                                     | Configuration: `timers.investment_selection_seconds` |
 | 2     | Costume contest      | One vote per player; host locks the standings (re-vote on a tie for first). Winners and tokens come later, in stage 8.                                                 | Configuration: `timers.costume_voting_seconds`       |
-| 3     | Trivia               | Host assigns balanced teams, arms buzzer, judges answers, and awards each teammate.                                                                                    | None                                                 |
+| 3     | Trivia               | Host selects a board cell, arms buzzer, judges without wrong-answer penalties, and awards the cell value to each teammate.                                                                                    | None                                                 |
 | 4     | Slots                | Optional paid spins with immediate independent results, up to configured limit.                                                                                        | Configuration: `timers.slots_seconds`                |
 | 5     | Powerball            | Red/blue proportional pool betting; host locks, draws, and reveals.                                                                                                    | Configuration: `timers.powerball_betting_seconds`    |
 | 6     | Investment review    | Fetch one closing snapshot and settle all locked investments once. If closing prices are unavailable, the host refunds every stake.                                    | None                                                 |
@@ -122,7 +122,7 @@ Reviewed 2026-10-27; recheck live integration before the party.
 
 ## Round presentation refinement (2026-10-28)
 
-Keep one game title and one large rules block on the TV, followed by live teams, a machine or results. Avoid repeating the title in an eyebrow and nested game headings. Use the guest-facing names: **2 minute quantitative researcher**, **Best dressed**, **Tracy’s themed trivia**, **Tonight I am Venetian**, **Powerball red or blue**, **The closing bell**, **Somebody’s calling**. These are presentation names; internal stage IDs stay stable.
+Keep one game title and one large rules block on the TV, followed by live teams, a machine or results. Avoid repeating the title in an eyebrow and nested game headings. Use the guest-facing names: **2 minute quantitative researcher**, **Best dressed**, **Tracy 的趣味问答**, **Tonight I am Venetian**, **Powerball red or blue**, **The closing bell**, **Somebody’s calling**. These are presentation names; internal stage IDs stay stable.
 
 Use subtle hedge-fund green/serif investment accents, Venetian brass/warm casino accents, a county-fair lottery drum, and a classified-file phone-draw treatment within the white Party notebook canvas. Save investment/bet feedback must follow the authoritative snapshot, remain visible next to the action, and distinguish unsaved edits from the previous saved selection. Never infer successful saving from a click.
 
@@ -132,6 +132,20 @@ Show the invite QR in the lobby only. New registrations remain closed once the p
 
 ## Action clarity and trivia corrections (2026-10-28)
 
-Show the configured investment cap prominently and make Ready green after saving. Player trivia has a large centered buzzer; TV rules are separate concise emoji-led lines. Host success feedback requires a committed acknowledgment, never only a click. While trivia is open, provide host-only Undo for individual team awards, using an atomic append-only reversal and persistent history; the host can then re-award correctly. Repeated undo/retries never repeat debits; corrections never spend locked/reserved funds. Close/advance ends this correction window. Disable accidental repeats of the same question/team/amount in the host UI while keeping intentional distinct awards supported.
+Show the configured investment cap prominently and make Ready green after saving. Player trivia has a large centered buzzer; TV rules use concise Chinese text within the shared visual system. Host success feedback requires a committed acknowledgment, never only a click. While trivia is open, provide host-only Undo for individual team awards, using an atomic append-only reversal and persistent history; the host can then re-award correctly. Repeated undo/retries never repeat debits; corrections never spend locked/reserved funds. Close/advance ends this correction window. Disable accidental repeats in the host UI. Board mode permits one active award per cell; legacy numbered rooms retain intentional distinct awards.
 
 The optional Connection check is a short connectivity rehearsal. Full test party uses sample prices across all games for manual practice; both sit under host Test tools and are distinct from automated test/simulator coverage.
+
+## Chinese trivia board (2026-10-29)
+
+The standard flow uses five categories in fixed order: 童年DNA、听歌识曲名、大冒险、自然地理、随机挑战. Host selection drives one reusable full-question TV view. Cancel before any accepted buzz/award/reveal preserves the unused cell; explicit finish marks it used. Saved content, selected cell, reveal, exclusions and completion survive restart. One active award per cell credits its value to each teammate, with no incorrect-answer deductions. Undo/correct remains available after finishing a cell while trivia is open. Public team scores count clue values once, independent of personal balances.
+
+The local review uses configurable draft tiers 100–500 pending confirmation. Thirteen supplied text questions are playable. Twelve incomplete cells remain unavailable: five music cells preserve all nine candidates privately, two geography cells await scenes/answers, and five 大冒险 cells await content/rules. Music source/versions/clips and location interaction remain decisions for the user. Phones receive no clue content or answers. See [trivia rules](docs/games/trivia.md).
+
+### Private event bank and demo rehearsals (2026-10-29)
+
+Default trivia uses 25 distinct demo questions so the eventual participants can rehearse without seeing event clues. All three roles identify the demo bank. The supplied event draft remains in an ignored local JSON file with all nine music candidates; it is selected explicitly via `TRIVIA_BANK_FILE` for the normal app. Preview starts with demo content; only an explicit host toggle before play can load the local event bank. A board freezes its bank when trivia opens; switching files never changes an already-opened board. Choose event questions before the first selection; after play begins, use a new party to switch banks. Demo music/reasoning questions are plain oral Q&A and do not implement the unfinished event song, geography scene or adventure interactions.
+
+### Host demo-mode toggle (2026-10-29)
+
+The host can switch between demo and the local event bank before the first trivia cell is selected. Demo category labels are always generic 类别 1–5. Preview starts in demo mode; switching off is an explicit host action and uses a trusted server-configured local file. After any selection or award, switching is blocked to preserve saved progress and accounting. Mode changes persist across reload/restart. Real questions remain in ignored local files and never enter Git or client builds.

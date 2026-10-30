@@ -27,7 +27,15 @@ test('each independent preview seeds real game projections with fixture prices a
       assert.equal(player.investments?.opening?.quotes.length, 5);
     if (scenario.stage === 'slots')
       assert.equal(player.slots?.role === 'player' && player.slots.data.spins.length, 0);
-    if (scenario.stage === 'trivia') assert.equal(player.trivia?.status, 'armed');
+    if (scenario.stage === 'trivia') {
+      assert.equal(player.trivia?.status, 'idle');
+      assert.equal(player.trivia?.board, undefined);
+      assert.equal(display.trivia?.board?.cells.length, 25);
+      assert.equal(display.trivia?.demo, true);
+      assert.equal(player.trivia?.demo, true);
+      assert.ok(display.trivia?.board?.cells.every((cell) => cell.available));
+      assert.equal(display.trivia?.board?.selected, null);
+    }
     if (scenario.key === 'costume-results') {
       assert.equal(display.costumeReveal?.revealed.length, 1);
       assert.equal(display.costumeReveal?.upcoming.length, 0);

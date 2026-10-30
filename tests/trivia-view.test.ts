@@ -38,6 +38,6 @@ test('TV board highlights the buzzing team and member and dims excluded teams', 
   assert.match(html, /team-card is-buzzer/);
   assert.match(html, /team-card\s+is-excluded/);
   assert.equal(html.match(/class="is-first"/g)?.length, 1);
-  assert.match(html, /Excluded this question/);
-  assert.match(html, /Sam buzzed first for Team 1/);
+  assert.match(html, /本题已答错/);
+  assert.match(html, /Sam 为Team 1抢答成功/);
 });

@@ -15,6 +15,7 @@ async function fixture(databasePath = ':memory:') {
   const room = await seedPreviewRoom(
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
+    true,
   );
   const execute = (
     action: string,
@@ -121,7 +122,7 @@ test('version-9 awards migrate without deletion, and undo persists across restar
   f.app.store.db.exec('DROP TABLE trivia_award_receipts; PRAGMA user_version=9');
   await f.app.close();
   let app = createApp({ databasePath: path, hostPassword: password });
-  assert.equal(app.store.db.prepare('PRAGMA user_version').get()?.user_version, 13);
+  assert.equal(app.store.db.prepare('PRAGMA user_version').get()?.user_version, 14);
   const phaseInstance = app.store.room(f.room.id).phase_instance;
   assert.equal(
     app.engine.snapshot({ role: 'host', roomId: f.room.id }).trivia!.awardHistory![0].question,

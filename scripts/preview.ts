@@ -1,5 +1,6 @@
 /** Standalone UI preview; never mounted by the application or production server. */
 import { createApp } from '../src/server/app.js';
+import { DEMO_TRIVIA_BANK, eventTriviaBankFile } from '../src/server/games/trivia-content.js';
 import { hash } from '../src/server/core/store.js';
 import { PREVIEW_SCENARIOS, seedPreviewRoom } from './preview-fixtures.js';
 
@@ -19,6 +20,9 @@ if (selected !== 'all' && !PREVIEW_SCENARIOS.some((s) => s.key === selected))
 const port = Number(process.env.PREVIEW_PORT ?? 3001);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PREVIEW_PORT');
 // Ignore the configured database/password and prevent live market requests, even if a key is inherited.
+// Preview starts in demo mode. Only an explicit host toggle can load the local event bank.
+process.env.TRIVIA_EVENT_BANK_FILE = eventTriviaBankFile();
+process.env.TRIVIA_BANK_FILE = DEMO_TRIVIA_BANK;
 const password = 'fixture-preview-password';
 const server = createApp({
   databasePath: ':memory:',

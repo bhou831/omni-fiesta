@@ -15,6 +15,7 @@ function fixture(count: number) {
   const store = new Store(':memory:');
   store.db.exec(TRIVIA_SCHEMA);
   const config = loadConfig();
+  delete config.trivia.board_values;
   const room = store.transaction(() => store.createRoom(config, 'party', 1000));
   const players = Array.from(
     { length: count },

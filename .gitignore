@@ -9,3 +9,6 @@ data/
 *.sqlite-wal
 coverage/
 .DS_Store
+
+# Local event questions; never commit or package with demo builds.
+private/

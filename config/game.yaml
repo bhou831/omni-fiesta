@@ -102,6 +102,8 @@ costume:
   no_votes_policy: no_awards_or_penalties
 
 trivia:
+  # Draft tiers for local review; confirm before party use.
+  board_values: [100, 200, 300, 400, 500]
   default_team_count: 4
   award_scope: each_team_member
   buzzer_policy: first_server_accepted

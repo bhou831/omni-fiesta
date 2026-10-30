@@ -74,9 +74,9 @@ export function RoundDescription({ state }: { state: RoomSnapshot }) {
     case 'trivia':
       return (
         <Rules>
-          <Rule>Play with your team.</Rule>
-          <Rule>Buzz first on your phone.</Rule>
-          <Rule>Answer questions about Tracy!</Rule>
+          <Rule>主持人选题，抢到后口头回答。</Rule>
+          <Rule>看大屏幕，用手机抢答。</Rule>
+          <Rule>主持人判分，答错不扣分。</Rule>
         </Rules>
       );
     case 'slots': {
