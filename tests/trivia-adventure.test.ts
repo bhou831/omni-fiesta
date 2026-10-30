@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TriviaDisplay, TriviaHost } from '../src/client/Trivia.js';
+import { TriviaDisplay, TriviaHost, TriviaPlayer } from '../src/client/Trivia.js';
 import { createApp } from '../src/server/app.js';
 import {
   createTriviaContent,
@@ -171,6 +171,57 @@ test('first failure gives one other team a fresh full attempt, then closes with 
     f.snapshot().teams.reduce((n, team) => n + (team.score ?? 0), 0),
     0,
   );
+});
+
+test('every adventure confirms the accepted steal on phones through rules and active play', async (t) => {
+  for (let i = 1; i <= 5; i++) {
+    const f = await fixture();
+    t.after(() => f.app.close());
+    const cell = `adventure-${i}`;
+    const fail = i === 5 ? 'adventure-photo-fail' : 'adventure-fail';
+    const phone = (playerId: string, closed = false) => {
+      const trivia = f.app.engine.snapshot({ role: 'player', roomId: f.room.id, playerId }).trivia!;
+      // Phones must never receive the selected clue or challenge prompt.
+      assert.equal(trivia.board, undefined);
+      if (trivia.adventure) assert.equal(trivia.adventure.item, null);
+      return renderToStaticMarkup(
+        createElement(TriviaPlayer, { trivia, command: async () => {}, disabled: false, closed }),
+      );
+    };
+    f.execute('select-cell', cell);
+    f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+    assert.match(phone(f.snapshot().teams[0].members[0].id), /请听规则/);
+    f.execute('adventure-start', cell, { attempt: 1 });
+    f.setNow(1_200_000);
+    f.execute(fail, cell, { attempt: 1 });
+    f.execute('adventure-steal', cell, { attempt: 1 });
+    f.execute('arm', cell);
+    f.buzz(2);
+    const winner = f.snapshot().teams.find((team) => team.id === 2)!;
+    const opponent = f.snapshot().teams.find((team) => team.id === 1)!.members[0];
+    const checkWinner = () => {
+      assert.equal(f.snapshot().winner?.teamId, winner.id);
+      assert.match(
+        renderToStaticMarkup(createElement(TriviaDisplay, { trivia: f.snapshot('display') })),
+        /抢答成功/,
+      );
+      for (const member of winner.members) assert.match(phone(member.id), /本队抢答成功/);
+      assert.doesNotMatch(phone(opponent.id), /本队抢答成功/);
+      assert.match(phone(winner.members[0].id, true), /本轮结束/);
+      assert.doesNotMatch(phone(winner.members[0].id, true), /本队抢答成功/);
+    };
+    assert.equal(f.snapshot().adventure?.phase, 'rules');
+    checkWinner();
+    f.execute('adventure-start', cell, { attempt: 2 });
+    assert.equal(f.snapshot().adventure?.phase, 'active');
+    checkWinner();
+    f.setNow(1_400_000);
+    f.execute(fail, cell, { attempt: 2 });
+    assert.match(phone(winner.members[0].id), /挑战结束/);
+    assert.doesNotMatch(phone(winner.members[0].id), /本队抢答成功/);
+    f.execute('finish-cell', cell);
+    assert.doesNotMatch(phone(winner.members[0].id), /抢答成功/);
+  }
 });
 
 test('Yes or No consent replacement consumes a prompt; second team retries the same prompt', async (t) => {

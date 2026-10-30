@@ -119,13 +119,17 @@ export function TriviaPlayer({
       <h2>{team ? <span style={{ color: team.color }}>{team.name}</span> : '等待分队'}</h2>
       {trivia.demo && <span className="trivia-phone-demo">演示</span>}
       <p role="status" aria-live="polite">
-        {trivia.adventure &&
-        trivia.status !== 'armed' &&
-        trivia.adventure.phase !== 'waiting' &&
-        trivia.adventure.phase !== 'steal'
-          ? `${trivia.adventure.title} · ${trivia.adventure.phase === 'rules' ? '请听规则' : trivia.adventure.phase === 'active' ? '挑战进行中' : trivia.adventure.success ? '挑战成功' : '挑战结束'}`
-          : closed
-            ? '本轮结束'
+        {closed
+          ? '本轮结束'
+          : trivia.adventure &&
+              trivia.status !== 'armed' &&
+              trivia.adventure.phase !== 'waiting' &&
+              trivia.adventure.phase !== 'steal' &&
+              !(
+                trivia.winner &&
+                (trivia.adventure.phase === 'rules' || trivia.adventure.phase === 'active')
+              )
+            ? `${trivia.adventure.title} · ${trivia.adventure.phase === 'rules' ? '请听规则' : trivia.adventure.phase === 'active' ? '挑战进行中' : trivia.adventure.success ? '挑战成功' : '挑战结束'}`
             : team?.excluded
               ? '本题已答错，等待下一题'
               : trivia.winner

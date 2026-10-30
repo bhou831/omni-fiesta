@@ -29,7 +29,7 @@ previous="/opt/omni-fiesta-previous-$$"
 backup="/var/lib/omni-fiesta/backups/party-$(date -u +%Y%m%dT%H%M%SZ)-$$.sqlite"
 sudo mkdir "$stage"
 trap 'sudo rm -rf "$stage"' EXIT
-sudo cp -a dist node_modules config package.json package-lock.json "$stage/"
+sudo cp -a dist node_modules config fixtures package.json package-lock.json "$stage/"
 printf '%s\n' "$revision" | sudo tee "$stage/REVISION" >/dev/null
 sudo chown -R root:root "$stage"
 

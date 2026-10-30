@@ -483,3 +483,11 @@ Verification update: `npm run format:check`, `npm run typecheck`, and `npm run b
 ### Adventure migration collision repair (2026-10-30)
 
 Schema v18 repairs both independently used v15 histories, creating missing adventure tables and the nullable ledger reward marker without replacing existing data. It also upgrades retired v17 databases. Future integration with main must preserve this migration and schema version. The collision tests cover v15, v16 and v17 histories and restart; formatting, typecheck, production build and all 146 tests passed (full suite with loopback access). Production deployment and verification remain pending.
+
+### Independent review fixes and staged release verification (2026-10-30)
+
+Fixed both findings from the independent branch review. Adventure phones now prioritize the accepted second-team buzzer winner during rules and active play, matching the host/TV state. Completed challenge results replace that confirmation, and closing trivia always shows the closed-round status. A synthetic regression covers all five adventure variants, every winning teammate, the opposing phone, result/finish cleanup, closed-state priority and absence of prompts/board data in player projections.
+
+Deployment now includes the synthetic audio fixtures alongside the compiled application. A disposable release was copied using the exact deployment copy manifest and started from its own directory using the compiled production server and frontend: health and landing routes returned 200, schema v18 initialized, all five selected demo clips returned valid WAV data, and anonymous/player-only audio requests were denied. No service, real database or cloud deployment was changed. Temporary release files and its loopback server were cleaned up.
+
+Checks passed: `npm run format:check`, `npm run build` (including typecheck), full `npm test` (**147 passed**, with loopback access), `bash -n scripts/deploy.sh` and `git diff --check`. These fixes were verified with synthetic/demo data; no event questions or answers were disclosed. Physical iPhone/TV/audio, event-origin Maps configuration and Lightsail deployment verification remain separate rehearsal checks; no new browser or physical-device walkthrough is claimed.

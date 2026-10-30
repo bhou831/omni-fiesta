@@ -32,6 +32,8 @@ Install `just` on the server first. `pull` uses `~/.ssh/omni-fiesta-deploy` for 
 
 Run `just check` locally and push the intended commit before deploying. A health response only confirms the endpoint responds; it does not validate games, WebSockets, or market access. Restarting interrupts connected players; choose a suitable maintenance window. The deployment script has not yet been verified on Lightsail.
 
+The staged release includes `fixtures/` for the five synthetic demo music clips. These remain behind the selected-clue audio endpoint, never the public static directory. After deployment, rehearse demo playback on the TV as well as host start/stop controls; a successful health check alone does not verify audio packaging or browser autoplay permission.
+
 ## Consistent backups and restore
 
 Create a point-in-time SQLite backup, including committed WAL state, using Node's SQLite `VACUUM INTO` operation:
