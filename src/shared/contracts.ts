@@ -42,7 +42,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   lobby: 'The gathering',
   investments: '2 minute quantitative researcher',
   costume: 'Best dressed',
-  trivia: 'Tracy 的趣味问答',
+  trivia: 'Trivia',
   slots: 'Tonight I am Venetian',
   powerball: 'Powerball red or blue',
   'investment-review': 'The closing bell',

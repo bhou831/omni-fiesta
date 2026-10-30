@@ -1,4 +1,6 @@
-# 中文趣味问答 / Jeopardy controller
+# Trivia
+
+The TV is the shared stage: show one large question, then prioritize the answer after reveal, with category and value kept quiet. Put buzzer state and team scores along the bottom. Phones show the player's team, one short state message and a large buzzer; they never show questions or collect answers. The host alone judges spoken answers. Keep Trivia surfaces free of ambient balloons and fireworks.
 
 New rooms use a host-controlled 5×5 board, in this order: 童年DNA、听歌识曲名、大冒险、自然地理、随机挑战. Teams announce a choice aloud; only the authenticated host selects the cell. The TV shows the full question; phones show team identity, buzzer status and a large 抢答 button. After buzzing, players answer aloud; the host alone judges and records the score. Phones never collect typed or multiple-choice answers. Trivia has no timer. Its copy is Chinese; other stages retain their existing language.
 

@@ -127,7 +127,7 @@ export class Store {
       this.db.exec(`BEGIN IMMEDIATE;
         ${REVEAL_SCHEMA}
         PRAGMA user_version=13; COMMIT;`);
-    // Reconcile upstream v13 and the earlier local trivia-only v13 without rewriting saved data.
+    // Also repair early local trivia-only v13 databases, which predated the upstream reveal tables.
     if (schemaVersion < 14)
       this.db.exec(
         `BEGIN IMMEDIATE; ${REVEAL_SCHEMA} ${TRIVIA_BOARD_SCHEMA} PRAGMA user_version=14; COMMIT;`,

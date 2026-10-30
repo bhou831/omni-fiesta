@@ -21,18 +21,11 @@ function TeamList({ trivia }: { trivia: TriviaProjection }) {
     </div>
   );
 }
-function BuzzStatus({
-  trivia,
-  showBank = false,
-}: {
-  trivia: TriviaProjection;
-  showBank?: boolean;
-}) {
+function BuzzStatus({ trivia }: { trivia: TriviaProjection }) {
   const team = trivia.teams.find((t) => t.id === trivia.winner?.teamId);
   const winner = team?.members.find((p) => p.id === trivia.winner?.playerId);
   return (
     <p role="status">
-      {showBank && trivia.bankLabel && <small>{trivia.bankLabel} · </small>}
       {winner
         ? `${winner.emoji} ${winner.name} 为${team!.name}抢答成功，请口头回答。`
         : trivia.status === 'armed'
@@ -60,7 +53,7 @@ export function TriviaPlayer({ trivia, command, disabled }: TriviaViewProps) {
         data: { windowId: trivia.windowId },
       });
       setFeedback({
-        message: receipt ? '抢答成功！请口头回答。' : '本次未抢到，请查看当前抢答状态。',
+        message: receipt ? '' : '本次未抢到，请查看当前抢答状态。',
         windowId: trivia.windowId,
       });
     } finally {
@@ -75,10 +68,23 @@ export function TriviaPlayer({ trivia, command, disabled }: TriviaViewProps) {
       style={{ '--team-color': team?.color ?? '#202020' } as CSSProperties}
     >
       <h2>{team ? <span style={{ color: team.color }}>{team.name}</span> : '等待分队'}</h2>
-      {trivia.bankLabel && <p className="fine-print">{trivia.bankLabel}</p>}
-      <p>看大屏幕 · 手机只用于抢答</p>
-      <BuzzStatus trivia={trivia} />
-      {team?.excluded && <p>本队本题已答错，不扣分。请等待下一题。</p>}
+      {trivia.demo && <span className="trivia-phone-demo">演示</span>}
+      <p role="status" aria-live="polite">
+        {pending
+          ? '提交中…'
+          : feedback.message === '本次未抢到，请查看当前抢答状态。' &&
+              feedback.windowId === trivia.windowId
+            ? '未抢到'
+            : team?.excluded
+              ? '本题已答错，等待下一题'
+              : trivia.winner
+                ? trivia.winner.teamId === trivia.ownTeamId
+                  ? '本队抢答成功'
+                  : `${trivia.teams.find((other) => other.id === trivia.winner?.teamId)?.name ?? '其他队'}抢答成功`
+                : trivia.status === 'armed'
+                  ? '可以抢答'
+                  : '等待主持人'}
+      </p>
       <button
         className="button primary trivia-buzzer"
         disabled={!canBuzz}
@@ -86,9 +92,6 @@ export function TriviaPlayer({ trivia, command, disabled }: TriviaViewProps) {
       >
         {pending ? '提交中…' : '抢答'}
       </button>
-      {feedback.message && feedback.windowId === trivia.windowId && trivia.status !== 'idle' && (
-        <p role="status">{feedback.message}</p>
-      )}
     </section>
   );
 }
@@ -127,8 +130,8 @@ function Board({
                   aria-label={label}
                   className={`jeopardy-cell ${cell.used ? 'is-used' : ''} ${!cell.available ? 'is-unavailable' : ''}`}
                 >
-                  {cell.used ? '—' : formatTokens(cell.value)}
-                  <small>{cell.used ? '已完成' : !cell.available ? '待准备' : '\u00a0'}</small>
+                  {cell.used ? <span aria-hidden="true">—</span> : formatTokens(cell.value)}
+                  {!cell.used && !cell.available && <small>待准备</small>}
                 </div>
               );
             })}
@@ -137,17 +140,21 @@ function Board({
     </div>
   );
 }
-/** Same full question view on host and TV; the server supplies role-safe fields. */
+/** The server supplies role-safe fields; the TV leads with the prompt or revealed answer. */
 function Question({ board, host = false }: { board: TriviaBoard; host?: boolean }) {
   const clue = board.selected;
   if (!clue) return null;
+  const revealed = !host && !!clue.answer;
+  const length = clue.publicPrompt.length;
   return (
-    <article className="trivia-question">
+    <article
+      className={`trivia-question ${revealed ? 'is-revealed' : ''} ${length > 120 ? 'is-long' : length > 60 ? 'is-medium' : ''}`}
+    >
       <p className="trivia-question-context">
         {board.categories.find((c) => c.id === clue.categoryId)?.name} · {formatTokens(clue.value)}{' '}
         分
       </p>
-      <h2>{clue.publicPrompt}</h2>
+      <h2 className="trivia-prompt">{clue.publicPrompt}</h2>
       {clue.answer && (
         <div className="trivia-answer">
           <strong>{host ? '主持人答案（私密）' : '答案'}</strong>
@@ -462,31 +469,75 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
     </section>
   );
 }
-export function TriviaDisplay({ trivia }: { trivia: TriviaProjection }) {
+export function TriviaDisplay({
+  trivia,
+  closed = false,
+}: {
+  trivia: TriviaProjection;
+  closed?: boolean;
+}) {
+  const board = trivia.board;
+  const winningTeam = trivia.teams.find((team) => team.id === trivia.winner?.teamId);
+  const winner = winningTeam?.members.find((player) => player.id === trivia.winner?.playerId);
+  const answering = !closed && trivia.status === 'locked' && !!winningTeam && !board?.revealed;
   return (
-    <section lang="zh-CN" className={`trivia-board ${trivia.board ? 'has-jeopardy' : ''}`}>
-      {trivia.board ? (
+    <section
+      lang="zh-CN"
+      className={`trivia-board ${board ? 'has-jeopardy' : ''} ${board?.selected ? 'is-question' : 'is-selection'}`}
+    >
+      {board ? (
         <>
-          <div className="trivia-buzz-status">
-            <BuzzStatus trivia={trivia} showBank />
+          <div className="trivia-display-focus">
+            {board.selected ? <Question board={board} /> : <Board board={board} />}
           </div>
-          {trivia.board.selected ? (
-            <Question board={trivia.board} />
-          ) : (
-            <Board board={trivia.board} />
-          )}
-          <div className="trivia-scores" aria-label="本轮队伍得分">
-            {trivia.teams.map((team) => (
-              <span
-                key={team.id}
-                style={{ '--team-color': team.color } as CSSProperties}
-                className={trivia.winner?.teamId === team.id ? 'is-buzzer' : ''}
-              >
-                {team.name} · {formatTokens(team.score ?? 0)} 分
-                {team.excluded && trivia.board?.selected ? ' · 本题已答错' : ''}
-              </span>
-            ))}
-          </div>
+          <footer className="trivia-display-strip">
+            <p
+              className={`trivia-display-status ${answering ? 'is-answering' : ''}`}
+              role="status"
+              aria-live="polite"
+              style={{ '--team-color': winningTeam?.color } as CSSProperties}
+            >
+              <span className="trivia-status-dot" aria-hidden="true" />
+              {closed ? (
+                '本轮结束'
+              ) : board.revealed ? (
+                '答案已公布'
+              ) : answering ? (
+                <>
+                  <strong>{winningTeam.name}</strong>
+                  {winner && (
+                    <span>
+                      {winner.emoji} {winner.name}
+                    </span>
+                  )}
+                  <span className="sr-only">抢答成功</span>
+                </>
+              ) : trivia.status === 'armed' ? (
+                '抢答开启'
+              ) : !trivia.teams.length ? (
+                '等待分队'
+              ) : board.selected ? (
+                '抢答未开启'
+              ) : !board.cells.some((cell) => cell.available && !cell.used) ? (
+                '题目已完成'
+              ) : (
+                '选题'
+              )}
+            </p>
+            <ul className="trivia-scores" aria-label="本轮队伍得分">
+              {trivia.teams.map((team) => (
+                <li
+                  key={team.id}
+                  style={{ '--team-color': team.color } as CSSProperties}
+                  className={`${answering && winningTeam.id === team.id ? 'is-buzzer' : ''} ${team.excluded && board.selected ? 'is-excluded' : ''}`}
+                >
+                  <span>{team.name}</span>
+                  <strong>{formatTokens(team.score ?? 0)}</strong>
+                  {team.excluded && board.selected && <small>本题已答错</small>}
+                </li>
+              ))}
+            </ul>
+          </footer>
         </>
       ) : (
         <>

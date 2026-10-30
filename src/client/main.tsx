@@ -386,7 +386,7 @@ function Player() {
   const open = state.room.status === 'open';
   return (
     <div className="page player-page">
-      <AmbientCelebration light />
+      {state.room.phase !== 'trivia' && <AmbientCelebration light />}
       <Header
         right={
           <button
@@ -678,7 +678,7 @@ const PHASE_LABELS: Record<string, string> = {
   investments: 'Investments',
   costume: 'Costume voting',
   'costume-reveal': 'Costume winners',
-  trivia: '趣味问答',
+  trivia: 'Trivia',
   slots: 'Slots',
   powerball: 'Powerball',
   'investment-review': 'Closing bell',
@@ -1166,7 +1166,7 @@ function Host() {
                       >
                         {room.busyKey === 'phase.close:'
                           ? state.room.phase === 'trivia'
-                            ? '正在结束…'
+                            ? '结束中…'
                             : 'Closing…'
                           : state.room.phase === 'trivia'
                             ? '结束问答'
@@ -1377,6 +1377,7 @@ function Display() {
   const token = location.hash.slice(1);
   const room = useRoom('display', code, token);
   const state = room.state;
+  const isTrivia = state?.room.phase === 'trivia';
   const rosterPage = useRotatingPage(state?.players.length ?? 0, 8);
   if (!code || !token)
     return (
@@ -1385,71 +1386,86 @@ function Display() {
   if (!state) return <Loading error={room.error} />;
   return (
     <DisplayFrame>
-      <div className="page display-page">
-        <AmbientCelebration />
-        <Header
-          right={
+      <div className={`page display-page ${isTrivia ? 'is-trivia' : ''}`}>
+        {!isTrivia && <AmbientCelebration />}
+        {isTrivia ? (
+          <header className="trivia-display-header">
+            <Brand />
+            <h1>Trivia</h1>
             <div className="header-actions">
-              <span className="tag">
-                {state.room.code} ·{' '}
-                {state.room.marketSource === 'fixture'
-                  ? state.room.phase === 'trivia'
-                    ? '测试派对'
-                    : 'Fixture party'
-                  : state.room.mode === 'party'
-                    ? 'Party'
-                    : 'Connection check'}
-              </span>
-              <Connection connected={room.connected} chinese={state?.room.phase === 'trivia'} />
+              {state.trivia?.demo && <span className="trivia-demo-label">演示</span>}
+              {!room.connected && <Connection connected={false} chinese />}
             </div>
-          }
-        />
+          </header>
+        ) : (
+          <Header
+            right={
+              <div className="header-actions">
+                <span className="tag">
+                  {state.room.code} ·{' '}
+                  {state.room.marketSource === 'fixture'
+                    ? state.room.phase === 'trivia'
+                      ? '测试派对'
+                      : 'Fixture party'
+                    : state.room.mode === 'party'
+                      ? 'Party'
+                      : 'Connection check'}
+                </span>
+                <Connection connected={room.connected} chinese={state?.room.phase === 'trivia'} />
+              </div>
+            }
+          />
+        )}
         <main
           className={`display-main phase-${state.room.phase} ${state.powerball ? 'has-ball-machine' : ''}`}
         >
-          <div className="display-hero">
-            <div>
-              {state.room.phase === 'lobby' && <span className="eyebrow">Waiting room</span>}
-              <h1>
-                {state.room.phase === 'lobby' ? (
-                  <>Tracy’s 10,000th day.</>
-                ) : state.room.phase === 'connection-check' ? (
-                  <>Connection check</>
-                ) : state.room.mode === 'party' ? (
-                  state.room.title
-                ) : (
-                  <>Connection check complete</>
-                )}
-              </h1>
-            </div>
-            {state.room.phase === 'lobby' ? (
-              <div className="display-qr">
-                <Qr code={code} />
+          {!isTrivia && (
+            <div className="display-hero">
+              <div>
+                {state.room.phase === 'lobby' && <span className="eyebrow">Waiting room</span>}
+                <h1>
+                  {state.room.phase === 'lobby' ? (
+                    <>Tracy’s 10,000th day.</>
+                  ) : state.room.phase === 'connection-check' ? (
+                    <>Connection check</>
+                  ) : state.room.mode === 'party' ? (
+                    state.room.title
+                  ) : (
+                    <>Connection check complete</>
+                  )}
+                </h1>
               </div>
-            ) : (
-              <>
-                {state.room.status === 'open' ? (
-                  <Timer state={state} offset={room.clockOffset} bar />
-                ) : (
-                  <span className="round-state">
-                    {state.room.status === 'pending'
-                      ? 'Starting soon'
-                      : state.powerball && !state.powerball.revealed
-                        ? 'Betting closed'
-                        : ''}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
+              {state.room.phase === 'lobby' ? (
+                <div className="display-qr">
+                  <Qr code={code} />
+                </div>
+              ) : (
+                <>
+                  {state.room.status === 'open' ? (
+                    <Timer state={state} offset={room.clockOffset} bar />
+                  ) : (
+                    <span className="round-state">
+                      {state.room.status === 'pending'
+                        ? 'Starting soon'
+                        : state.powerball && !state.powerball.revealed
+                          ? 'Betting closed'
+                          : ''}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           <ErrorNote text={room.error} />
           <div
             key={state.room.phase}
             className={`display-stage ${['lobby', 'connection-check', 'investments'].includes(state.room.phase) ? 'is-intro' : ''}`}
           >
-            <aside className="display-instructions">
-              <RoundDescription state={state} />
-            </aside>
+            {!isTrivia && (
+              <aside className="display-instructions">
+                <RoundDescription state={state} />
+              </aside>
+            )}
             <div className="display-content">
               {state.slots?.role === 'display' && (
                 <SlotsDisplay state={state.slots.data} roomPlayers={state.players.length} />
@@ -1486,7 +1502,9 @@ function Display() {
                 <CostumeDisplay state={state.costume} />
               )}
               {state.costumeReveal && <CostumeRevealDisplay state={state.costumeReveal} />}
-              {state.trivia && <TriviaDisplay trivia={state.trivia} />}
+              {state.trivia && (
+                <TriviaDisplay trivia={state.trivia} closed={state.room.status === 'closed'} />
+              )}
               {state.room.phase === 'investment-review' && state.investments && (
                 <InvestmentReviewDisplay data={state.investments} />
               )}
@@ -1521,7 +1539,8 @@ function Display() {
                 </div>
               ) : (
                 !!state.players.length &&
-                state.room.phase !== 'finish' && (
+                state.room.phase !== 'finish' &&
+                !isTrivia && (
                   <div className="roster-strip">
                     <span className="roster-faces" aria-hidden="true">
                       {state.players.slice(0, 16).map((p) => (
@@ -1538,26 +1557,28 @@ function Display() {
                   </div>
                 )
               )}
-              {!state.players.length && (
+              {!state.players.length && !isTrivia && (
                 <p className="empty-copy">No players yet. Scan the code to join.</p>
               )}
             </div>
           </div>
         </main>
-        <footer className="display-footer">
-          Tracy / 10,000 days{' '}
-          <span>
-            {state.room.mode === 'rehearsal'
-              ? 'Connection check · No tokens spent'
-              : state.room.marketSource === 'fixture'
-                ? state.room.phase === 'trivia'
-                  ? '本地测试派对'
-                  : 'Fixture prices · test party'
-                : state.room.phase === 'trivia'
-                  ? '趣味问答'
-                  : 'Party games'}
-          </span>
-        </footer>
+        {!isTrivia && (
+          <footer className="display-footer">
+            Tracy / 10,000 days{' '}
+            <span>
+              {state.room.mode === 'rehearsal'
+                ? 'Connection check · No tokens spent'
+                : state.room.marketSource === 'fixture'
+                  ? state.room.phase === 'trivia'
+                    ? '本地测试派对'
+                    : 'Fixture prices · test party'
+                  : state.room.phase === 'trivia'
+                    ? 'Trivia'
+                    : 'Party games'}
+            </span>
+          </footer>
+        )}
       </div>
     </DisplayFrame>
   );
