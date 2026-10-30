@@ -316,7 +316,6 @@ operations (scope, request_id)   idempotency store, not tied to a room</code></p
   <div class="card"><h4>costume_results</h4><p class="pk">PK (room_id, phase_instance, player_id)</p><ul><li>place (dense rank), votes</li><li>token_change (updated to the actual penalty at reveal)</li></ul></div>
   <div class="card"><h4>costume_reveal_progress</h4><p class="pk">PK room_id</p><ul><li>step: places announced so far</li></ul></div>
   <div class="card"><h4>finish_reveal_progress</h4><p class="pk">PK room_id</p><ul><li>step: ranking announcements so far</li></ul></div>
-  <div class="card"><h4>costume_reveals</h4><p class="pk">legacy</p><ul><li>Written by the pre-reveal-stage design; no longer read</li></ul></div>
 </div>
 <h3>Other games</h3>
 <div class="grid">

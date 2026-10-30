@@ -9,10 +9,6 @@ CREATE TABLE IF NOT EXISTS costume_votes (
   voter_id TEXT NOT NULL REFERENCES players(id), candidate_id TEXT NOT NULL REFERENCES players(id),
   PRIMARY KEY(room_id, phase_instance, voter_id)
 );
-CREATE TABLE IF NOT EXISTS costume_reveals (
-  room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL,
-  revealed_at INTEGER NOT NULL, PRIMARY KEY(room_id, phase_instance)
-);
 CREATE TABLE IF NOT EXISTS costume_locks (
   room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL,
   locked_at INTEGER NOT NULL, PRIMARY KEY(room_id, phase_instance)

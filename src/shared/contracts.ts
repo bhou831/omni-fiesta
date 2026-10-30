@@ -159,10 +159,6 @@ export interface CommandResult {
   version: number;
   result: Record<string, unknown>;
 }
-export interface ApiError {
-  error: string;
-  code: string;
-}
 
 export type CommandSender = (
   type: Command['type'],

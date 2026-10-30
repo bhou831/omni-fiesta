@@ -4,21 +4,15 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { resolve } from 'node:path';
 import { Server, type Socket } from 'socket.io';
 import { z } from 'zod';
-import { EMOJIS, type Command, type Role } from '../shared/contracts.js';
+import { EMOJIS, type Command } from '../shared/contracts.js';
 import { loadConfig, gameConfigSchema, type GameConfig } from './config.js';
 import { Store, hash, type Session } from './core/store.js';
 import { Engine, type Viewer } from './core/engine.js';
 import type { PhaseModule } from './core/phases.js';
 import { GameError, requireRule } from './core/errors.js';
-import { partyModules } from './games/modules.js';
 import { prepareMarket } from './games/prepare-market.js';
 import { createPartyModules } from './games/index.js';
-import {
-  coinGeckoProvider,
-  fixtureProvider,
-  validateSnapshot,
-  type MarketProvider,
-} from './games/market.js';
+import { coinGeckoProvider, fixtureProvider, type MarketProvider } from './games/market.js';
 
 function cookies(header?: string): Record<string, string> {
   const result: Record<string, string> = {};
