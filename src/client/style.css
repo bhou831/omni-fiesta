@@ -4313,3 +4313,98 @@ button.jeopardy-cell:not(:disabled):hover {
   margin-left: 8px;
   font-weight: 400;
 }
+
+/* All teams remain visible together; no podium reveal or private balances. */
+.trivia-scoreboard {
+  width: min(100%, 960px);
+  margin: 1rem auto;
+}
+.scoreboard-heading {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1.2rem 0.6rem;
+  color: var(--muted, #666);
+}
+.trivia-scoreboard ol {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.trivia-scoreboard li {
+  display: grid;
+  grid-template-columns: 2em 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid #ddd;
+  border-left: 4px solid var(--team-color);
+}
+.trivia-scoreboard .is-own-team {
+  background: #f5f5f2;
+}
+.scoreboard-rank {
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+.scoreboard-team small {
+  display: inline-block;
+  margin-left: 0.6rem;
+  font-size: 0.65em;
+  color: #666;
+}
+.trivia-scoreboard strong {
+  font-variant-numeric: tabular-nums;
+}
+.display-page .trivia-scoreboard {
+  font-size: 2rem;
+}
+.display-page .trivia-scoreboard li {
+  padding: 1.2rem 1.6rem;
+}
+.balance-feedback {
+  position: relative;
+}
+.reward-coins {
+  position: absolute;
+  top: 2rem;
+  right: 1.5rem;
+  z-index: 50;
+  pointer-events: none;
+}
+.reward-coins i {
+  position: absolute;
+  font-style: normal;
+  font-size: 1.4rem;
+  opacity: 0;
+  animation: reward-coin 700ms ease-out var(--coin-delay) both;
+}
+.reward-received {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: #f4f5ef;
+  color: #222;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+@keyframes reward-coin {
+  0% {
+    opacity: 0;
+    transform: translate(var(--coin-x), -10px) scale(0.85);
+  }
+  20% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--coin-x), 48px) rotate(8deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reward-coins i {
+    animation: none;
+  }
+}

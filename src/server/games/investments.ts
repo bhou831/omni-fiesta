@@ -173,6 +173,7 @@ export function settleInvestments(context: PhaseContext): void {
       'Investment settlement',
       { spendable: payout, locked: -item.principal, reserved: 0 },
       context.now,
+      payout > item.principal ? 'investment' : undefined,
     );
     context.store.db
       .prepare('UPDATE investments SET payout=? WHERE room_id=? AND player_id=? AND asset_id=?')

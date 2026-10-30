@@ -183,6 +183,7 @@ export function createSlotsModule(randomBelow: RandomBelow = cryptoRandomBelow):
         'Slot spin payout',
         { spendable: gross, locked: 0, reserved: 0 },
         context.now,
+        'slots',
       );
       context.store.db
         .prepare(

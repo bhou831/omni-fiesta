@@ -11,6 +11,7 @@ export interface SlotsPlayerProps {
   open: boolean;
   disabled: boolean;
   command: CommandSender;
+  onPresentationChange?: (blocked: boolean) => void;
 }
 
 type Mark = 'seven' | 'diamond' | 'dot' | 'star';
@@ -105,6 +106,7 @@ export function SlotsPlayer({
   open,
   disabled,
   command,
+  onPresentationChange,
 }: SlotsPlayerProps) {
   const latest = state.spins.at(-1);
   const [presented, setPresented] = useState(latest);
@@ -117,6 +119,10 @@ export function SlotsPlayer({
   const rack = useRef<HTMLOListElement>(null);
   const reduced = useReducedMotion();
   const spinning = requesting || latest?.id !== presented?.id;
+  useEffect(() => {
+    onPresentationChange?.(spinning);
+    return () => onPresentationChange?.(false);
+  }, [spinning, onPresentationChange]);
   useEffect(() => {
     if (latest?.id === presented?.id) return;
     const finish = () => {

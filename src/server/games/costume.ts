@@ -424,6 +424,7 @@ export function costumeRevealHostAction(
         'Costume contest',
         { spendable: change, locked: 0, reserved: 0 },
         now,
+        'costume',
       );
   }
   progress.run(room.id, step + 1);

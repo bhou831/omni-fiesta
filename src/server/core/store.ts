@@ -56,7 +56,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 14) {
+    if (schemaVersion > 15) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -132,6 +132,15 @@ export class Store {
       this.db.exec(
         `BEGIN IMMEDIATE; ${REVEAL_SCHEMA} ${TRIVIA_BOARD_SCHEMA} PRAGMA user_version=14; COMMIT;`,
       );
+    if (schemaVersion < 15) {
+      const hasRewardKind = this.db
+        .prepare('PRAGMA table_info(ledger)')
+        .all()
+        .some((column) => column.name === 'reward_kind');
+      this.db.exec(
+        `BEGIN IMMEDIATE; ${hasRewardKind ? '' : 'ALTER TABLE ledger ADD COLUMN reward_kind TEXT;'} PRAGMA user_version=15; COMMIT;`,
+      );
+    }
   }
 
   transaction<T>(run: () => T): T {
@@ -437,6 +446,7 @@ export class Store {
     reason: string,
     delta: Accounts,
     now: number,
+    rewardKind?: string,
   ): Accounts {
     const player = this.player(playerId);
     requireRule(
@@ -494,6 +504,10 @@ export class Store {
         delta.reserved,
         now,
       );
+    if (rewardKind && delta.spendable > 0)
+      this.db
+        .prepare('UPDATE ledger SET reward_kind=? WHERE player_id=? AND operation_key=?')
+        .run(rewardKind, playerId, operationKey);
     return next;
   }
   close(): void {

@@ -1,4 +1,4 @@
-import React, { useRef, useState, type CSSProperties } from 'react';
+import React, { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { PowerballColor, PowerballProjection } from '../server/games/powerball.js';
 import type { PublicPlayer } from '../shared/contracts.js';
 import { CELEBRATION_COLORS, useCelebrateOnArrival } from './celebrate.js';
@@ -98,9 +98,14 @@ export interface PowerballViewProps {
   onCancel: () => void;
   onDraw: () => void;
   onReveal: () => void;
+  onPresentationChange?: (blocked: boolean) => void;
 }
 export function PowerballPlayer(props: PowerballViewProps) {
   const presentation = useDrawPresentation(props.state.revealed);
+  useEffect(() => {
+    props.onPresentationChange?.(presentation.animating);
+    return () => props.onPresentationChange?.(false);
+  }, [presentation.animating, props.onPresentationChange]);
   const [color, setColor] = useState<PowerballColor>(props.state.ownBet?.color ?? 'red');
   const [amount, setAmountRaw] = useState(props.state.ownBet?.amount ?? 0);
   const bet = props.state.ownBet;

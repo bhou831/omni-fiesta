@@ -1,3 +1,4 @@
+import { RewardArrivals } from './reward-arrivals.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Command, CommandResult, Role, RoomSnapshot } from '../shared/contracts.js';
@@ -5,6 +6,7 @@ import { post, requestId, RequestError } from './api.js';
 
 export function useRoom(role: Role, code: string | null, displayToken?: string) {
   const [state, setState] = useState<RoomSnapshot | null>(null);
+  const [rewardCue, setRewardCue] = useState<{ id: number; kind: string } | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState('');
   const [clockOffset, setClockOffset] = useState(0);
@@ -19,6 +21,8 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
     setConnected(false);
     pending.current = null;
     if (!code) return;
+    const arrivals = new RewardArrivals();
+    setRewardCue(null);
     const socket = io({
       auth: { role, code, ...(displayToken ? { displayToken } : {}) },
       reconnectionDelay: 500,
@@ -32,6 +36,8 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
       });
     };
     socket.on('connect', () => {
+      arrivals.reset();
+      setRewardCue(null);
       setConnected(true);
       setError('');
       socket.emit('sync');
@@ -51,15 +57,15 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
       setState(null);
       setError('This party is archived. Ask the host to restore it.');
     });
-    socket.on('state', (next: RoomSnapshot) =>
-      setState((previous) =>
-        previous?.serverInstance === next.serverInstance &&
-        previous.snapshotSequence >= next.snapshotSequence
-          ? previous
-          : next,
-      ),
-    );
+    socket.on('state', (next: RoomSnapshot) => {
+      const { accepted, cue } = arrivals.accept(next, !document.hidden);
+      if (!accepted) return;
+      if (cue) setRewardCue(cue);
+      setState(next);
+    });
     const sync = () => {
+      arrivals.reset();
+      setRewardCue(null);
       if (socket.connected) {
         socket.emit('sync');
         clock();
@@ -67,7 +73,12 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
     };
     window.addEventListener('focus', sync);
     document.addEventListener('visibilitychange', sync);
-    const clockTimer = setInterval(sync, 30_000);
+    const clockTimer = setInterval(() => {
+      if (socket.connected) {
+        socket.emit('sync');
+        clock();
+      }
+    }, 30_000);
     return () => {
       clearInterval(clockTimer);
       window.removeEventListener('focus', sync);
@@ -124,5 +135,14 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
   // An error from the previous round would read as a failure in the new one.
   const phaseInstance = state?.room.phaseInstance;
   useEffect(() => setError(''), [phaseInstance]);
-  return { state, connected, error, clockOffset, command, busy: busyKey !== null, busyKey };
+  return {
+    state,
+    rewardCue,
+    connected,
+    error,
+    clockOffset,
+    command,
+    busy: busyKey !== null,
+    busyKey,
+  };
 }

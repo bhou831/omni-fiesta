@@ -1,3 +1,5 @@
+import { TriviaScoreboard } from './TriviaScoreboard.js';
+import { RewardCoins } from './RewardCoins.js';
 import React, { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import QRCode from 'qrcode';
@@ -374,6 +376,7 @@ function Player() {
       ? (session.roomCode ?? null)
       : null);
   const room = useRoom('player', code);
+  const [rewardBlocked, setRewardBlocked] = useState(false);
   const [reveal, setReveal] = useState(false);
   useEffect(() => setReveal(false), [room.state?.room.phaseInstance]);
   if (recovering || !session) return <Loading error={error} />;
@@ -398,23 +401,26 @@ function Player() {
       {state.room.phase !== 'trivia' && <AmbientCelebration light />}
       <Header
         right={
-          <button
-            className="balance-toggle"
-            aria-label={
-              state.room.phase === 'trivia'
-                ? reveal
-                  ? '隐藏代币余额'
-                  : '显示代币余额'
-                : reveal
-                  ? 'Hide token balance'
-                  : 'Reveal token balance'
-            }
-            aria-pressed={reveal}
-            onClick={() => setReveal(!reveal)}
-          >
-            <span>{state.room.phase === 'trivia' ? '代币' : 'Tokens'}</span>
-            <strong>{reveal ? state.self.accounts.spendable.toLocaleString() : '••••'}</strong>
-          </button>
+          <div className="balance-feedback">
+            <RewardCoins cue={room.rewardCue} blocked={rewardBlocked} />
+            <button
+              className="balance-toggle"
+              aria-label={
+                state.room.phase === 'trivia'
+                  ? reveal
+                    ? '隐藏代币余额'
+                    : '显示代币余额'
+                  : reveal
+                    ? 'Hide token balance'
+                    : 'Reveal token balance'
+              }
+              aria-pressed={reveal}
+              onClick={() => setReveal(!reveal)}
+            >
+              <span>{state.room.phase === 'trivia' ? '代币' : 'Tokens'}</span>
+              <strong>{reveal ? state.self.accounts.spendable.toLocaleString() : '••••'}</strong>
+            </button>
+          </div>
         }
       />
       <main
@@ -527,6 +533,7 @@ function Player() {
             onLock={() => {}}
           />
         )}
+        {state.triviaScoreboard && <TriviaScoreboard data={state.triviaScoreboard} />}
         {state.trivia && (
           <TriviaPlayer
             trivia={state.trivia}
@@ -537,6 +544,7 @@ function Player() {
         )}
         {state.room.status !== 'pending' && state.slots?.role === 'player' && (
           <SlotsPlayer
+            onPresentationChange={setRewardBlocked}
             state={state.slots.data}
             spendable={state.self.accounts.spendable}
             revealBalance={reveal}
@@ -550,6 +558,7 @@ function Player() {
         )}
         {state.powerball && state.room.status !== 'pending' && (
           <PowerballPlayer
+            onPresentationChange={setRewardBlocked}
             state={state.powerball}
             players={state.players}
             spendable={state.self.accounts.spendable}
@@ -689,6 +698,7 @@ const PHASE_LABELS: Record<string, string> = {
   costume: 'Costume voting',
   'costume-reveal': 'Costume winners',
   trivia: 'Jeopardy · 团队抢答',
+  'trivia-scoreboard': '团队积分榜',
   slots: 'Slots',
   powerball: 'Powerball',
   'investment-review': 'Closing bell',
@@ -1126,6 +1136,7 @@ function Host() {
                     onRevote={() => void room.command('phase.host', { action: 'revote' })}
                   />
                 )}
+                {state.triviaScoreboard && <TriviaScoreboard data={state.triviaScoreboard} />}
                 {state.trivia && (
                   <TriviaHost
                     trivia={state.trivia}
@@ -1437,7 +1448,7 @@ function DisplaySetup({ code }: { code: string | null }) {
 function DisplayRoom({ code, token }: { code: string; token?: string }) {
   const room = useRoom('display', code, token);
   const state = room.state;
-  const isTrivia = state?.room.phase === 'trivia';
+  const isTrivia = state?.room.phase === 'trivia' || state?.room.phase === 'trivia-scoreboard';
   const rosterPage = useRotatingPage(state?.players.length ?? 0, 8);
   if (!state)
     return (
@@ -1570,6 +1581,7 @@ function DisplayRoom({ code, token }: { code: string; token?: string }) {
                 <CostumeDisplay state={state.costume} />
               )}
               {state.costumeReveal && <CostumeRevealDisplay state={state.costumeReveal} />}
+              {state.triviaScoreboard && <TriviaScoreboard data={state.triviaScoreboard} />}
               {state.trivia && (
                 <TriviaDisplay trivia={state.trivia} closed={state.room.status === 'closed'} />
               )}

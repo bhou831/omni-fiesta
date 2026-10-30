@@ -29,6 +29,7 @@ export const PARTY_STAGES = [
   'investments',
   'costume',
   'trivia',
+  'trivia-scoreboard',
   'slots',
   'powerball',
   'investment-review',
@@ -43,6 +44,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   investments: '2 minute quantitative researcher',
   costume: 'Best dressed',
   trivia: 'Jeopardy · 团队抢答',
+  'trivia-scoreboard': '团队积分榜',
   slots: 'Tonight I am Venetian',
   powerball: 'Powerball red or blue',
   'investment-review': 'The closing bell',
@@ -105,7 +107,13 @@ export interface RoomSnapshot {
   /** Announcements made so far, out of `rankingSteps`. The last step shows the full ranking. */
   rankingStep?: number;
   rankingSteps?: number;
-  self?: { id: string; accounts: Accounts; ready: boolean; checkedIn: boolean };
+  self?: {
+    id: string;
+    accounts: Accounts;
+    ready: boolean;
+    checkedIn: boolean;
+    rewardCue?: { id: number; kind: string } | null;
+  };
   investments?: {
     opening: import('../server/games/market.js').MarketSnapshot | null;
     closing: import('../server/games/market.js').MarketSnapshot | null;
@@ -123,6 +131,10 @@ export interface RoomSnapshot {
   };
   costume?: import('../server/games/costume.js').CostumeProjection & { allowSelfVote: boolean };
   costumeReveal?: import('../server/games/costume.js').CostumeRevealProjection;
+  triviaScoreboard?: {
+    teams: { id: number; name: string; color: string; score: number; rank: number }[];
+    ownTeamId: number | null;
+  };
   trivia?: import('../server/games/trivia.js').TriviaProjection;
   slots?:
     | { role: 'player'; data: import('../server/games/slots.js').SlotsPlayerState }

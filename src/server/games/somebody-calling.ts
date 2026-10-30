@@ -99,6 +99,7 @@ export function callingHostAction(
       'Somebody’s Calling award',
       { spendable: context.config.somebody_calling.winner_award_tokens, locked: 0, reserved: 0 },
       context.now,
+      'calling',
     );
     context.store.db
       .prepare('UPDATE phone_draws SET revealed_at=? WHERE room_id=?')

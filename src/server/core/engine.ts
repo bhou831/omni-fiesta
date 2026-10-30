@@ -1,3 +1,4 @@
+import { triviaScoreboardProjection } from '../games/trivia-scoreboard.js';
 import { randomUUID } from 'node:crypto';
 import {
   PARTY_STAGES,
@@ -391,6 +392,12 @@ export class Engine {
           accounts: { spendable: p.spendable, locked: p.locked, reserved: p.reserved },
           ready: !!p.ready,
           checkedIn: checked.has(p.id),
+          rewardCue:
+            (this.store.db
+              .prepare(
+                'SELECT id,reward_kind AS kind FROM ledger WHERE player_id=? AND reward_kind IS NOT NULL ORDER BY id DESC LIMIT 1',
+              )
+              .get(p.id) as { id: number; kind: string } | undefined) ?? null,
         };
       }
       if (
@@ -425,6 +432,11 @@ export class Engine {
           ),
           allowSelfVote: this.context(room).config.costume.allow_self_vote,
         };
+      if (room.phase === 'trivia-scoreboard')
+        snapshot.triviaScoreboard = triviaScoreboardProjection(
+          this.context(room),
+          viewer.role === 'player' ? viewer.playerId : undefined,
+        );
       if (room.phase === 'trivia')
         snapshot.trivia = triviaProjection(
           this.context(room),

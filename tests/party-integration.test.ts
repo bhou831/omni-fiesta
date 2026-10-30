@@ -6,6 +6,7 @@ import { Engine } from '../src/server/core/engine.js';
 import { loadConfig } from '../src/server/config.js';
 import { investments, investmentReview } from '../src/server/games/investments.js';
 import { costume } from '../src/server/games/costume.js';
+import { triviaScoreboard } from '../src/server/games/trivia-scoreboard.js';
 import { trivia } from '../src/server/games/trivia.js';
 import { createSlotsModule } from '../src/server/games/slots.js';
 import { createPowerballModule } from '../src/server/games/powerball.js';
@@ -36,6 +37,7 @@ for (const count of [15, 100])
       investments,
       costume,
       trivia,
+      triviaScoreboard,
       createSlotsModule(() => 0n),
       createPowerballModule(),
       investmentReview,
@@ -93,6 +95,8 @@ for (const count of [15, 100])
     execute(players[0], 'phase.action', { action: 'buzz', data: { windowId: window } });
     hostAction('award', { teamId: 1, amount: 100, cellId: 'childhood-1' });
     hostAction('finish-cell', { cellId: 'childhood-1' });
+    close();
+    advance();
     close();
     advance();
     players.forEach((p) => execute(p, 'phase.action', { action: 'spin' }));

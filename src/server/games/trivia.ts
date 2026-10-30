@@ -518,6 +518,7 @@ export function triviaHostAction(
         'Trivia team award',
         { spendable: amount, locked: 0, reserved: 0 },
         c.now,
+        'trivia',
       );
     c.store.db
       .prepare('INSERT INTO trivia_awards VALUES(?,?,?,?,?)')

@@ -239,6 +239,7 @@ export function powerballHostAction(
       'Powerball settlement',
       { spendable: Number(payout), locked: 0, reserved: -row.amount },
       context.now,
+      payout > BigInt(row.amount) ? 'powerball' : undefined,
     );
     store.db
       .prepare(

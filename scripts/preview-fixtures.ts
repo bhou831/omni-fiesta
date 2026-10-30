@@ -12,6 +12,7 @@ export const PREVIEW_SCENARIOS = [
   { key: 'costume', stage: 'costume', label: 'Costume voting' },
   { key: 'costume-results', stage: 'costume-reveal', label: 'Costume winners (3rd revealed)' },
   { key: 'trivia', stage: 'trivia', label: '中文趣味问答题板' },
+  { key: 'trivia-scoreboard', stage: 'trivia-scoreboard', label: '团队积分榜' },
   { key: 'slots', stage: 'slots', label: 'Slot machine' },
   { key: 'powerball', stage: 'powerball', label: 'Powerball betting / animation' },
   { key: 'powerball-results', stage: 'powerball', label: 'Powerball results' },
@@ -113,6 +114,20 @@ export async function seedPreviewRoom(
     store.db
       .prepare('INSERT INTO market_snapshots VALUES(?,?,?)')
       .run(room.id, 'closing', JSON.stringify(closing));
+  }
+  if (scenario.stage === 'trivia-scoreboard') {
+    stage('trivia');
+    hostAction('assign', { count: 5 });
+    for (const [cellId, teamId] of [
+      ['childhood-1', 1],
+      ['childhood-2', 2],
+      ['childhood-3', 1],
+      ['childhood-4', 3],
+    ] as const) {
+      hostAction('select-cell', { cellId });
+      hostAction('award', { cellId, teamId, amount: Number(cellId.slice(-1)) * 100 });
+      hostAction('finish-cell', { cellId });
+    }
   }
   if (scenario.stage !== 'lobby' && scenario.key !== 'costume-results') stage(scenario.stage);
   if (scenario.stage === 'trivia') {

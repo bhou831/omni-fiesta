@@ -149,6 +149,8 @@ try {
     await action('finish-cell', { cellId: 'childhood-1' });
     await close();
     await advance();
+    await close();
+    await advance();
     await playerActions('spin', () => ({}));
     await close();
     await advance();

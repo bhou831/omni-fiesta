@@ -152,3 +152,9 @@ Default trivia uses 25 distinct demo questions so the eventual participants can 
 ### Host demo-mode toggle (2026-10-29)
 
 The host can switch between demo and the local event bank before the first trivia cell is selected. Demo category labels are always generic 类别 1–5. Preview starts in demo mode; switching off is an explicit host action and uses a trusted server-configured local file. After any selection or award, switching is blocked to preserve saved progress and accounting. Mode changes persist across reload/restart. Real questions remain in ignored local files and never enter Git or client builds.
+
+## Trivia scoreboard and reward feedback (2026-10-29)
+
+Insert an untimed, host-controlled **Trivia score board / 团队积分榜** between trivia and slots. Show all teams simultaneously on TV and phones, sorted descending by active trivia award score, with shared competition ranks for ties. This is team clue score, not total teammate balances; no extra payout occurs.
+
+Every positive game reward triggers a small private amount-free four-bill 💸 acknowledgment on the receiving phone, including a positive slot return smaller than its spin cost. Initial grants, refunds, principal returns and reversals do not. Investment settlement needs a positive profit. Saved event IDs prevent replay on reload/reconnect; slot and Powerball acknowledgment waits for result presentation. Balances stay hidden and reduced motion is supported.

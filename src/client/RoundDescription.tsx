@@ -79,6 +79,8 @@ export function RoundDescription({ state }: { state: RoomSnapshot }) {
           <Rule>主持人判分，答错不扣分。</Rule>
         </Rules>
       );
+    case 'trivia-scoreboard':
+      return null;
     case 'slots': {
       const slots = state.slots?.role === 'display' ? state.slots.data : null;
       return (

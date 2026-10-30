@@ -47,10 +47,11 @@ Players can refresh or reconnect without losing progress. If someone loses their
 ## Try a game without playing the whole party
 
 ```sh
-just preview          # Gallery with player, host, and TV links
-just preview trivia   # Jump straight to Jeopardy
-just preview stock    # Investment cards
-just preview slots    # Slot machine
+just preview                   # Gallery with player, host, and TV links
+just preview trivia            # Jump straight to Jeopardy
+just preview trivia-scoreboard # Team rankings
+just preview stock             # Investment cards
+just preview slots             # Slot machine
 ```
 
 Open **http://127.0.0.1:3001/preview**. These are disposable sample rooms with fixture prices; restarting resets them. Without `just`, use `npm run preview -- trivia`.
