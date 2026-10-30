@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { TriviaBoard, TriviaProjection } from '../server/games/trivia.js';
 import type { CommandSender } from '../shared/contracts.js';
 import { formatTokens } from './format.js';
+import { AdventureHost, AdventureStage } from './TriviaAdventure.js';
 
 export type TriviaViewProps = {
   trivia: TriviaProjection;
   command: CommandSender;
   disabled: boolean;
+  clockOffset?: number;
 };
 /** Decorative only: it never opens the real buzzer or shows a saved clue. */
 function JeopardyIntroArt() {
@@ -115,19 +117,24 @@ export function TriviaPlayer({
       <h2>{team ? <span style={{ color: team.color }}>{team.name}</span> : '等待分队'}</h2>
       {trivia.demo && <span className="trivia-phone-demo">演示</span>}
       <p role="status" aria-live="polite">
-        {closed
-          ? '本轮结束'
-          : team?.excluded
-            ? '本题已答错，等待下一题'
-            : trivia.winner
-              ? trivia.winner.teamId === trivia.ownTeamId
-                ? '本队抢答成功'
-                : `${trivia.teams.find((other) => other.id === trivia.winner?.teamId)?.name ?? '其他队'}抢答成功`
-              : pending
-                ? '提交中…'
-                : trivia.status === 'armed'
-                  ? '可以抢答'
-                  : '等待主持人'}
+        {trivia.adventure &&
+        trivia.status !== 'armed' &&
+        trivia.adventure.phase !== 'waiting' &&
+        trivia.adventure.phase !== 'steal'
+          ? `${trivia.adventure.title} · ${trivia.adventure.phase === 'rules' ? '请听规则' : trivia.adventure.phase === 'active' ? '挑战进行中' : trivia.adventure.success ? '挑战成功' : '挑战结束'}`
+          : closed
+            ? '本轮结束'
+            : team?.excluded
+              ? '本题已答错，等待下一题'
+              : trivia.winner
+                ? trivia.winner.teamId === trivia.ownTeamId
+                  ? '本队抢答成功'
+                  : `${trivia.teams.find((other) => other.id === trivia.winner?.teamId)?.name ?? '其他队'}抢答成功`
+                : pending
+                  ? '提交中…'
+                  : trivia.status === 'armed'
+                    ? '可以抢答'
+                    : '等待主持人'}
       </p>
       <button
         className="button primary trivia-buzzer"
@@ -209,7 +216,7 @@ function Question({ board, host = false }: { board: TriviaBoard; host?: boolean 
     </article>
   );
 }
-export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
+export function TriviaHost({ trivia, command, disabled, clockOffset = 0 }: TriviaViewProps) {
   const [count, setCount] = useState(String(trivia.teams.length || trivia.defaultTeamCount || 1));
   const [teamChoice, setTeamChoice] = useState({ context: '', id: '' });
   const [amount, setAmount] = useState('100');
@@ -274,9 +281,20 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
         'reveal-answer': '答案已在大屏幕公布。',
         'finish-cell': '本题已完成。',
         'new-question': '新题已准备。',
+        'adventure-start': '计时已开始。',
+        'adventure-correct': '已记录猜对。',
+        'adventure-skip': '已跳过。',
+        'adventure-steal': '第二队可以抢答。',
+        'adventure-award': '已给挑战队伍计分。',
+        'adventure-finish-cell': '本题已提前结束，已返回题板。',
       };
       setFeedback(messages[action] ?? '操作已保存。');
-      if (action === 'select-cell' || action === 'finish-cell' || action === 'award')
+      if (
+        action === 'select-cell' ||
+        action === 'finish-cell' ||
+        action === 'adventure-finish-cell' ||
+        action === 'award'
+      )
         setCorrection('');
     } finally {
       lock.current = false;
@@ -382,11 +400,22 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
             />
           </>
         )}
-        {board && selected && <Question board={board} host />}
+        {board && selected && !trivia.adventure && <Question board={board} host />}
+        {trivia.adventure && (
+          <AdventureHost
+            adventure={trivia.adventure}
+            teamName={trivia.teams.find((t) => t.id === trivia.adventure?.teamId)?.name}
+            button={button}
+            busy={busy}
+            buzzerStatus={trivia.status}
+            teams={trivia.teams}
+            clockOffset={clockOffset}
+          />
+        )}
         {!board &&
           button('new-question', '下一题', !trivia.teams.length || trivia.status === 'armed')}
         <BuzzStatus trivia={trivia} />
-        {(!board || selected) && (
+        {(!board || selected) && !trivia.adventure && (
           <>
             <p>可抢答：{eligible.map((t) => t.name).join('、') || '无。可公布答案并完成本题。'}</p>
             <div className="actions">
@@ -421,6 +450,9 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
       </fieldset>
       <fieldset className="control-group">
         <legend>3 · 计分与修正</legend>
+        {trivia.adventure && (
+          <p>当前大冒险由挑战队伍作答；请在上方确认结果并计分，或选择抢答／跳过。</p>
+        )}
         {correction && (
           <p>
             正在修正：{board?.categories.find((c) => c.id === awardCell?.categoryId)?.name} ·{' '}
@@ -433,7 +465,7 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
         <label>
           获奖队伍{' '}
           <select
-            disabled={busy}
+            disabled={busy || !!trivia.adventure}
             value={team}
             onChange={(e) => setTeamChoice({ context: teamContext, id: e.target.value })}
           >
@@ -464,6 +496,7 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
             ? '本题已计分'
             : `答对 · 奖励${trivia.teams.find((t) => String(t.id) === team)?.name ?? '全队'}每人`,
           !trivia.teams.length ||
+            !!trivia.adventure ||
             alreadyAwarded ||
             (!!board && (!awardCell || trivia.status === 'armed')),
           {
@@ -472,7 +505,7 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
             ...(awardCell ? { cellId: awardCell.id } : {}),
           },
         )}
-        {board && selected && !correction && (
+        {board && selected && !correction && !trivia.adventure && (
           <div className="actions">
             {button(
               'finish-cell',
@@ -552,9 +585,11 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
 export function TriviaDisplay({
   trivia,
   closed = false,
+  clockOffset = 0,
 }: {
   trivia: TriviaProjection;
   closed?: boolean;
+  clockOffset?: number;
 }) {
   const board = trivia.board;
   const winningTeam = trivia.teams.find((team) => team.id === trivia.winner?.teamId);
@@ -625,7 +660,17 @@ export function TriviaDisplay({
       ) : board ? (
         <>
           <div className="trivia-display-focus">
-            {board.selected ? <Question board={board} /> : <Board board={board} />}
+            {trivia.adventure ? (
+              <AdventureStage
+                adventure={trivia.adventure}
+                teamName={trivia.teams.find((t) => t.id === trivia.adventure?.teamId)?.name}
+                clockOffset={clockOffset}
+              />
+            ) : board.selected ? (
+              <Question board={board} />
+            ) : (
+              <Board board={board} />
+            )}
           </div>
           <footer className="trivia-display-strip">
             <p
@@ -637,6 +682,22 @@ export function TriviaDisplay({
               <span className="trivia-status-dot" aria-hidden="true" />
               {closed ? (
                 '本轮结束'
+              ) : trivia.adventure ? (
+                trivia.adventure.phase === 'active' ? (
+                  '挑战进行中'
+                ) : trivia.adventure.phase === 'won' ? (
+                  '挑战成功'
+                ) : trivia.adventure.phase === 'result' ? (
+                  '可开启抢答'
+                ) : trivia.adventure.phase === 'closed' ? (
+                  '挑战结束'
+                ) : trivia.adventure.phase === 'rules' ? (
+                  '准备挑战'
+                ) : trivia.adventure.phase === 'steal' && trivia.status === 'armed' ? (
+                  '抢答开启'
+                ) : (
+                  '等待主持人'
+                )
               ) : board.revealed ? (
                 '答案已公布'
               ) : answering ? (

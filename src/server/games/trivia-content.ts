@@ -10,6 +10,16 @@ const clueSchema = z
     categoryId: id,
     value: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     kind: z.enum(['text', 'music', 'adventure', 'location']),
+    adventureVariant: z
+      .enum([
+        'charades-simple',
+        'yes-no-simple',
+        'charades-complex',
+        'yes-no-hard',
+        'photo-recreation',
+      ])
+      .optional(),
+    referenceImage: z.string().trim().min(1).max(2000).optional(),
     publicPrompt: z.string().trim().min(1).max(2000),
     hostAnswer: z.string().trim().min(1).max(2000).optional(),
     hostNotes: z.string().trim().min(1).max(2000).optional(),
@@ -26,6 +36,22 @@ const bankSchema = z
       .array(z.object({ id, name: z.string().trim().min(1).max(80) }).strict())
       .length(5),
     cells: z.array(clueSchema).length(25),
+    adventureQuestionBank: z
+      .object({
+        charades: z.array(z.string().trim().min(1).max(100)).min(1),
+        yesOrNo: z.array(z.string().trim().min(1).max(500)).min(1),
+      })
+      .optional(),
+    adventureRules: z
+      .object({
+        charadesSimple: z.array(z.string().trim().min(1).max(1000)).min(1),
+        yesOrNoSimple: z.array(z.string().trim().min(1).max(1000)).min(1),
+        charadesComplex: z.array(z.string().trim().min(1).max(1000)).min(1),
+        yesOrNoHard: z.array(z.string().trim().min(1).max(1000)).min(1),
+        photoRecreation: z.array(z.string().trim().min(1).max(1000)).min(1),
+      })
+      .optional(),
+    photoScoringPrompt: z.string().trim().min(1).max(4000).optional(),
   })
   .strict();
 export type TriviaClue = z.infer<typeof clueSchema>;
@@ -50,9 +76,27 @@ export function validateTriviaContent(content: unknown): asserts content is Triv
           bank.cells.filter((c) => c.categoryId === category.id && c.value === value).length !== 1,
       ),
     ) ||
-    bank.cells.some((c) => !categories.has(c.categoryId) || (!c.unavailableReason && !c.hostAnswer))
+    bank.cells.some(
+      (c) =>
+        !categories.has(c.categoryId) ||
+        (!c.unavailableReason && !c.hostAnswer && !c.adventureVariant),
+    )
   )
     throw new Error('Invalid trivia question bank grid or missing answer.');
+  if (
+    bank.mode === 'event' &&
+    bank.cells.some((c) => c.kind === 'adventure' && !c.unavailableReason) &&
+    (!bank.adventureQuestionBank?.charades.length ||
+      !bank.adventureQuestionBank.yesOrNo.length ||
+      !bank.adventureRules)
+  )
+    throw new Error('Event trivia bank is missing adventure questions.');
+  if (
+    bank.cells.some(
+      (c) => c.adventureVariant === 'photo-recreation' && !c.unavailableReason && !c.referenceImage,
+    )
+  )
+    throw new Error('Photo recreation requires a reference image.');
 }
 
 /** Values come from saved room config; JSON values establish the five tier positions. */

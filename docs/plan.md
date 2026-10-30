@@ -1,5 +1,11 @@
 # Implementation plan
 
+## 大冒险 implementation checkpoint (2026-10-30)
+
+On `feature/adventure-trivia`, based on fetched `origin/main` (`87b4f88`), added persisted adventure attempts, shuffled no-repeat word and Yes/No pools, host-controlled timers and outcomes, a second-team steal window, role-filtered views, and automatic awards through the existing trivia ledger. The local ignored event bank enables all five challenges; photo recreation uses one generated sample reference that can be replaced before the party. The 53-word pool supports the two charades cells' 28-word minimum for two teams each, with 25 words of skip headroom. The follow-up changes make attempt 1 a host team selection and add host-controlled Yes/No TV visibility; see [follow-up plan](games/adventure-fix-plan.md). `npm run format:check`, typecheck, production build and the full suite passed (125 tests). Browser review confirmed the photo cell is selectable, the host can choose a team and start the timer, and the reference image appears in the host and TV views. The disposable preview was restarted at `http://127.0.0.1:43127/preview#trivia`. Physical device review is pending.
+
+Latest host-flow correction: success now waits for an explicit host award to the team that actually played; failure offers a single second-team 抢答 or a no-score pass. A one-click early finish completes the cell without points and returns to the ordinary trivia board, leaving the normal scoring/history and stage end panel visible. The full suite passed (127 tests) and the production build passed. Browser review confirmed the early-finish control returns to the board, marks the cell used, and re-enables 结束问答. The preview was restarted on the same port. Physical device testing remains pending.
+
 Status: shared foundation, Party notebook UI, and all game modules/role views implemented and registered in the normal app. Permitted checks and fixture-party network/browser rehearsals have passed as detailed below. AWS deployment and physical-device/full-recovery rehearsals remain pending.
 
 ## Budget workflow (2026-10-29)

@@ -4408,3 +4408,19 @@ button.jeopardy-cell:not(:disabled):hover {
     animation: none;
   }
 }
+.adventure-reference {
+  display: block;
+  max-width: min(100%, 760px);
+  max-height: 50vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin: 1rem auto;
+}
+
+.adventure-timer {
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin: 0.5rem 0;
+}

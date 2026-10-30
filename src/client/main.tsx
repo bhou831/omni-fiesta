@@ -1142,6 +1142,7 @@ function Host() {
                     trivia={state.trivia}
                     command={room.command}
                     disabled={room.busy || !room.connected || state.room.status !== 'open'}
+                    clockOffset={room.clockOffset}
                   />
                 )}
                 {state.slots?.role === 'host' && <SlotsHost state={state.slots.data} />}
@@ -1583,7 +1584,11 @@ function DisplayRoom({ code, token }: { code: string; token?: string }) {
               {state.costumeReveal && <CostumeRevealDisplay state={state.costumeReveal} />}
               {state.triviaScoreboard && <TriviaScoreboard data={state.triviaScoreboard} />}
               {state.trivia && (
-                <TriviaDisplay trivia={state.trivia} closed={state.room.status === 'closed'} />
+                <TriviaDisplay
+                  trivia={state.trivia}
+                  closed={state.room.status === 'closed'}
+                  clockOffset={room.clockOffset}
+                />
               )}
               {state.room.phase === 'investment-review' && state.investments && (
                 <InvestmentReviewDisplay data={state.investments} />

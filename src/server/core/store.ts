@@ -8,6 +8,7 @@ import { requireRule } from './errors.js';
 import { costumeSchema } from '../games/costume.js';
 import { slotsSchema } from '../games/slots.js';
 import { TRIVIA_SCHEMA, TRIVIA_RECEIPTS_SCHEMA, TRIVIA_BOARD_SCHEMA } from '../games/trivia.js';
+import { TRIVIA_ADVENTURE_SCHEMA } from '../games/trivia-adventure.js';
 import { somebodyCallingSchema } from '../games/somebody-calling.js';
 import { powerballSchema } from '../games/powerball.js';
 
@@ -138,7 +139,7 @@ export class Store {
         .all()
         .some((column) => column.name === 'reward_kind');
       this.db.exec(
-        `BEGIN IMMEDIATE; ${hasRewardKind ? '' : 'ALTER TABLE ledger ADD COLUMN reward_kind TEXT;'} PRAGMA user_version=15; COMMIT;`,
+        `BEGIN IMMEDIATE; ${TRIVIA_ADVENTURE_SCHEMA} ${hasRewardKind ? '' : 'ALTER TABLE ledger ADD COLUMN reward_kind TEXT;'} PRAGMA user_version=15; COMMIT;`,
       );
     }
   }

@@ -155,7 +155,7 @@ test('first buzz, stale windows, exclusion with zero penalty, all-excluded finis
   assert.throws(() => f.buzz(p1, second.windowId));
   f.buzz(p2, second.windowId);
   f.execute('incorrect', { cellId });
-  assert.throws(() => f.execute('arm', { cellId }), /所有队伍/);
+  assert.throws(() => f.execute('arm', { cellId }), /最多两队|所有队伍/);
   assert.deepEqual(f.app.store.players(f.room.id), before);
   f.execute('finish-cell', { cellId });
   f.execute('select-cell', { cellId: 'childhood-2' });

@@ -8,6 +8,19 @@ import { existsSync } from 'node:fs';
 import { randomInt } from 'node:crypto';
 import type { PhaseContext, PhaseModule } from '../core/phases.js';
 import { requireRule } from '../core/errors.js';
+import {
+  createAdventure,
+  draw,
+  getAdventure,
+  isCharades,
+  isYesNo,
+  projectAdventure,
+  remaining,
+  saveAdventure,
+  settings,
+  type AdventureProjection,
+  type AdventureState,
+} from './trivia-adventure.js';
 
 /** The integration owner registers this schema in an ordered additive migration. */
 export const TRIVIA_SCHEMA = `
@@ -98,6 +111,7 @@ export type TriviaProjection = {
   /** Included only in authenticated host snapshots. */
   awardHistory?: TriviaAward[];
   board?: TriviaBoard;
+  adventure?: AdventureProjection;
 };
 const colors = [
   '#8d2727',
@@ -172,6 +186,19 @@ export function createTrivia(): PhaseModule {
       c.store.db
         .prepare('UPDATE trivia_boards SET begun=1 WHERE room_id=? AND phase_instance=?')
         .run(c.room.id, c.room.phase_instance);
+      const board = boardState(c);
+      const adventure = getAdventure(c, board?.selected_cell ?? null);
+      if (adventure) {
+        requireRule(
+          adventure.phase === 'waiting' || adventure.phase === 'steal',
+          'INVALID_ADVENTURE',
+          '挑战尚未开放抢答。',
+        );
+        adventure.phase = 'rules';
+        adventure.teamId = team;
+        if (adventure.attempt === 1) adventure.firstTeamId = team;
+        saveAdventure(c, adventure);
+      }
       return { accepted: true, windowId: current.window };
     },
     close(c) {
@@ -212,6 +239,7 @@ export function triviaHostAction(
   const board = boardState(c);
   const content = board ? contentOf(board) : undefined;
   const selected = content?.cells.find((cell) => cell.id === board?.selected_cell);
+  const adventure = getAdventure(c, board?.selected_cell ?? null);
   const selectedAction = [
     'cancel-selection',
     'arm',
@@ -219,6 +247,19 @@ export function triviaHostAction(
     'incorrect',
     'reveal-answer',
     'finish-cell',
+    'adventure-start',
+    'adventure-correct',
+    'adventure-skip',
+    'adventure-success',
+    'adventure-fail',
+    'adventure-replace',
+    'adventure-score',
+    'adventure-steal',
+    'adventure-abort',
+    'adventure-choose-team',
+    'adventure-display-prompt',
+    'adventure-award',
+    'adventure-finish-cell',
   ].includes(action);
   if (board && selectedAction)
     requireRule(
@@ -233,6 +274,201 @@ export function triviaHostAction(
         `SELECT 1 FROM trivia_cell_awards b LEFT JOIN trivia_award_receipts r ON r.room_id=b.room_id AND r.phase_instance=b.phase_instance AND r.award_id=b.award_id WHERE b.room_id=? AND b.phase_instance=? AND b.cell_id=? AND r.undone_at IS NULL`,
       )
       .get(room, phase, cellId);
+  if (action.startsWith('adventure-')) {
+    requireRule(adventure && selected, 'ADVENTURE_REQUIRED', '请先选择大冒险题目。');
+    requireRule(data.attempt === adventure.attempt, 'STALE_ATTEMPT', '挑战轮次已变更。', 409);
+    const a = adventure;
+    if (action === 'adventure-finish-cell') {
+      if (a.phase !== 'won' && a.phase !== 'closed')
+        triviaHostAction(
+          c,
+          'adventure-abort',
+          { cellId: a.cellId, attempt: a.attempt },
+          requestId,
+          random,
+        );
+      return triviaHostAction(c, 'finish-cell', { cellId: a.cellId }, requestId, random);
+    }
+    if (action === 'adventure-choose-team') {
+      requireRule(
+        a.phase === 'waiting' && a.attempt === 1,
+        'INVALID_ADVENTURE',
+        '首轮队伍已经确定。',
+      );
+      requireRule(
+        typeof data.teamId === 'number' && members(c).some((m) => m.team === data.teamId),
+        'INVALID_TEAM',
+        '请选择已分配的队伍。',
+      );
+      a.teamId = data.teamId;
+      a.firstTeamId = data.teamId;
+      a.phase = 'rules';
+      saveAdventure(c, a);
+      return { teamId: a.teamId };
+    }
+    if (action === 'adventure-display-prompt') {
+      requireRule(
+        isYesNo(a) && a.phase !== 'closed',
+        'INVALID_ADVENTURE',
+        '只能控制 Yes or No 的题目显示。',
+      );
+      requireRule(typeof data.visible === 'boolean', 'INVALID_DISPLAY', '请选择显示或隐藏。');
+      a.displayPrompt = data.visible;
+      saveAdventure(c, a);
+      return { visible: a.displayPrompt };
+    }
+    const result = (success: boolean) => {
+      a.success = success;
+      a.phase = success || a.attempt === 1 ? 'result' : 'closed';
+      saveAdventure(c, a);
+      return { success, attempt: a.attempt };
+    };
+    if (action === 'adventure-award') {
+      requireRule(
+        a.phase === 'result' && a.success === true && a.teamId !== null,
+        'INVALID_ADVENTURE',
+        '请先确认挑战成功。',
+      );
+      requireRule(data.teamId === a.teamId, 'INVALID_TEAM', '只能给本次挑战队伍计分。');
+      a.phase = 'won';
+      saveAdventure(c, a);
+      return triviaHostAction(
+        c,
+        'award',
+        { cellId: a.cellId, teamId: a.teamId, amount: selected.value },
+        requestId,
+        random,
+      );
+    }
+    if (action === 'adventure-start') {
+      requireRule(
+        a.phase === 'rules' && a.teamId !== null,
+        'INVALID_ADVENTURE',
+        '请先选出挑战队伍并展示规则。',
+      );
+      if (isCharades(a)) {
+        requireRule(
+          remaining(c, 'charades') >= settings(c, a).target!,
+          'QUESTION_POOL_SHORT',
+          '剩余词语不足以完成挑战。',
+        );
+        a.item = draw(c, 'charades');
+      }
+      a.phase = 'active';
+      a.startedAt = c.now;
+      a.deadlineAt = c.now + settings(c, a).seconds * 1000;
+      saveAdventure(c, a);
+      return { deadlineAt: a.deadlineAt };
+    }
+    if (action === 'adventure-correct' || action === 'adventure-skip') {
+      requireRule(
+        isCharades(a) && a.phase === 'active' && a.deadlineAt !== null && c.now < a.deadlineAt,
+        'ADVENTURE_EXPIRED',
+        '挑战时间已结束。',
+      );
+      if (action === 'adventure-correct') a.correct++;
+      else a.skipped++;
+      if (a.correct >= settings(c, a).target!) return result(true);
+      if (remaining(c, 'charades') === 0) {
+        a.item = null;
+        saveAdventure(c, a);
+        return { exhausted: true };
+      }
+      a.item = draw(c, 'charades');
+      saveAdventure(c, a);
+      return { correct: a.correct, skipped: a.skipped };
+    }
+    if (action === 'adventure-success') {
+      requireRule(
+        isYesNo(a) && a.phase === 'active' && a.deadlineAt !== null && c.now < a.deadlineAt,
+        'ADVENTURE_EXPIRED',
+        '挑战时间已结束。',
+      );
+      return result(true);
+    }
+    if (action === 'adventure-score') {
+      requireRule(
+        a.variant === 'photo-recreation' &&
+          a.phase === 'active' &&
+          a.deadlineAt !== null &&
+          c.now >= a.deadlineAt,
+        'INVALID_ADVENTURE',
+        '请在摆拍时间结束后评分。',
+      );
+      requireRule(
+        typeof data.score === 'number' &&
+          Number.isInteger(data.score) &&
+          data.score >= 0 &&
+          data.score <= 100,
+        'INVALID_SCORE',
+        '请输入 0–100 的整数分数。',
+      );
+      requireRule(
+        typeof data.reason === 'string' && data.reason.length <= 500,
+        'INVALID_SCORE',
+        '评分理由过长。',
+      );
+      a.score = data.score;
+      a.reason = data.reason;
+      return result(a.score >= settings(c, a).target!);
+    }
+    if (action === 'adventure-fail') {
+      requireRule(a.phase === 'active', 'INVALID_ADVENTURE', '挑战尚未开始。');
+      return result(false);
+    }
+    if (action === 'adventure-replace') {
+      requireRule(
+        isYesNo(a) && (a.phase === 'rules' || a.phase === 'active'),
+        'INVALID_ADVENTURE',
+        '当前挑战不能换题。',
+      );
+      a.item = draw(c, 'yesOrNo');
+      a.phase = 'rules';
+      a.startedAt = null;
+      a.deadlineAt = null;
+      saveAdventure(c, a);
+      return { replaced: true };
+    }
+    if (action === 'adventure-steal') {
+      requireRule(
+        a.phase === 'result' && a.success === false && a.attempt === 1 && a.firstTeamId !== null,
+        'INVALID_ADVENTURE',
+        '不能再次开启抢答。',
+      );
+      a.phase = 'steal';
+      a.attempt = 2;
+      a.teamId = null;
+      a.startedAt = null;
+      a.deadlineAt = null;
+      a.correct = 0;
+      a.skipped = 0;
+      a.success = null;
+      if (isCharades(a)) a.item = null;
+      a.displayPrompt = false;
+      c.store.db
+        .prepare('INSERT OR IGNORE INTO trivia_exclusions VALUES(?,?,?,?)')
+        .run(room, phase, current.question, a.firstTeamId);
+      c.store.db
+        .prepare(
+          "UPDATE trivia_state SET status='idle',winner_player=NULL,winner_team=NULL WHERE room_id=? AND phase_instance=?",
+        )
+        .run(room, phase);
+      saveAdventure(c, a);
+      return { steal: true };
+    }
+    if (action === 'adventure-abort') {
+      requireRule(a.phase !== 'won' && a.phase !== 'closed', 'INVALID_ADVENTURE', '挑战已经结束。');
+      a.phase = 'closed';
+      a.success = false;
+      saveAdventure(c, a);
+      c.store.db
+        .prepare(
+          "UPDATE trivia_state SET status='idle',winner_player=NULL,winner_team=NULL WHERE room_id=? AND phase_instance=?",
+        )
+        .run(room, phase);
+      return { closed: true };
+    }
+  }
   if (action === 'set-demo-mode') {
     requireRule(
       board && content && c.config.trivia.board_values,
@@ -303,9 +539,11 @@ export function triviaHostAction(
         "UPDATE trivia_state SET question=question+1,status='idle',winner_player=NULL,winner_team=NULL WHERE room_id=? AND phase_instance=?",
       )
       .run(room, phase);
+    if (cell.kind === 'adventure') createAdventure(c, cell, content, random);
     return { selected: cell.id };
   }
   if (board && action === 'cancel-selection') {
+    requireRule(!adventure, 'INVALID_ADVENTURE', '大冒险已抽题，请完成或终止挑战。');
     requireRule(
       !board.begun && current.status !== 'armed',
       'CELL_STARTED',
@@ -322,6 +560,7 @@ export function triviaHostAction(
     return { cancelled: true };
   }
   if (board && action === 'reveal-answer') {
+    requireRule(!adventure, 'INVALID_ADVENTURE', '请使用大冒险结果操作。');
     requireRule(!board.revealed, 'ANSWER_REVEALED', '答案已经公布。');
     c.store.db
       .prepare('UPDATE trivia_boards SET revealed=1,begun=1 WHERE room_id=? AND phase_instance=?')
@@ -334,6 +573,12 @@ export function triviaHostAction(
     return { revealed: true };
   }
   if (board && action === 'finish-cell') {
+    if (adventure)
+      requireRule(
+        adventure.phase === 'won' || adventure.phase === 'closed',
+        'ADVENTURE_UNFINISHED',
+        '请先完成挑战或结束抢答。',
+      );
     requireRule(current.status !== 'armed', 'BUZZER_OPEN', '请先关闭抢答。');
     c.store.db
       .prepare(
@@ -400,6 +645,24 @@ export function triviaHostAction(
   }
   if (action === 'arm') {
     if (board) {
+      if (adventure)
+        requireRule(
+          adventure.phase === 'steal',
+          'INVALID_ADVENTURE',
+          '首轮由主持人选择队伍；失败后才可抢答。',
+        );
+      else {
+        const attempts = c.store.db
+          .prepare(
+            'SELECT count(*) AS n FROM trivia_exclusions WHERE room_id=? AND phase_instance=? AND question=?',
+          )
+          .get(room, phase, current.question) as { n: number };
+        requireRule(
+          current.status !== 'locked' && attempts.n < 2,
+          'ATTEMPT_LIMIT',
+          '本题最多两队尝试。',
+        );
+      }
       requireRule(
         !board.revealed && !activeAward(selected!.id),
         'CELL_RESOLVED',
@@ -428,9 +691,14 @@ export function triviaHostAction(
     c.store.db
       .prepare("UPDATE trivia_state SET status='idle' WHERE room_id=? AND phase_instance=?")
       .run(room, phase);
+    if (adventure && adventure.phase === 'steal') {
+      adventure.phase = 'closed';
+      saveAdventure(c, adventure);
+    }
     return { closed: true };
   }
   if (action === 'incorrect') {
+    requireRule(!adventure, 'INVALID_ADVENTURE', '请使用大冒险结果操作。');
     if (board)
       requireRule(
         !board.revealed && !activeAward(selected!.id),
@@ -454,6 +722,12 @@ export function triviaHostAction(
     return { reopened: true };
   }
   if (action === 'award') {
+    if (adventure && selected?.id === data.cellId)
+      requireRule(
+        adventure.phase === 'won' && data.teamId === adventure.teamId,
+        'INVALID_ADVENTURE',
+        '只能给挑战成功的队伍计分。',
+      );
     const team = data.teamId;
     const amount = data.amount;
     requireRule(
@@ -607,6 +881,19 @@ export function triviaProjection(
   const history = triviaAwardHistory(c);
   return {
     ...(board && !playerId ? { board: projectBoard(c, board, includeAwards) } : {}),
+    ...(board?.selected_cell &&
+    contentOf(board).cells.find((cell) => cell.id === board.selected_cell)?.kind === 'adventure'
+      ? {
+          adventure:
+            projectAdventure(
+              c,
+              contentOf(board),
+              contentOf(board).cells.find((cell) => cell.id === board.selected_cell)!,
+              includeAwards,
+              !!playerId,
+            ) ?? undefined,
+        }
+      : {}),
     ...(board
       ? { bankLabel: contentOf(board).label ?? '问答题库', demo: contentOf(board).mode === 'demo' }
       : {}),
