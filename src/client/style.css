@@ -4424,3 +4424,36 @@ button.jeopardy-cell:not(:disabled):hover {
   font-variant-numeric: tabular-nums;
   margin: 0.5rem 0;
 }
+
+.trivia-location {
+  width: min(1120px, 100%);
+  min-width: 0;
+  margin: clamp(12px, 2vh, 28px) auto 0;
+  display: grid;
+  gap: 12px;
+  color: #171717;
+  text-align: left;
+}
+.trivia-location-map {
+  width: 100%;
+  height: clamp(300px, 42vh, 540px);
+  min-height: 260px;
+  overflow: hidden;
+  background: #f0efeb;
+  border: 1px solid #c9c7c0;
+  border-radius: 10px;
+}
+.trivia-location-message {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.trivia-location-attribution {
+  justify-self: end;
+  font-size: 0.75rem;
+}
+@media (max-width: 720px) {
+  .trivia-location-map {
+    height: 44vh;
+    min-height: 220px;
+  }
+}

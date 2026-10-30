@@ -26,6 +26,10 @@ In one short database transaction: authorize; load current state/configuration; 
 
 Clients receive versioned state. After reconnect, reload the authoritative snapshot for their role, then apply newer versioned updates. Ignore stale/out-of-order updates and resynchronize after gaps. A transient missed broadcast cannot invalidate a committed action. Local animation is never the source of a reward.
 
+### Trivia geography answers
+
+The host selects a prepared location cell and opens the regular Trivia buzzer. The display shows a Street View panorama without exposing the private host answer or true coordinates. The winning team answers aloud; the host alone judges and uses the ordinary incorrect/award/reveal/finish actions. There is no typed answer route, server geocoder, automatic grading or geography-specific scoring table. The Maps JavaScript API remains necessary for the public Street View display. Phones receive neither scene nor answer. Older local schema-v17 databases remain readable, but the legacy location-guess table is unused.
+
 ## Timers
 
 Only investment selection, costume voting, slots, and Powerball betting use countdowns. Persist `opened_at` and `deadline_at` in server UTC. Advancing to a timed stage persists a pending state without a deadline. Only an authenticated host start command opens input and starts its countdown, after required preparation succeeds; investment quotes must be saved before the picking window opens. Retried starts never extend the deadline. The Sound check rehearsal follows the same host-start behavior.

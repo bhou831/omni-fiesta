@@ -3,6 +3,7 @@ import type { TriviaBoard, TriviaProjection } from '../server/games/trivia.js';
 import type { CommandSender } from '../shared/contracts.js';
 import { formatTokens } from './format.js';
 import { AdventureHost, AdventureStage } from './TriviaAdventure.js';
+import { TriviaLocation, type TriviaLocationView } from './TriviaLocation.js';
 
 export type TriviaViewProps = {
   trivia: TriviaProjection;
@@ -287,7 +288,7 @@ function MusicClip({
         <div className="trivia-music-host-controls">
           <button
             className="button primary"
-            disabled={disabled || (!playbackActive && !enabled)}
+            disabled={disabled}
             onClick={() =>
               void command('phase.host', {
                 action: playbackActive ? 'music-stop' : 'music-start',
@@ -543,12 +544,6 @@ export function TriviaHost({
               disabled={busy || (alreadyAwarded && !selected.musicPlayback.playing)}
             />
             <p className="fine-print">无需等待试听结束；可以随时抢答、公布答案、计分或完成本题。</p>
-            {!correction &&
-              button(
-                'finish-cell',
-                alreadyAwarded ? '完成本题 · 返回题板' : '不计分 · 完成本题',
-                trivia.status === 'armed',
-              )}
           </>
         )}
         {trivia.adventure && (
@@ -655,7 +650,7 @@ export function TriviaHost({
             ...(awardCell ? { cellId: awardCell.id } : {}),
           },
         )}
-        {board && selected && !correction && !trivia.adventure && selected.kind !== 'music' && (
+        {board && selected && !correction && !trivia.adventure && (
           <div className="actions">
             {button(
               'finish-cell',
@@ -821,6 +816,9 @@ export function TriviaDisplay({
             ) : board.selected ? (
               <>
                 <Question board={board} />
+                {board.selected.kind === 'location' && board.selected.locationView && (
+                  <TriviaLocation scene={board.selected.locationView as TriviaLocationView} />
+                )}
                 {board.selected.kind === 'music' &&
                   board.selected.musicClip &&
                   board.selected.musicPlayback &&

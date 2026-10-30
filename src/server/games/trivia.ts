@@ -68,6 +68,12 @@ export type TriviaBoard = {
       storeUrl: string;
     };
     musicPlayback?: { playing: boolean; position: number; changedAt: number };
+    locationView?: {
+      panoId: string;
+      heading: number;
+      pitch: number;
+      zoom: number;
+    };
   } | null;
   revealed: boolean;
   started: boolean;
@@ -1059,6 +1065,16 @@ function projectBoard(c: PhaseContext, board: BoardRow, host: boolean): TriviaBo
           ...(host || board.revealed ? { answer: clue.hostAnswer } : {}),
           ...(host ? { hostNotes: clue.hostNotes } : {}),
           kind: clue.kind,
+          ...(clue.kind === 'location' && clue.location
+            ? {
+                locationView: {
+                  panoId: clue.location.panoId,
+                  heading: clue.location.heading ?? 0,
+                  pitch: clue.location.pitch ?? 0,
+                  zoom: clue.location.zoom ?? 1,
+                },
+              }
+            : {}),
           ...(clue.musicTrack ? { musicStoreUrl: clue.musicTrack.storeUrl } : {}),
           ...(clue.musicTrack && (host || board.revealed) ? { musicTrack: clue.musicTrack } : {}),
           ...(clue.musicAudio

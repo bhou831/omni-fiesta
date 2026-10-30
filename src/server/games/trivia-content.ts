@@ -4,6 +4,18 @@ import { resolve } from 'node:path';
 import { z } from 'zod';
 
 const id = z.string().regex(/^[a-z0-9-]{1,80}$/);
+const locationSchema = z
+  .object({
+    countryCode: z.string().regex(/^[A-Z]{2}$/),
+    city: z.string().trim().min(1).max(120),
+    latitude: z.number().finite().min(-90).max(90),
+    longitude: z.number().finite().min(-180).max(180),
+    panoId: z.string().trim().min(1).max(256),
+    heading: z.number().finite().min(0).max(360).default(0),
+    pitch: z.number().finite().min(-90).max(90).default(0),
+    zoom: z.number().finite().min(0).max(5).default(1),
+  })
+  .strict();
 const clueSchema = z
   .object({
     id,
@@ -48,6 +60,7 @@ const clueSchema = z
       })
       .strict()
       .optional(),
+    location: locationSchema.optional(),
   })
   .strict();
 const bankSchema = z
@@ -166,6 +179,12 @@ export function validateTriviaContent(content: unknown): asserts content is Triv
     )
   )
     throw new Error('Prepared music cells require audio and a host answer.');
+  if (
+    bank.cells.some(
+      (c) => c.kind === 'location' && !c.unavailableReason && (!c.location || !c.hostAnswer),
+    )
+  )
+    throw new Error('Prepared location cells require a complete scene and host answer.');
 }
 
 /** Values come from saved room config; JSON values establish the five tier positions. */

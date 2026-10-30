@@ -57,7 +57,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 16) {
+    if (schemaVersion > 17) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
