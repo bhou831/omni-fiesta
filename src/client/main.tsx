@@ -1140,6 +1140,11 @@ function Host() {
                 {state.trivia && (
                   <TriviaHost
                     trivia={state.trivia}
+                    audioUrl={
+                      state.trivia.board?.selected?.kind === 'music'
+                        ? `/api/rooms/${state.room.code}/trivia-audio/${state.trivia.board.selected.id}`
+                        : undefined
+                    }
                     command={room.command}
                     disabled={room.busy || !room.connected || state.room.status !== 'open'}
                     clockOffset={room.clockOffset}
@@ -1586,6 +1591,11 @@ function DisplayRoom({ code, token }: { code: string; token?: string }) {
               {state.trivia && (
                 <TriviaDisplay
                   trivia={state.trivia}
+                  audioUrl={
+                    state.trivia.board?.selected?.kind === 'music'
+                      ? `/api/rooms/${code}/trivia-audio/${state.trivia.board.selected.id}${token ? `?displayToken=${encodeURIComponent(token)}` : ''}`
+                      : undefined
+                  }
                   closed={state.room.status === 'closed'}
                   clockOffset={room.clockOffset}
                 />

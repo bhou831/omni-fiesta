@@ -58,6 +58,8 @@ export type TriviaBoard = {
     publicPrompt: string;
     answer?: string;
     hostNotes?: string;
+    kind?: TriviaContent['cells'][number]['kind'];
+    musicClip?: { start: number; end: number };
   } | null;
   revealed: boolean;
   started: boolean;
@@ -989,6 +991,15 @@ function projectBoard(c: PhaseContext, board: BoardRow, host: boolean): TriviaBo
           publicPrompt: clue.publicPrompt,
           ...(host || board.revealed ? { answer: clue.hostAnswer } : {}),
           ...(host ? { hostNotes: clue.hostNotes } : {}),
+          kind: clue.kind,
+          ...(clue.musicAudio
+            ? {
+                musicClip: {
+                  start: clue.musicAudio.clipStartSeconds,
+                  end: clue.musicAudio.clipEndSeconds,
+                },
+              }
+            : {}),
         }
       : null,
     revealed: !!board.revealed,

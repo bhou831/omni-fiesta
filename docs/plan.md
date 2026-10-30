@@ -11,6 +11,7 @@ Status: shared foundation, Party notebook UI, and all game modules/role views im
 ## Budget workflow (2026-10-29)
 
 Added project/workspace instructions for explicit Luna implementation and independent review, a compact task brief template, and `docs/cost-aware-workflow.md`. Sol planning is reserved for work that benefits from it. No agents were launched to trial the workflow; model routing and savings remain unmeasured. Optional client configuration is documented but not installed. Application source and existing local edits were not changed by this documentation task.
+
 ## Separate TV setup and refreshed avatars (2026-10-29)
 
 Refreshed the 24 shared avatar choices with Moai, otter, several dogs, Mount Fuji, Paris café foods and meme faces; existing saved player emojis stay intact. All new choices remain server-validated.
@@ -385,7 +386,6 @@ Observed a deterministic browser regression using the actual TriviaPlayer: start
 
 The existing user edits in `config/game.yaml` specify a 1,000-token cap, 100× multiplier and 180-second selection. An initial full run had five tests coupled to older defaults (116 passed). Made the two fixed 600-cap/20× boundary fixtures explicit, changed saved-config/preview/result expectations to follow the tested room's configuration, and aligned current product notes. Final `npm run format:check`, `npm test` (**121 passed**), `npm run typecheck` (also in the build), production build and `git diff --check` pass. No commit or deployment.
 
-
 ### User-facing README (2026-10-29)
 
 Replaced the historical implementation/rehearsal log in README.md with a short product introduction, game lineup, local setup, host/TV/guest instructions, direct previews, configuration and common commands. Linked the HTML architecture walkthrough, visual/system/game specifications, hosting guide and this verification history for readers who want detail. Checked all nine relative link targets, source-backed commands and `git diff --check`; no application code changed and runtime tests were not rerun for this documentation-only edit.
@@ -412,3 +412,11 @@ A separate read-only agent reviewed the complete change for flow, UI, scoring/ti
 Reviewed `feature/adventure-trivia` against the feature runbook. Corrected the public projection so charades words stay on the host view while TV and phones receive only the challenge state. Kept the ordinary host correction controls usable for a previous cell during an active adventure. Updated the product and game notes to reflect the implemented event-bank flow; missing event content remains local and is not supplied by this change.
 
 Verification: format check, typecheck, six focused adventure tests, production build and `git diff --check` pass. The initial full test run could not bind `127.0.0.1` (`listen EPERM`); the supported local-port retry passed all 127 tests, including HTTP and Socket.IO. No browser role walkthrough or physical-device check is claimed for this review.
+
+### 听歌识曲 playback (2026-10-30)
+
+Added a prepared-music schema: an answer, one safe local media basename or approved Apple Music preview URL, and finite clip bounds. Apple references are limited to HTTPS `audio-ssl.itunes.apple.com/itunes-assets/AudioPreview…`; no songs, preview URLs, or answers were selected from the local event candidate list. The selected-cell audio route authorizes a host session or TV capability, verifies Trivia is open and the requested music cell remains selected, and serves only that cell's frozen reference. Local event files resolve inside ignored `private/trivia-media/`; there is no public static media directory. TV receives clip bounds with its selected clue, host retains the private answer, and player projections contain no board/audio fields. Host and TV use native audio controls; clips stop at the configured end. The demo bank contains one synthetic music cell backed by a generated tone fixture, with no real recording.
+
+Review corrections: the synthetic demo clue now lives in the Music category with matching host guidance. Apple preview allowlisting rejects non-default ports, userinfo and lookalike path prefixes. Local audio paths are canonicalized inside the fixture/private media directory (including symlink resolution); the endpoint supports bounded single-byte-range responses used by native media controls. The prepared Music preview is only synthetic; the private event candidates remain untouched.
+
+Observed: `npm run format:check`, `npm run typecheck`, production build, `npm test` (**128 passed**) and `git diff --check`. Focused tests cover host and TV authorization/projections, phone omission, selected-cell scoping, invalid Apple URLs, local byte ranges and invalid ranges. Browser rehearsal used disposable in-memory Trivia on port 3005: selected the demo Music clue, confirmed the host alone saw the answer, TV showed the clip control and played the bounded synthetic tone, and the phone showed no media control/metadata. No live Apple URL or physical device was used. Host and TV have independent native players; play/pause and position are browser-local, are not synchronized or persisted, and start from the configured clip start after reload. Existing buzzer, award, undo and finish flow remains unchanged.

@@ -73,10 +73,14 @@
       "id": "music-1",
       "categoryId": "music",
       "value": 100,
-      "kind": "text",
-      "publicPrompt": "简谱中的 1、2、3 对应哪三个唱名？",
-      "hostAnswer": "do、re、mi。",
-      "hostNotes": "口头唱出三个唱名即可。"
+      "kind": "music",
+      "publicPrompt": "听一段合成提示音，说出音高变化。",
+      "hostAnswer": "三段音逐渐升高。",
+      "musicAudio": {
+        "file": "demo-tone.wav",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 1.2
+      }
     },
     {
       "id": "music-2",

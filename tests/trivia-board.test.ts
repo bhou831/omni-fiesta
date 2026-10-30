@@ -12,6 +12,7 @@ import {
   createTriviaContent,
   validateTriviaContent,
   DEMO_TRIVIA_BANK,
+  isApprovedApplePreviewUrl,
 } from '../src/server/games/trivia-content.js';
 import { PREVIEW_SCENARIOS, seedPreviewRoom } from '../scripts/preview-fixtures.js';
 import { TriviaDisplay, TriviaPlayer } from '../src/client/Trivia.js';
@@ -65,6 +66,50 @@ test('demo content validates 25 playable slots and stays separate from custom ev
     ['类别 1', '类别 2', '类别 3', '类别 4', '类别 5'],
   );
   assert.equal(content.cells.flatMap((c) => c.musicCandidates ?? []).length, 0);
+  const music = content.cells.find((c) => c.kind === 'music')!;
+  assert.equal(music.musicAudio?.file, 'demo-tone.wav');
+  assert.equal(music.categoryId, 'music');
+  assert.equal(music.hostNotes, undefined);
+  assert.equal(
+    isApprovedApplePreviewUrl(
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/example.m4a',
+    ),
+    true,
+  );
+  for (const url of [
+    'https://audio-ssl.itunes.apple.com.evil.example/itunes-assets/AudioPreview/v4/a.m4a',
+    'https://audio-ssl.itunes.apple.com:8443/itunes-assets/AudioPreview/v4/a.m4a',
+    'https://user@audio-ssl.itunes.apple.com/itunes-assets/AudioPreview/v4/a.m4a',
+    'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview-Evil/a.m4a',
+  ])
+    assert.equal(isApprovedApplePreviewUrl(url), false, url);
+  assert.throws(() =>
+    validateTriviaContent({
+      ...content,
+      cells: content.cells.map((c) =>
+        c.id === music.id
+          ? { ...c, musicAudio: { file: 'demo-tone.wav', clipStartSeconds: 5, clipEndSeconds: 4 } }
+          : c,
+      ),
+    }),
+  );
+  assert.throws(() =>
+    validateTriviaContent({
+      ...content,
+      cells: content.cells.map((c) =>
+        c.id === music.id
+          ? {
+              ...c,
+              musicAudio: {
+                url: 'https://example.com/audio.m4a',
+                clipStartSeconds: 0,
+                clipEndSeconds: 8,
+              },
+            }
+          : c,
+      ),
+    }),
+  );
   assert.throws(() => createTriviaContent([100, 100, 200, 300, 400]));
   assert.throws(() =>
     validateTriviaContent({ ...content, cells: [...content.cells.slice(1), content.cells[1]] }),

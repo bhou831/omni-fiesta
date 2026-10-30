@@ -9,6 +9,7 @@ export type TriviaViewProps = {
   command: CommandSender;
   disabled: boolean;
   clockOffset?: number;
+  audioUrl?: string;
 };
 /** Decorative only: it never opens the real buzzer or shows a saved clue. */
 function JeopardyIntroArt() {
@@ -216,7 +217,34 @@ function Question({ board, host = false }: { board: TriviaBoard; host?: boolean 
     </article>
   );
 }
-export function TriviaHost({ trivia, command, disabled, clockOffset = 0 }: TriviaViewProps) {
+function MusicClip({ url, start, end }: { url: string; start: number; end: number }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  return (
+    <audio
+      ref={ref}
+      controls
+      preload="metadata"
+      aria-label="听歌识曲片段"
+      onLoadedMetadata={() => {
+        if (ref.current) ref.current.currentTime = start;
+      }}
+      onTimeUpdate={() => {
+        if (ref.current && ref.current.currentTime >= end) {
+          ref.current.pause();
+          ref.current.currentTime = start;
+        }
+      }}
+      src={url}
+    />
+  );
+}
+export function TriviaHost({
+  trivia,
+  command,
+  disabled,
+  clockOffset = 0,
+  audioUrl,
+}: TriviaViewProps) {
   const [count, setCount] = useState(String(trivia.teams.length || trivia.defaultTeamCount || 1));
   const [teamChoice, setTeamChoice] = useState({ context: '', id: '' });
   const [amount, setAmount] = useState('100');
@@ -401,6 +429,9 @@ export function TriviaHost({ trivia, command, disabled, clockOffset = 0 }: Trivi
           </>
         )}
         {board && selected && !trivia.adventure && <Question board={board} host />}
+        {selected?.kind === 'music' && selected.musicClip && audioUrl && (
+          <MusicClip url={audioUrl} start={selected.musicClip.start} end={selected.musicClip.end} />
+        )}
         {trivia.adventure && (
           <AdventureHost
             adventure={trivia.adventure}
@@ -586,10 +617,12 @@ export function TriviaDisplay({
   trivia,
   closed = false,
   clockOffset = 0,
+  audioUrl,
 }: {
   trivia: TriviaProjection;
   closed?: boolean;
   clockOffset?: number;
+  audioUrl?: string;
 }) {
   const board = trivia.board;
   const winningTeam = trivia.teams.find((team) => team.id === trivia.winner?.teamId);
@@ -667,7 +700,16 @@ export function TriviaDisplay({
                 clockOffset={clockOffset}
               />
             ) : board.selected ? (
-              <Question board={board} />
+              <>
+                <Question board={board} />
+                {board.selected.kind === 'music' && board.selected.musicClip && audioUrl && (
+                  <MusicClip
+                    url={audioUrl}
+                    start={board.selected.musicClip.start}
+                    end={board.selected.musicClip.end}
+                  />
+                )}
+              </>
             ) : (
               <Board board={board} />
             )}

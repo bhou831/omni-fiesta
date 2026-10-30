@@ -195,3 +195,84 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
   assert.equal((await request('player', playerCookie, newBuzz)).status, 200);
   await locked;
 });
+
+test('selected synthetic music is served only to authenticated host or TV and never exposed on phones', async (t) => {
+  const password = 'trivia-audio-password';
+  const app = createApp({ databasePath: ':memory:', hostPassword: password });
+  const room = await seedPreviewRoom(
+    app.engine,
+    PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
+  );
+  const base = `http://127.0.0.1:${await app.listen()}`;
+  t.after(() => app.close());
+  const hostCookie = `of_host=${app.store.session('host', Date.now(), hash(password))}`;
+  const content = JSON.parse(
+    (
+      app.store.db.prepare('SELECT content FROM trivia_boards WHERE room_id=?').get(room.id) as {
+        content: string;
+      }
+    ).content,
+  ) as { cells: { id: string; kind: string }[] };
+  const cell = content.cells.find((c) => c.kind === 'music')!;
+  const hostSession = app.store.authenticate(
+    hostCookie.split('=')[1],
+    'host',
+    Date.now(),
+    hash(password),
+  )!;
+  app.engine.execute(hostSession, room.id, {
+    requestId: randomUUID(),
+    phaseInstance: app.store.room(room.id).phase_instance,
+    type: 'phase.host',
+    payload: { action: 'select-cell', data: { cellId: cell.id } },
+  });
+  const path = `${base}/api/rooms/${room.code}/trivia-audio/${cell.id}`;
+  assert.equal((await fetch(path)).status, 401);
+  assert.equal(
+    (
+      await fetch(`${base}/api/rooms/${room.code}/trivia-audio/childhood-1`, {
+        headers: { Cookie: hostCookie },
+      })
+    ).status,
+    404,
+  );
+  const hostAudio = await fetch(path, { headers: { Cookie: hostCookie } });
+  assert.equal(hostAudio.status, 200);
+  assert.equal(hostAudio.headers.get('content-type'), 'audio/wav');
+  const audioSize = Number(hostAudio.headers.get('content-length'));
+  assert.ok(audioSize > 44);
+  const partial = await fetch(path, {
+    headers: { Cookie: hostCookie, Range: 'bytes=0-43' },
+  });
+  assert.equal(partial.status, 206);
+  assert.equal(partial.headers.get('content-range'), `bytes 0-43/${audioSize}`);
+  assert.equal((await partial.arrayBuffer()).byteLength, 44);
+  const invalidRange = await fetch(path, {
+    headers: { Cookie: hostCookie, Range: 'bytes=999999999-' },
+  });
+  assert.equal(invalidRange.status, 416);
+  const tvAudio = await fetch(`${path}?displayToken=${encodeURIComponent(room.displayToken)}`);
+  assert.equal(tvAudio.status, 200);
+  const hostStateResponse = await fetch(`${base}/api/rooms/${room.code}/state?role=host`, {
+    headers: { Cookie: hostCookie },
+  });
+  const hostState = (await hostStateResponse.json()) as RoomSnapshot;
+  assert.equal(hostState.trivia?.board?.selected?.answer, '三段音逐渐升高。');
+  const tvStateResponse = await fetch(`${base}/api/rooms/${room.code}/state?role=display`, {
+    headers: { Authorization: `Bearer ${room.displayToken}` },
+  });
+  const tvState = (await tvStateResponse.json()) as RoomSnapshot;
+  assert.deepEqual(tvState.trivia?.board?.selected?.musicClip, { start: 0, end: 1.2 });
+  assert.equal(tvState.trivia?.board?.selected?.answer, undefined);
+  const phone = await fetch(`${base}/api/rooms/${room.code}/state?role=player`, {
+    headers: {
+      Cookie: `of_player=${app.store.session('player', Date.now(), null, room.playerId, room.id)}`,
+    },
+  });
+  const phoneState = (await phone.json()) as RoomSnapshot;
+  assert.equal(phoneState.trivia?.board, undefined);
+  assert.doesNotMatch(
+    JSON.stringify(phoneState.trivia),
+    /demo-tone|audio-ssl|musicClip|hostAnswer/,
+  );
+});

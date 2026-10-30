@@ -25,6 +25,19 @@ const clueSchema = z
     hostNotes: z.string().trim().min(1).max(2000).optional(),
     unavailableReason: z.string().trim().min(1).max(1000).optional(),
     musicCandidates: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+    musicAudio: z
+      .object({
+        file: z
+          .string()
+          .regex(/^[a-z0-9][a-z0-9-]{0,63}\.wav$/)
+          .optional(),
+        url: z.string().url().optional(),
+        clipStartSeconds: z.number().finite().min(0).max(3600),
+        clipEndSeconds: z.number().finite().gt(0).max(3600),
+      })
+      .strict()
+      .refine((a) => !!a.file !== !!a.url, 'Choose one local file or preview URL.')
+      .optional(),
   })
   .strict();
 const bankSchema = z
@@ -57,6 +70,22 @@ const bankSchema = z
 export type TriviaClue = z.infer<typeof clueSchema>;
 export type TriviaContent = z.infer<typeof bankSchema>;
 export const DEMO_TRIVIA_BANK = resolve('config/trivia-demo.json');
+
+export function isApprovedApplePreviewUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      url.hostname === 'audio-ssl.itunes.apple.com' &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      /^\/itunes-assets\/AudioPreview(?:\d+)?(?:\/|$)/.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function validateTriviaContent(content: unknown): asserts content is TriviaContent {
   const parsed = bankSchema.safeParse(content);
@@ -97,6 +126,20 @@ export function validateTriviaContent(content: unknown): asserts content is Triv
     )
   )
     throw new Error('Photo recreation requires a reference image.');
+  if (
+    bank.cells.some(
+      (c) => c.musicAudio && c.musicAudio.clipEndSeconds <= c.musicAudio.clipStartSeconds,
+    )
+  )
+    throw new Error('Music clip bounds are invalid.');
+  if (bank.cells.some((c) => c.musicAudio?.url && !isApprovedApplePreviewUrl(c.musicAudio.url)))
+    throw new Error('Music preview URL is not an approved iTunes preview.');
+  if (
+    bank.cells.some(
+      (c) => c.kind === 'music' && !c.unavailableReason && (!c.musicAudio || !c.hostAnswer),
+    )
+  )
+    throw new Error('Prepared music cells require audio and a host answer.');
 }
 
 /** Values come from saved room config; JSON values establish the five tier positions. */
