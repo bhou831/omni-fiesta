@@ -192,7 +192,7 @@ test('archive migration and restoration survive restart with the saved room and 
   store.db.exec('DROP TABLE archived_rooms; PRAGMA user_version=7');
   store.close();
   store = new Store(path);
-  assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 16);
+  assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 18);
   assert.equal(store.player(player.playerId).spendable, 300);
   store.setArchived(room.code, true, 2000);
   store.close();

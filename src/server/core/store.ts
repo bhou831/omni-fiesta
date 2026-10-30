@@ -57,7 +57,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 17) {
+    if (schemaVersion > 18) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -158,6 +158,17 @@ export class Store {
       if (!columns.has('music_position'))
         this.db.exec('ALTER TABLE trivia_state ADD COLUMN music_position REAL NOT NULL DEFAULT 0;');
       this.db.exec('PRAGMA user_version=16; COMMIT;');
+    }
+    // Version 15 was independently used for rewards on main and adventure tables here.
+    // Version 17 was also used by an earlier geography revision. Repair either history.
+    if (schemaVersion < 18) {
+      const hasRewardKind = this.db
+        .prepare('PRAGMA table_info(ledger)')
+        .all()
+        .some((column) => column.name === 'reward_kind');
+      this.db.exec(
+        `BEGIN IMMEDIATE; ${TRIVIA_ADVENTURE_SCHEMA} ${hasRewardKind ? '' : 'ALTER TABLE ledger ADD COLUMN reward_kind TEXT;'} PRAGMA user_version=18; COMMIT;`,
+      );
     }
   }
 
