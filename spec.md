@@ -32,7 +32,9 @@ For local UI development, `just preview [game]` opens an isolated, in-memory gal
 
 The lobby lists actual joined players only. There is no expected guest list or missing-guest comparison. Profiles require name, phone, and an emoji from a provided set of 24 (decided 2026-10-28: custom emoji were considered and dropped for simplicity). Email is optional and unused by gameplay; omitted or blank email is accepted, and a supplied address is validated. Email/SMS verification is not required for this version. Persistent player sessions support rejoining. Use an authenticated host session; knowing `/host` is not authorization.
 
-The private host view and TV display are separate so balances and the selected phone number stay private until intentional reveals. A host browser uses an extended screen or a separate control device. Trivia questions remain in external PowerPoint slides.
+The private host view and TV display are separate so balances and the selected phone number stay private until intentional reveals. A host browser uses an extended screen or a separate control device. A Mac can open `/screen`, sign in and select the same room while a phone/iPad remains signed in at `/host`; logins coexist independently and the TV receives only public state. Guests scan the TV lobby QR. Capability-based TV links remain supported without sign-in; directly opening a signed-in TV never replaces these links. Trivia questions remain in external PowerPoint slides.
+
+The 24 preset avatars include Moai 🗿, otter 🦦, dogs 🐶 🐕 🐩 🦮, Mount Fuji 🗻, Paris café choices 🥐 🥖 🧀, and playful meme faces. Saved profiles retain their existing emoji when the picker changes.
 
 ## Stage sequence
 

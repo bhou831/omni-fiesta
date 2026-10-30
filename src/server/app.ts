@@ -154,6 +154,26 @@ export function createApp(options: AppOptions) {
       path: '/',
     });
   }
+  // A Mac can sign in independently and run only the public TV projection, without
+  // replacing a capability link already in use on another display.
+  function displayViewer(header: string | undefined, roomId: string, token?: string): Viewer {
+    if (token !== undefined) {
+      requireRule(
+        store.displayAuthorized(roomId, token),
+        'FORBIDDEN',
+        'This TV link expired. Open /screen and sign in, or ask the host for a new link.',
+        403,
+      );
+    } else {
+      requireRule(
+        sessionFrom(header, 'host'),
+        'UNAUTHORIZED',
+        'Sign in on this device to set up the TV display.',
+        401,
+      );
+    }
+    return { role: 'display', roomId };
+  }
   function viewer(req: Request, roomId: string): Viewer {
     const role = z.enum(['host', 'player', 'display']).parse(req.query.role ?? 'player');
     if (role === 'host') {
@@ -162,13 +182,7 @@ export function createApp(options: AppOptions) {
     }
     if (role === 'display') {
       const token = req.headers.authorization?.replace(/^Bearer /, '');
-      requireRule(
-        token && store.displayAuthorized(roomId, token),
-        'FORBIDDEN',
-        'Ask the host for a new TV link.',
-        403,
-      );
-      return { role, roomId };
+      return displayViewer(req.headers.cookie, roomId, token);
     }
     const session = needSession(req, 'player');
     requireRule(
@@ -410,13 +424,17 @@ export function createApp(options: AppOptions) {
       const authorize = (): Viewer => {
         store.room(room.id);
         if (auth.role === 'display') {
-          requireRule(
-            auth.displayToken && store.displayAuthorized(room.id, auth.displayToken),
-            'FORBIDDEN',
-            'TV access expired.',
-            403,
+          const publicViewer = displayViewer(
+            socket.handshake.headers.cookie,
+            room.id,
+            auth.displayToken,
           );
-          return { role: 'display', roomId: room.id };
+          if (auth.displayToken === undefined)
+            socket.data.sessionHash = sessionFrom(
+              socket.handshake.headers.cookie,
+              'host',
+            )!.tokenHash;
+          return publicViewer;
         }
         const session = sessionFrom(socket.handshake.headers.cookie, auth.role);
         requireRule(session, 'UNAUTHORIZED', 'Session expired.', 401);
@@ -433,8 +451,12 @@ export function createApp(options: AppOptions) {
       socket.data.authorize = authorize;
       socket.data.viewer = authorize();
       next();
-    } catch {
-      next(new Error('Join or sign in to access this party.'));
+    } catch (error) {
+      next(
+        new Error(
+          error instanceof GameError ? error.message : 'Join or sign in to access this party.',
+        ),
+      );
     }
   });
   io.on('connection', (socket) => {

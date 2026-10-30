@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { io, type Socket } from 'socket.io-client';
 import { createApp } from '../src/server/app.js';
 import { loadConfig } from '../src/server/config.js';
-import type { RoomSnapshot } from '../src/shared/contracts.js';
+import { EMOJIS, type RoomSnapshot } from '../src/shared/contracts.js';
 
 const password = 'local-test-host-password';
 async function fixture() {
@@ -184,7 +184,7 @@ test('HTTP and sockets enforce roles, synchronize players/TV, and preserve accep
   phone.connect();
   assert.equal((await reconnected).self?.checkedIn, true);
 });
-test('public socket cannot connect without its capability or masquerade as a host', async (t) => {
+test('unauthenticated public socket needs a capability and cannot masquerade as a host', async (t) => {
   const f = await fixture();
   t.after(() => f.server.close());
   for (const auth of [
@@ -260,4 +260,138 @@ test('email is optional at registration; provided addresses are validated and re
   });
   assert.equal(invalid.status, 400);
   assert.equal(f.server.store.players(f.room.id).length, 4);
+});
+
+test(
+  'independent host devices control one room while an authenticated TV receives only public state',
+  { timeout: 10000 },
+  async (t) => {
+    const f = await fixture();
+    t.after(() => f.server.close());
+    // The fixture signed in the phone first. Signing in on the Mac must leave it valid.
+    const mac = await f.request('/api/login', { password });
+    assert.notEqual(mac.cookie, f.hostCookie);
+    for (const cookie of [f.hostCookie, mac.cookie])
+      assert.equal(
+        (await f.request('/api/session?role=host', undefined, cookie)).data.authenticated,
+        true,
+      );
+    const guest = await f.request(`/api/rooms/${f.room.code}/join`, {
+      joinKey: randomUUID(),
+      profile: { name: 'Otter', emoji: '🦦', phone: '2125550100', email: 'private@example.test' },
+    });
+    assert.equal(guest.status, 200);
+    // Token-free /screen uses the Mac's host session but still projects the display role.
+    const displayPath = `/api/rooms/${f.room.code}/state?role=display`;
+    const publicState = await f.request(displayPath, undefined, mac.cookie);
+    assert.equal(publicState.status, 200);
+    assert.equal(publicState.data.host, undefined);
+    assert.equal(publicState.data.self, undefined);
+    for (const privateValue of ['2125550100', 'private@example.test', 'spendable'])
+      assert.equal(JSON.stringify(publicState.data).includes(privateValue), false);
+    for (const cookie of ['', guest.cookie])
+      assert.equal((await f.request(displayPath, undefined, cookie)).status, 401);
+    const invalidToken = await fetch(f.base + displayPath, {
+      headers: { Cookie: mac.cookie, Authorization: 'Bearer invalid' },
+    });
+    assert.equal(invalidToken.status, 403); // Never silently upgrade a stale capability link.
+
+    const tv = io(f.base, {
+      autoConnect: false,
+      transports: ['websocket'],
+      extraHeaders: { Cookie: mac.cookie },
+      auth: { role: 'display', code: f.room.code },
+    });
+    const phone = io(f.base, {
+      autoConnect: false,
+      transports: ['websocket'],
+      extraHeaders: { Cookie: f.hostCookie },
+      auth: { role: 'host', code: f.room.code },
+    });
+    const capabilityTv = io(f.base, {
+      autoConnect: false,
+      transports: ['websocket'],
+      auth: { role: 'display', code: f.room.code, displayToken: f.room.displayToken },
+    });
+    t.after(() => {
+      tv.close();
+      phone.close();
+      capabilityTv.close();
+    });
+    const initial = stateWhere(tv);
+    const hostInitial = stateWhere(phone);
+    const capabilityInitial = stateWhere(capabilityTv);
+    tv.connect();
+    phone.connect();
+    capabilityTv.connect();
+    assert.equal((await initial).host, undefined);
+    assert.equal((await hostInitial).host?.players[0].phone, '2125550100');
+    assert.equal((await capabilityInitial).host, undefined);
+    const nextTv = stateWhere(tv, (s) => s.room.phaseInstance === 1);
+    const nextHost = stateWhere(phone, (s) => s.room.phaseInstance === 1);
+    assert.equal(
+      (
+        await f.request(
+          `/api/rooms/${f.room.code}/commands?role=host`,
+          {
+            requestId: randomUUID(),
+            phaseInstance: 0,
+            type: 'phase.advance',
+          },
+          f.hostCookie,
+        )
+      ).status,
+      200,
+    );
+    assert.equal((await nextTv).host, undefined);
+    assert.equal((await nextHost).room.phaseInstance, 1);
+    // Signing out on the Mac disconnects only its session-backed TV, not the phone or capability TV.
+    const disconnected = new Promise<void>((resolve) => tv.once('disconnect', () => resolve()));
+    assert.equal((await f.request('/api/logout', {}, mac.cookie)).status, 200);
+    await disconnected;
+    assert.equal((await f.request(displayPath, undefined, mac.cookie)).status, 401);
+    assert.equal(
+      (await f.request('/api/session?role=host', undefined, f.hostCookie)).data.authenticated,
+      true,
+    );
+    const syncedHost = stateWhere(phone);
+    const syncedCapability = stateWhere(capabilityTv);
+    phone.emit('sync');
+    capabilityTv.emit('sync');
+    assert.equal((await syncedHost).room.phaseInstance, 1);
+    assert.equal((await syncedCapability).host, undefined);
+  },
+);
+
+test('the refreshed avatar palette is accepted at registration; saved older avatars remain intact', async (t) => {
+  const f = await fixture();
+  t.after(() => f.server.close());
+  assert.equal(EMOJIS.length, 24);
+  assert.equal(new Set(EMOJIS).size, 24);
+  const legacy = f.server.store.join(
+    f.server.store.room(f.room.id),
+    {
+      name: 'Existing guest',
+      emoji: '🐯',
+      phone: '2125550100',
+    },
+    randomUUID(),
+    1000000,
+  );
+  for (const [index, emoji] of EMOJIS.entries()) {
+    const result = await f.request(`/api/rooms/${f.room.code}/join`, {
+      joinKey: randomUUID(),
+      profile: { name: `Guest ${index}`, emoji, phone: '2125550100' },
+    });
+    assert.equal(result.status, 200, emoji);
+  }
+  const state = await f.request(
+    `/api/rooms/${f.room.code}/state?role=host`,
+    undefined,
+    f.hostCookie,
+  );
+  assert.equal(
+    state.data.players.find((p: { id: string }) => p.id === legacy.playerId).emoji,
+    '🐯',
+  );
 });

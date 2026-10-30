@@ -304,6 +304,15 @@ legend {
 .join-main > p {
   margin-bottom: 32px;
 }
+.tv-party-list {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.tv-reconnect {
+  text-align: center;
+  margin: 24px;
+}
 .code-input {
   letter-spacing: 0.15em;
   font-weight: 600;

@@ -2,6 +2,16 @@
 
 Status: shared foundation, Party notebook UI, and all game modules/role views implemented and registered in the normal app. Permitted checks and fixture-party network/browser rehearsals have passed as detailed below. AWS deployment and physical-device/full-recovery rehearsals remain pending.
 
+## Separate TV setup and refreshed avatars (2026-10-29)
+
+Refreshed the 24 shared avatar choices with Moai, otter, several dogs, Mount Fuji, Paris café foods and meme faces; existing saved player emojis stay intact. All new choices remain server-validated.
+
+Added a direct **TV display** entry at `/screen`: sign in on the HDMI computer, choose the matching room code and show only the public display. The phone/iPad stays on `/host` with an independent session. Token-free HTTP/WebSocket display access requires host authentication but always uses the display projection; it never rotates the room's capability token. Existing token-based links remain supported. Explicit stale tokens are rejected even with a host cookie, with a setup-again link and useful socket errors. Host controls always offer Open TV display, including browsers without a locally saved token, plus instructions for the second computer. The older replacing-link action stays inside a disclosure.
+
+The reported second-device sign-out was not reproduced: the pre-existing session store already permits independent host logins. Tests now prove concurrent host sessions, controller commands reaching the signed-in TV, separate logout/revocation, continued capability-TV access, no unauthenticated/player-cookie display access, and absence of private balances/contact fields from the TV payload. No schema, accounting, game settings or stored-room changes were needed.
+
+Observed verification: **99 tests passed** with permitted local ports. Formatting, typecheck and production build passed. Chrome exercised the actual `/screen` sign-in, room picker, token-free lobby/QR, updated avatar selection, guest registration and host advancement to investments with the public TV updating. Screenshots: [party picker](verification/tv-setup/party-picker.png), [public lobby](verification/tv-setup/public-lobby.png), [avatars](verification/tv-setup/avatar-picker.png). Browser checks used an isolated in-memory preview on port 3002 with fixture data; simultaneous separate-cookie devices were tested over HTTP/WebSockets, not physical phones. Physical Mac/HDMI and iPhone/iPad verification remains pending. The deployed site, saved party database and private credentials were untouched; these changes still need deployment before appearing on the live domain.
+
 ## Action feedback, visual rules and trivia undo (2026-10-28)
 
 Implemented the follow-up UI requests: the saved room's investment cap is a large green-tinted numeric panel; Ready becomes a green checked button; trivia's player buzzer is a large centered team-color target with generous spacing and a compact header. TV instructions are separate emoji-led list rows. Slots is only title, per-spin cost, maximum spins and optional participation (plus the shared countdown); costume and trivia use the same scannable structure. Removed the extra TV slot marquee.

@@ -135,9 +135,14 @@ function Home() {
     <div className="landing">
       <Header
         right={
-          <a className="subtle-link" href="/host">
-            Host controls
-          </a>
+          <div className="header-actions">
+            <a className="subtle-link" href="/screen">
+              TV display
+            </a>
+            <a className="subtle-link" href="/host">
+              Host controls
+            </a>
+          </div>
         }
       />
       <main className="landing-main">
@@ -175,7 +180,7 @@ function useSession(role: 'host' | 'player') {
   }, [role]);
   return { session, setSession, error };
 }
-function Login({ onSuccess }: { onSuccess: () => void }) {
+function Login({ onSuccess, display = false }: { onSuccess: () => void; display?: boolean }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -195,10 +200,14 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
   }
   return (
     <div className="page">
-      <Header right={<span className="tag">Private host access</span>} />
+      <Header right={<span className="tag">{display ? 'TV setup' : 'Private host access'}</span>} />
       <main className="form-card">
-        <h1>Host controls</h1>
-        <p>Sign in to manage your room.</p>
+        <h1>{display ? 'Set up the TV' : 'Host controls'}</h1>
+        <p>
+          {display
+            ? 'Sign in on this computer, then choose your party. Keep host controls open on your phone or iPad.'
+            : 'Sign in to manage your room.'}
+        </p>
         <form onSubmit={submit}>
           <label>
             Host password
@@ -1179,17 +1188,22 @@ function Host() {
                     <p>Disconnected players keep their tokens, investments and team.</p>
                   </details>
                 )}
-                {displayToken ? (
-                  <a
-                    className="button secondary"
-                    target="_blank"
-                    rel="noreferrer"
-                    href={`/screen?code=${state.room.code}#${displayToken}`}
-                  >
-                    Open TV display ↗
-                  </a>
-                ) : (
-                  <>
+                <a
+                  className="button secondary"
+                  target="_blank"
+                  rel="noreferrer"
+                  href={`/screen?code=${state.room.code}${displayToken ? `#${displayToken}` : ''}`}
+                >
+                  Open TV display ↗
+                </a>
+                <p className="fine-print">
+                  Using a separate computer? Open <strong>/screen</strong> there, sign in with the
+                  host password and choose party <strong>{state.room.code}</strong>. Your phone
+                  stays signed in. Guests scan the join QR on the TV.
+                </p>
+                {!displayToken && (
+                  <details>
+                    <summary>TV link without signing in</summary>
                     <button
                       className="button secondary"
                       disabled={hostBusy === 'display-link'}
@@ -1201,7 +1215,7 @@ function Host() {
                       This browser has no TV link for this party. A new link replaces any link a TV
                       is already using.
                     </p>
-                  </>
+                  </details>
                 )}
               </section>
             </div>
@@ -1335,14 +1349,65 @@ function DisplayFrame({ children }: { children: React.ReactNode }) {
 function Display() {
   const code = new URLSearchParams(location.search).get('code')?.toUpperCase() ?? null;
   const token = location.hash.slice(1);
+  return code && token ? <DisplayRoom code={code} token={token} /> : <DisplaySetup code={code} />;
+}
+function DisplaySetup({ code }: { code: string | null }) {
+  const { session, setSession, error: sessionError } = useSession('host');
+  const [rooms, setRooms] = useState<RoomListItem[] | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!session?.authenticated || code) return;
+    api<{ rooms: RoomListItem[] }>('/api/rooms')
+      .then((data) => setRooms(data.rooms.filter((r) => !r.archived)))
+      .catch((err) => setError(err.message));
+  }, [session?.authenticated, code]);
+  if (!session) return <Loading error={sessionError} />;
+  if (!session.authenticated)
+    return <Login display onSuccess={() => setSession({ authenticated: true })} />;
+  if (code) return <DisplayRoom code={code} />;
+  return (
+    <div className="page">
+      <Header right={<span className="tag">TV setup</span>} />
+      <main className="form-card">
+        <h1>Choose your party</h1>
+        <p>Match the room code on your phone. Only the public game view will appear here.</p>
+        <ErrorNote text={error} />
+        <nav className="tv-party-list" aria-label="Choose party for TV">
+          {rooms?.map((r) => (
+            <a className="button secondary" key={r.id} href={`/screen?code=${r.code}`}>
+              {r.code} · {roomSummary(r)} →
+            </a>
+          ))}
+        </nav>
+        {!rooms && !error && <p>Loading parties…</p>}
+        {rooms?.length === 0 && (
+          <p>Create a party in host controls on your phone, then reload this page.</p>
+        )}
+        <p className="fine-print">
+          Keep this tab on the TV and control the games from your phone or iPad. Guests join through
+          the QR code in the lobby.
+        </p>
+      </main>
+    </div>
+  );
+}
+function DisplayRoom({ code, token }: { code: string; token?: string }) {
   const room = useRoom('display', code, token);
   const state = room.state;
   const rosterPage = useRotatingPage(state?.players.length ?? 0, 8);
-  if (!code || !token)
+  if (!state)
     return (
-      <Loading error="Open the TV display using the private link in your host control room." />
+      <>
+        <Loading error={room.error} />
+        {room.error && (
+          <p className="tv-reconnect">
+            <a className="subtle-link" href="/screen">
+              Set up TV again
+            </a>
+          </p>
+        )}
+      </>
     );
-  if (!state) return <Loading error={room.error} />;
   return (
     <DisplayFrame>
       <div className="page display-page">
