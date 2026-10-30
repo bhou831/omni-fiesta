@@ -465,7 +465,7 @@ export function TriviaHost({ trivia, command, disabled, clockOffset = 0 }: Trivi
         <label>
           获奖队伍{' '}
           <select
-            disabled={busy || !!trivia.adventure}
+            disabled={busy || (!!trivia.adventure && !correction)}
             value={team}
             onChange={(e) => setTeamChoice({ context: teamContext, id: e.target.value })}
           >
@@ -496,7 +496,7 @@ export function TriviaHost({ trivia, command, disabled, clockOffset = 0 }: Trivi
             ? '本题已计分'
             : `答对 · 奖励${trivia.teams.find((t) => String(t.id) === team)?.name ?? '全队'}每人`,
           !trivia.teams.length ||
-            !!trivia.adventure ||
+            (!!trivia.adventure && !correction) ||
             alreadyAwarded ||
             (!!board && (!awardCell || trivia.status === 'armed')),
           {

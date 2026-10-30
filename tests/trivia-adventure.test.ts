@@ -109,6 +109,8 @@ test('charades rules, server timer, unique draws and explicit award survive the 
   for (let i = 0; i < 6; i++) {
     const word = f.snapshot().adventure!.item!;
     assert.ok(!words.has(word));
+    assert.equal(f.snapshot('display').adventure?.item, null);
+    assert.equal(f.snapshot('player').adventure?.item, null);
     words.add(word);
     f.execute('adventure-correct', cell, { attempt: 1 });
   }

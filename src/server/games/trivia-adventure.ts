@@ -183,6 +183,7 @@ export function projectAdventure(
         : null,
     item:
       player ||
+      (isCharades(a) && !host) ||
       (isYesNo(a) && !host && !a.displayPrompt) ||
       (!host &&
         !(isYesNo(a) && a.displayPrompt && a.phase === 'rules') &&
