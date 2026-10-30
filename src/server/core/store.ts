@@ -57,7 +57,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 15) {
+    if (schemaVersion > 16) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -141,6 +141,23 @@ export class Store {
       this.db.exec(
         `BEGIN IMMEDIATE; ${TRIVIA_ADVENTURE_SCHEMA} ${hasRewardKind ? '' : 'ALTER TABLE ledger ADD COLUMN reward_kind TEXT;'} PRAGMA user_version=15; COMMIT;`,
       );
+    }
+    if (schemaVersion < 16) {
+      const columns = new Set(
+        (this.db.prepare('PRAGMA table_info(trivia_state)').all() as { name: string }[]).map(
+          (column) => column.name,
+        ),
+      );
+      this.db.exec('BEGIN IMMEDIATE;');
+      if (!columns.has('music_playing'))
+        this.db.exec(
+          'ALTER TABLE trivia_state ADD COLUMN music_playing INTEGER NOT NULL DEFAULT 0;',
+        );
+      if (!columns.has('music_started_at'))
+        this.db.exec('ALTER TABLE trivia_state ADD COLUMN music_started_at INTEGER;');
+      if (!columns.has('music_position'))
+        this.db.exec('ALTER TABLE trivia_state ADD COLUMN music_position REAL NOT NULL DEFAULT 0;');
+      this.db.exec('PRAGMA user_version=16; COMMIT;');
     }
   }
 

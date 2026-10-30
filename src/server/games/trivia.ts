@@ -40,7 +40,6 @@ export const TRIVIA_BOARD_SCHEMA = `
 CREATE TABLE IF NOT EXISTS trivia_boards(room_id TEXT NOT NULL REFERENCES rooms(id),phase_instance INTEGER NOT NULL,content TEXT NOT NULL,selected_cell TEXT,revealed INTEGER NOT NULL DEFAULT 0,begun INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(room_id,phase_instance));
 CREATE TABLE IF NOT EXISTS trivia_cells(room_id TEXT NOT NULL,phase_instance INTEGER NOT NULL,cell_id TEXT NOT NULL,question INTEGER NOT NULL,completed_at INTEGER,PRIMARY KEY(room_id,phase_instance,cell_id),FOREIGN KEY(room_id,phase_instance) REFERENCES trivia_boards(room_id,phase_instance));
 CREATE TABLE IF NOT EXISTS trivia_cell_awards(room_id TEXT NOT NULL,phase_instance INTEGER NOT NULL,award_id TEXT NOT NULL,cell_id TEXT NOT NULL,PRIMARY KEY(room_id,phase_instance,award_id),FOREIGN KEY(room_id,phase_instance,award_id) REFERENCES trivia_awards(room_id,phase_instance,request_id));`;
-
 type BoardRow = { content: string; selected_cell: string | null; revealed: number; begun: number };
 const boardState = (c: PhaseContext) =>
   c.store.db
@@ -60,6 +59,15 @@ export type TriviaBoard = {
     hostNotes?: string;
     kind?: TriviaContent['cells'][number]['kind'];
     musicClip?: { start: number; end: number };
+    musicStoreUrl?: string;
+    musicTrack?: {
+      trackId: number;
+      title: string;
+      artist: string;
+      album: string;
+      storeUrl: string;
+    };
+    musicPlayback?: { playing: boolean; position: number; changedAt: number };
   } | null;
   revealed: boolean;
   started: boolean;
@@ -244,6 +252,8 @@ export function triviaHostAction(
   const adventure = getAdventure(c, board?.selected_cell ?? null);
   const selectedAction = [
     'cancel-selection',
+    'music-start',
+    'music-stop',
     'arm',
     'close-buzzer',
     'incorrect',
@@ -538,6 +548,11 @@ export function triviaHostAction(
       .run(cell.id, room, phase);
     c.store.db
       .prepare(
+        'UPDATE trivia_state SET music_playing=0,music_started_at=NULL,music_position=0 WHERE room_id=? AND phase_instance=?',
+      )
+      .run(room, phase);
+    c.store.db
+      .prepare(
         "UPDATE trivia_state SET question=question+1,status='idle',winner_player=NULL,winner_team=NULL WHERE room_id=? AND phase_instance=?",
       )
       .run(room, phase);
@@ -559,7 +574,54 @@ export function triviaHostAction(
         'UPDATE trivia_boards SET selected_cell=NULL,revealed=0,begun=0 WHERE room_id=? AND phase_instance=?',
       )
       .run(room, phase);
+    c.store.db
+      .prepare(
+        'UPDATE trivia_state SET music_playing=0,music_started_at=NULL,music_position=0 WHERE room_id=? AND phase_instance=?',
+      )
+      .run(room, phase);
     return { cancelled: true };
+  }
+  if (board && (action === 'music-start' || action === 'music-stop')) {
+    requireRule(
+      selected?.kind === 'music' && selected.musicAudio,
+      'MUSIC_UNAVAILABLE',
+      '这首歌尚未准备好。',
+    );
+    const playback = c.store.db
+      .prepare(
+        'SELECT music_playing,music_started_at,music_position FROM trivia_state WHERE room_id=? AND phase_instance=?',
+      )
+      .get(room, phase) as {
+      music_playing: number;
+      music_started_at: number | null;
+      music_position: number;
+    };
+    const end = selected.musicAudio.clipEndSeconds;
+    const currentPosition = Math.max(
+      0,
+      Math.min(
+        end,
+        playback.music_position +
+          (playback.music_playing && playback.music_started_at !== null
+            ? (c.now - playback.music_started_at) / 1000
+            : 0),
+      ),
+    );
+    if (action === 'music-start') {
+      const nextPosition = currentPosition >= end ? 0 : currentPosition;
+      c.store.db
+        .prepare(
+          'UPDATE trivia_state SET music_playing=1,music_started_at=?,music_position=? WHERE room_id=? AND phase_instance=?',
+        )
+        .run(c.now, nextPosition, room, phase);
+      return { playing: true, position: nextPosition };
+    }
+    c.store.db
+      .prepare(
+        'UPDATE trivia_state SET music_playing=0,music_started_at=NULL,music_position=? WHERE room_id=? AND phase_instance=?',
+      )
+      .run(currentPosition, room, phase);
+    return { playing: false, position: currentPosition };
   }
   if (board && action === 'reveal-answer') {
     requireRule(!adventure, 'INVALID_ADVENTURE', '请使用大冒险结果操作。');
@@ -590,6 +652,11 @@ export function triviaHostAction(
     c.store.db
       .prepare(
         'UPDATE trivia_boards SET selected_cell=NULL,revealed=0,begun=0 WHERE room_id=? AND phase_instance=?',
+      )
+      .run(room, phase);
+    c.store.db
+      .prepare(
+        'UPDATE trivia_state SET music_playing=0,music_started_at=NULL,music_position=0 WHERE room_id=? AND phase_instance=?',
       )
       .run(room, phase);
     c.store.db
@@ -992,12 +1059,40 @@ function projectBoard(c: PhaseContext, board: BoardRow, host: boolean): TriviaBo
           ...(host || board.revealed ? { answer: clue.hostAnswer } : {}),
           ...(host ? { hostNotes: clue.hostNotes } : {}),
           kind: clue.kind,
+          ...(clue.musicTrack ? { musicStoreUrl: clue.musicTrack.storeUrl } : {}),
+          ...(clue.musicTrack && (host || board.revealed) ? { musicTrack: clue.musicTrack } : {}),
           ...(clue.musicAudio
             ? {
                 musicClip: {
                   start: clue.musicAudio.clipStartSeconds,
                   end: clue.musicAudio.clipEndSeconds,
                 },
+                musicPlayback: (() => {
+                  const p = c.store.db
+                    .prepare(
+                      'SELECT music_playing,music_started_at,music_position FROM trivia_state WHERE room_id=? AND phase_instance=?',
+                    )
+                    .get(c.room.id, c.room.phase_instance) as {
+                    music_playing: number;
+                    music_started_at: number | null;
+                    music_position: number;
+                  };
+                  const position = Math.max(
+                    0,
+                    Math.min(
+                      clue.musicAudio!.clipEndSeconds,
+                      p.music_position +
+                        (p.music_playing && p.music_started_at !== null
+                          ? (c.now - p.music_started_at) / 1000
+                          : 0),
+                    ),
+                  );
+                  return {
+                    playing: !!p.music_playing && position < clue.musicAudio!.clipEndSeconds,
+                    position,
+                    changedAt: p.music_started_at ?? c.now,
+                  };
+                })(),
               }
             : {}),
         }

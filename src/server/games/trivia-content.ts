@@ -38,6 +38,16 @@ const clueSchema = z
       .strict()
       .refine((a) => !!a.file !== !!a.url, 'Choose one local file or preview URL.')
       .optional(),
+    musicTrack: z
+      .object({
+        trackId: z.number().int().positive(),
+        title: z.string().trim().min(1).max(200),
+        artist: z.string().trim().min(1).max(200),
+        album: z.string().trim().min(1).max(200),
+        storeUrl: z.string().url(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 const bankSchema = z
@@ -134,6 +144,22 @@ export function validateTriviaContent(content: unknown): asserts content is Triv
     throw new Error('Music clip bounds are invalid.');
   if (bank.cells.some((c) => c.musicAudio?.url && !isApprovedApplePreviewUrl(c.musicAudio.url)))
     throw new Error('Music preview URL is not an approved iTunes preview.');
+  if (
+    bank.cells.some(
+      (c) => c.musicTrack && !/^https:\/\/music\.apple\.com\//.test(c.musicTrack.storeUrl),
+    )
+  )
+    throw new Error('Music store link is not an Apple Music URL.');
+  if (
+    bank.cells.some(
+      (c) =>
+        c.musicAudio?.url &&
+        (!c.musicTrack ||
+          c.musicAudio.clipStartSeconds !== 0 ||
+          c.musicAudio.clipEndSeconds !== 30),
+    )
+  )
+    throw new Error('Apple previews must use the complete 30 second preview.');
   if (
     bank.cells.some(
       (c) => c.kind === 'music' && !c.unavailableReason && (!c.musicAudio || !c.hostAnswer),

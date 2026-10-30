@@ -18,11 +18,11 @@ import { PREVIEW_SCENARIOS, seedPreviewRoom } from '../scripts/preview-fixtures.
 import { TriviaDisplay, TriviaPlayer } from '../src/client/Trivia.js';
 
 const host: Session = { role: 'host', roomId: null, playerId: null, tokenHash: '' };
-async function fixture(path = ':memory:') {
+async function fixture(path = ':memory:', now = () => 1000000) {
   const app = createApp({
     databasePath: path,
     hostPassword: 'board-test-password',
-    now: () => 1000000,
+    now,
   });
   const room = await seedPreviewRoom(
     app.engine,
@@ -313,12 +313,95 @@ test('frozen clues, selection, reveal and used cells survive restart and a v12 m
   await app.close();
   const store = new Store(path);
   t.after(() => store.close());
-  assert.equal(store.db.prepare('PRAGMA user_version').get()!.user_version, 15);
+  assert.equal(store.db.prepare('PRAGMA user_version').get()!.user_version, 16);
   assert.equal(
     store.db.prepare('SELECT question FROM trivia_state WHERE room_id=?').get(f.room.id)!.question,
     1,
   );
   assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM trivia_boards').get()!.n, 0);
+});
+
+test('v15 adds host-controlled music playback state without changing trivia rows', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'trivia-music-migration-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, 'room.sqlite');
+  const f = await fixture(path);
+  const { room, cellId } = f;
+  f.execute('select-cell', { cellId });
+  f.app.store.db.exec(
+    'ALTER TABLE trivia_state DROP COLUMN music_playing; ALTER TABLE trivia_state DROP COLUMN music_started_at; ALTER TABLE trivia_state DROP COLUMN music_position; PRAGMA user_version=15',
+  );
+  await f.app.close();
+  const app = createApp({ databasePath: path, hostPassword: 'board-test-password' });
+  t.after(() => app.close());
+  assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 16);
+  assert.equal(
+    app.store.db.prepare('SELECT question FROM trivia_state WHERE room_id=?').get(room.id)!
+      .question,
+    1,
+  );
+  const columns = new Set(
+    (app.store.db.prepare('PRAGMA table_info(trivia_state)').all() as { name: string }[]).map(
+      (x) => x.name,
+    ),
+  );
+  assert.ok(columns.has('music_playing'));
+  assert.ok(columns.has('music_started_at'));
+  assert.ok(columns.has('music_position'));
+});
+
+test('host music playback survives reconnect and restart, then cancellation clears it', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'trivia-music-playback-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, 'room.sqlite');
+  const f = await fixture(path);
+  const musicCellId = createTriviaContent([100, 200, 300, 400, 500], DEMO_TRIVIA_BANK).cells.find(
+    (cell) => cell.kind === 'music',
+  )!.id;
+  f.execute('select-cell', { cellId: musicCellId });
+  f.execute('music-start', { cellId: musicCellId });
+  assert.equal(f.snapshot('display').board?.selected?.musicPlayback?.playing, true);
+  await f.app.close();
+  const app = createApp({
+    databasePath: path,
+    hostPassword: 'board-test-password',
+    now: () => 1_000_000,
+  });
+  t.after(() => app.close());
+  assert.equal(
+    app.engine.snapshot({ role: 'display', roomId: f.room.id }).trivia?.board?.selected
+      ?.musicPlayback?.playing,
+    true,
+  );
+  app.engine.execute(host, f.room.id, {
+    type: 'phase.host',
+    phaseInstance: app.store.room(f.room.id).phase_instance,
+    requestId: randomUUID(),
+    payload: { action: 'cancel-selection', data: { cellId: musicCellId } },
+  });
+  const cancelled = app.engine.snapshot({ role: 'display', roomId: f.room.id }).trivia?.board;
+  assert.equal(cancelled?.selected, null);
+  const playback = app.store.db
+    .prepare('SELECT music_playing,music_position FROM trivia_state WHERE room_id=?')
+    .get(f.room.id) as { music_playing: number; music_position: number };
+  assert.equal(playback.music_playing, 0);
+  assert.equal(playback.music_position, 0);
+});
+
+test('music playback preserves elapsed time when the injected clock starts at zero', async (t) => {
+  const clock = { value: 0 };
+  const f = await fixture(':memory:', () => clock.value);
+  t.after(() => f.app.close());
+  const musicCellId = createTriviaContent([100, 200, 300, 400, 500], DEMO_TRIVIA_BANK).cells.find(
+    (cell) => cell.kind === 'music',
+  )!.id;
+  f.execute('select-cell', { cellId: musicCellId });
+  f.execute('music-start', { cellId: musicCellId });
+  clock.value = 1_400;
+  f.execute('music-stop', { cellId: musicCellId });
+  assert.ok(
+    Math.abs((f.snapshot('display').board?.selected?.musicPlayback?.position ?? 0) - 1.4) < 0.001,
+  );
 });
 
 test('custom banks validate without exposing data and a selected room keeps its frozen bank', async (t) => {
@@ -554,7 +637,7 @@ for (const original of ['upstream-reveals-v13', 'local-trivia-v13'] as const)
     await f.app.close();
     const app = createApp({ databasePath: path, hostPassword: 'board-test-password' });
     t.after(() => app.close());
-    assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 15);
+    assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 16);
     for (const name of [
       'trivia_boards',
       'trivia_cells',

@@ -217,25 +217,122 @@ function Question({ board, host = false }: { board: TriviaBoard; host?: boolean 
     </article>
   );
 }
-function MusicClip({ url, start, end }: { url: string; start: number; end: number }) {
+function MusicClip({
+  url,
+  start,
+  end,
+  playing,
+  position,
+  changedAt,
+  track,
+  storeUrl,
+  host,
+  command,
+  cellId,
+  disabled,
+}: {
+  url: string;
+  start: number;
+  end: number;
+  playing: boolean;
+  position: number;
+  changedAt: number;
+  track?: NonNullable<TriviaBoard['selected']>['musicTrack'];
+  storeUrl?: string;
+  host?: boolean;
+  command?: CommandSender;
+  cellId?: string;
+  disabled?: boolean;
+}) {
   const ref = useRef<HTMLAudioElement>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [clipEnded, setClipEnded] = useState(false);
+  const playbackActive = playing && !clipEnded;
+  useEffect(() => {
+    setClipEnded(false);
+    if (!playing) return;
+    const timeout = window.setTimeout(
+      () => setClipEnded(true),
+      Math.max(0, (end - position) * 1000),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [playing, position, changedAt, end]);
+  useEffect(() => {
+    const audio = ref.current;
+    if (!audio) return;
+    audio.currentTime = Math.min(end, start + position);
+    if (playbackActive && enabled) {
+      void audio
+        .play()
+        .then(() => setBlocked(false))
+        .catch(() => setBlocked(true));
+    } else audio.pause();
+  }, [playbackActive, position, changedAt, enabled, start, end]);
   return (
-    <audio
-      ref={ref}
-      controls
-      preload="metadata"
-      aria-label="听歌识曲片段"
-      onLoadedMetadata={() => {
-        if (ref.current) ref.current.currentTime = start;
-      }}
-      onTimeUpdate={() => {
-        if (ref.current && ref.current.currentTime >= end) {
-          ref.current.pause();
-          ref.current.currentTime = start;
-        }
-      }}
-      src={url}
-    />
+    <section className="trivia-music-playback" aria-label="听歌识曲播放">
+      <audio
+        ref={ref}
+        preload="metadata"
+        aria-label="听歌识曲片段"
+        onLoadedMetadata={() => {
+          if (ref.current) ref.current.currentTime = start + position;
+        }}
+        onTimeUpdate={() => {
+          if (ref.current && ref.current.currentTime >= end) ref.current.pause();
+        }}
+        src={url}
+      />
+      {host && command && cellId && (
+        <div className="trivia-music-host-controls">
+          <button
+            className="button primary"
+            disabled={disabled || (!playbackActive && !enabled)}
+            onClick={() =>
+              void command('phase.host', {
+                action: playbackActive ? 'music-stop' : 'music-start',
+                data: { cellId },
+              })
+            }
+          >
+            {playbackActive ? '结束播放' : '播放试听'}
+          </button>
+          <button className="button secondary" disabled={enabled} onClick={() => setEnabled(true)}>
+            {enabled ? '本机声音已启用' : '启用本机声音'}
+          </button>
+        </div>
+      )}
+      {!enabled && !host && (
+        <button className="button secondary" onClick={() => setEnabled(true)}>
+          启用大屏声音
+        </button>
+      )}
+      {blocked && <p role="status">浏览器拦截了自动播放，请点“启用大屏声音”。</p>}
+      <p role="status">
+        {playbackActive
+          ? `主持人正在播放 · 约 ${Math.ceil(end - position)} 秒`
+          : position > 0 || clipEnded
+            ? '试听已暂停'
+            : '等待主持人播放'}
+      </p>
+      {storeUrl ? (
+        <>
+          <p>Preview provided courtesy of iTunes.</p>
+          <p>
+            <a href={storeUrl} target="_blank" rel="noreferrer">
+              在 Apple Music 查看此曲
+            </a>
+          </p>
+          {track && (
+            <p>
+              {track.title} · {track.artist} — {track.album}
+            </p>
+          )}
+        </>
+      ) : (
+        <p>演示音频</p>
+      )}
+    </section>
   );
 }
 export function TriviaHost({
@@ -429,8 +526,21 @@ export function TriviaHost({
           </>
         )}
         {board && selected && !trivia.adventure && <Question board={board} host />}
-        {selected?.kind === 'music' && selected.musicClip && audioUrl && (
-          <MusicClip url={audioUrl} start={selected.musicClip.start} end={selected.musicClip.end} />
+        {selected?.kind === 'music' && selected.musicClip && audioUrl && selected.musicPlayback && (
+          <MusicClip
+            url={audioUrl}
+            start={selected.musicClip.start}
+            end={selected.musicClip.end}
+            playing={selected.musicPlayback.playing}
+            position={selected.musicPlayback.position}
+            changedAt={selected.musicPlayback.changedAt}
+            track={selected.musicTrack}
+            storeUrl={selected.musicStoreUrl}
+            host
+            command={command}
+            cellId={selected.id}
+            disabled={busy}
+          />
         )}
         {trivia.adventure && (
           <AdventureHost
@@ -702,13 +812,21 @@ export function TriviaDisplay({
             ) : board.selected ? (
               <>
                 <Question board={board} />
-                {board.selected.kind === 'music' && board.selected.musicClip && audioUrl && (
-                  <MusicClip
-                    url={audioUrl}
-                    start={board.selected.musicClip.start}
-                    end={board.selected.musicClip.end}
-                  />
-                )}
+                {board.selected.kind === 'music' &&
+                  board.selected.musicClip &&
+                  board.selected.musicPlayback &&
+                  audioUrl && (
+                    <MusicClip
+                      url={audioUrl}
+                      start={board.selected.musicClip.start}
+                      end={board.selected.musicClip.end}
+                      playing={board.selected.musicPlayback.playing}
+                      position={board.selected.musicPlayback.position}
+                      changedAt={board.selected.musicPlayback.changedAt}
+                      track={board.selected.musicTrack}
+                      storeUrl={board.selected.musicStoreUrl}
+                    />
+                  )}
               </>
             ) : (
               <Board board={board} />

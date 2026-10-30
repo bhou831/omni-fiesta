@@ -198,7 +198,12 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
 
 test('selected synthetic music is served only to authenticated host or TV and never exposed on phones', async (t) => {
   const password = 'trivia-audio-password';
-  const app = createApp({ databasePath: ':memory:', hostPassword: password });
+  const clock = { value: Date.now() };
+  const app = createApp({
+    databasePath: ':memory:',
+    hostPassword: password,
+    now: () => clock.value,
+  });
   const room = await seedPreviewRoom(
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
@@ -222,6 +227,13 @@ test('selected synthetic music is served only to authenticated host or TV and ne
     Date.now(),
     hash(password),
   )!;
+  const hostAction = (action: string, data: Record<string, unknown>) =>
+    app.engine.execute(hostSession, room.id, {
+      requestId: randomUUID(),
+      phaseInstance: app.store.room(room.id).phase_instance,
+      type: 'phase.host',
+      payload: { action, data },
+    });
   app.engine.execute(hostSession, room.id, {
     requestId: randomUUID(),
     phaseInstance: app.store.room(room.id).phase_instance,
@@ -270,7 +282,26 @@ test('selected synthetic music is served only to authenticated host or TV and ne
   });
   const tvState = (await tvStateResponse.json()) as RoomSnapshot;
   assert.deepEqual(tvState.trivia?.board?.selected?.musicClip, { start: 0, end: 5.5 });
+  assert.equal(tvState.trivia?.board?.selected?.musicPlayback?.playing, false);
   assert.equal(tvState.trivia?.board?.selected?.answer, undefined);
+  hostAction('music-start', { cellId: cell.id });
+  const startedTvState = (await (
+    await fetch(`${base}/api/rooms/${room.code}/state?role=display`, {
+      headers: { Authorization: `Bearer ${room.displayToken}` },
+    })
+  ).json()) as RoomSnapshot;
+  assert.equal(startedTvState.trivia?.board?.selected?.musicPlayback?.playing, true);
+  clock.value += 1400;
+  hostAction('music-stop', { cellId: cell.id });
+  const stoppedTvState = (await (
+    await fetch(`${base}/api/rooms/${room.code}/state?role=display`, {
+      headers: { Authorization: `Bearer ${room.displayToken}` },
+    })
+  ).json()) as RoomSnapshot;
+  assert.equal(stoppedTvState.trivia?.board?.selected?.musicPlayback?.playing, false);
+  assert.ok(
+    Math.abs((stoppedTvState.trivia?.board?.selected?.musicPlayback?.position ?? 0) - 1.4) < 0.001,
+  );
   const phone = await fetch(`${base}/api/rooms/${room.code}/state?role=player`, {
     headers: {
       Cookie: `of_player=${app.store.session('player', Date.now(), null, room.playerId, room.id)}`,
@@ -303,4 +334,28 @@ test('selected synthetic music is served only to authenticated host or TV and ne
     audioBytes.push(new Uint8Array(await response.arrayBuffer()));
   }
   assert.equal(new Set(audioBytes.map((bytes) => Buffer.from(bytes).toString('hex'))).size, 5);
+  const lastCell = cells.at(-1)!;
+  hostAction('music-start', { cellId: lastCell.id });
+  clock.value += 6_000;
+  const expiredTvState = (await (
+    await fetch(`${base}/api/rooms/${room.code}/state?role=display`, {
+      headers: { Authorization: `Bearer ${room.displayToken}` },
+    })
+  ).json()) as RoomSnapshot;
+  assert.equal(expiredTvState.trivia?.board?.selected?.musicPlayback?.playing, false);
+  hostAction('music-start', { cellId: lastCell.id });
+  const replayTvState = (await (
+    await fetch(`${base}/api/rooms/${room.code}/state?role=display`, {
+      headers: { Authorization: `Bearer ${room.displayToken}` },
+    })
+  ).json()) as RoomSnapshot;
+  assert.equal(replayTvState.trivia?.board?.selected?.musicPlayback?.playing, true);
+  assert.ok((replayTvState.trivia?.board?.selected?.musicPlayback?.position ?? 1) < 0.01);
+  hostAction('finish-cell', { cellId: lastCell.id });
+  const finishedTvState = (await (
+    await fetch(`${base}/api/rooms/${room.code}/state?role=display`, {
+      headers: { Authorization: `Bearer ${room.displayToken}` },
+    })
+  ).json()) as RoomSnapshot;
+  assert.equal(finishedTvState.trivia?.board?.selected, null);
 });
