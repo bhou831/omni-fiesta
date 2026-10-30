@@ -93,6 +93,8 @@ test('expanded details lead with a chart button, tuck the payoff table away, and
     const restored = view(20, 0.000000005, 0.000000015);
     assert.match(restored, /Tokens in SOL/);
     assert.match(restored, /value="250"/);
+    assert.match(restored, /placeholder="Enter tokens"/);
+    assert.doesNotMatch(restored, /Add the rest/);
     assert.doesNotMatch(restored, /Tokens in BTC/);
     assert.match(restored, /Invested[^]*250/);
   } finally {

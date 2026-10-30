@@ -302,7 +302,10 @@ test('saved configuration, sessions, ledger, and expired deadline survive reopen
     reopened.expireAll();
     assert.equal(store.room(room.id).deadline_at, 3000);
     assert.equal(store.room(room.id).status, 'closed');
-    assert.equal(JSON.parse(store.room(room.id).config).investments.max_investment_tokens, 600);
+    assert.equal(
+      JSON.parse(store.room(room.id).config).investments.max_investment_tokens,
+      config.investments.max_investment_tokens,
+    );
     assert.ok(store.authenticate(joined.token, 'player', 4000, ''));
     assert.ok(store.authenticate(hostToken, 'host', 4000, hash('a-private-password')));
     assert.equal(store.authenticate(hostToken, 'host', 4000, hash('a-new-password')), null);

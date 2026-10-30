@@ -1,6 +1,6 @@
 # Trivia
 
-The TV is the shared stage: show one large question, then prioritize the answer after reveal, with category and value kept quiet. Put buzzer state and team scores along the bottom. Phones show the player's team, one short state message and a large buzzer; they never show questions or collect answers. The host alone judges spoken answers. Keep Trivia surfaces free of ambient balloons and fireworks.
+The TV is the shared stage: begin with three short Chinese rules (choose a clue, buzz and answer aloud, earn the clue value per teammate) and a decorative animated question board/buzzer, with assigned teams below. Once play begins, show one large question, then prioritize the answer after reveal, with category and value kept quiet. Put buzzer state and team scores along the bottom. The TV uses the shared background balloons/fireworks; phones remain free of ambient effects. All decorative motion respects reduced motion and pauses in hidden tabs. Phones show the player's team, one short state message and a large buzzer; they never show questions or collect answers. The host alone judges spoken answers.
 
 New rooms use a host-controlled 5×5 board, in this order: 童年DNA、听歌识曲名、大冒险、自然地理、随机挑战. Teams announce a choice aloud; only the authenticated host selects the cell. The TV shows the full question; phones show team identity, buzzer status and a large 抢答 button. After buzzing, players answer aloud; the host alone judges and records the score. Phones never collect typed or multiple-choice answers. Trivia has no timer. Its copy is Chinese; other stages retain their existing language.
 
@@ -25,6 +25,14 @@ New rooms use a host-controlled 5×5 board, in this order: 童年DNA、听歌识
 Successful host actions show feedback only after acknowledgment; an in-flight guard blocks rapid clicks. **计分与撤销记录 → 撤销计分** atomically reverses the exact original award for every frozen recipient. Append reversal entries, retain the original receipt, and never touch locked/reserved accounts. Repeated undo cannot debit twice; insufficient spendable funds roll back all debits. After undo, **重新计分此题** permits a corrected team award for that same cell, including after completion, while trivia is open. The amount remains the cell value. Legacy rooms retain their free-form amount correction. Closing trivia ends the correction window.
 
 Schema v14 adds board snapshots, selection/completion state and nullable-by-absence award/cell associations. Historical awards remain readable and reversible; no cell IDs are inferred. Host projections contain private answers, judging notes, music candidates and correction history. TV snapshots contain board availability/completion, the current prompt and team trivia scores; answers appear only after reveal. Player snapshots omit the board, prompts, answers, media metadata, score table and award history. HTTP and Socket.IO both use these filtered projections. Contact details and other players' balances remain private.
+
+The host's scoring selector defaults to the current buzzer winner; the award button names the recipient team. A manual team choice lasts only for that question/window/correction, so it cannot silently carry over to a new buzz. Finishing a clue sits below scoring, labeled **不计分 · 完成本题** until an active award exists. Phones show **本轮结束** when the host closes trivia.
+
+## Game-day host sequence
+
+Phone status always follows the authoritative team result, including when another teammate wins while this phone's request is still pending or rejected. There is no persistent local "未抢到" result to carry into the next question. Expected closed/stale/excluded buzzer rejections resync without a contradictory error banner; genuine network and other command errors remain visible.
+
+Before play, verify the selected bank is the intended event bank (the demo switch is locked after the board starts), then assign teams. Show the board; a team announces a category/value and the host opens that cell. Read the question, click **开启抢答**, and judge the first team's spoken answer. On a wrong answer click **答错 · 不扣分**, then **开启抢答** again for eligible teams. On a correct answer verify the named team and save its award. Optionally **公布答案**, then **完成本题 · 返回题板** to select the next clue. Skipping a clue uses the explicitly labeled no-score finish. No external slides or manual phone navigation are required. Questions are frozen for the room; edit the bank before starting a fresh party rather than expecting file edits to change an active board.
 
 ## Verification
 

@@ -103,7 +103,15 @@ export function useRoom(role: Role, code: string | null, displayToken?: string) 
         socketRef.current?.emit('sync');
         return response;
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Please try again.');
+        // Losing a buzzer race is normal. The synced team result is the phone's status,
+        // including when another member of this same team won. Keep real/network errors visible.
+        const buzzRace =
+          state.room.phase === 'trivia' &&
+          type === 'phase.action' &&
+          payload?.action === 'buzz' &&
+          err instanceof RequestError &&
+          ['BUZZER_CLOSED', 'STALE_WINDOW', 'TEAM_EXCLUDED'].includes(err.code);
+        setError(buzzRace ? '' : err instanceof Error ? err.message : 'Please try again.');
         if (!(err instanceof RequestError) || err.code !== 'NETWORK') pending.current = null;
         socketRef.current?.emit('sync');
       } finally {

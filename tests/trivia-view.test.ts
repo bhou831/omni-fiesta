@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TriviaDisplay, TriviaPlayer } from '../src/client/Trivia.js';
+import { TriviaDisplay, TriviaHost, TriviaPlayer } from '../src/client/Trivia.js';
 import type { TriviaProjection } from '../src/server/games/trivia.js';
 
 const trivia: TriviaProjection = {
@@ -80,7 +80,7 @@ const board: NonNullable<TriviaProjection['board']> = {
   canCancel: false,
 };
 
-test('TV landing shows each assigned group and removes phone-only instructions', () => {
+test('TV landing explains Jeopardy and retains assigned teams without exposing clues', () => {
   const teams = [1, 2, 3, 4].map((id) => ({
     id,
     name: `第 ${id} 队`,
@@ -103,7 +103,48 @@ test('TV landing shows each assigned group and removes phone-only instructions',
   assert.match(html, /今晚的队伍/);
   assert.match(html, /4 支队伍/);
   assert.equal((html.match(/class="team-card"/g) ?? []).length, 4);
+  assert.match(html, /组队，选题，抢答/);
+  assert.match(html, /最快的队伍口头回答/);
+  assert.match(html, /全队每人获得题目分值/);
+  assert.match(html, /答错不扣分/);
+  assert.match(html, /jeopardy-intro-art/);
+  assert.doesNotMatch(html, /示例问题/);
   assert.doesNotMatch(html, /看大屏幕|等待主持人/);
+});
+
+test('unassigned landing still shows rules and the closed phone cannot announce an old winner', () => {
+  const html = renderToStaticMarkup(
+    createElement(TriviaDisplay, {
+      trivia: { ...trivia, teams: [], board: { ...board, selected: null, started: false } },
+    }),
+  );
+  assert.match(html, /trivia-intro-rules/);
+  assert.match(html, /jeopardy-intro-art/);
+  assert.doesNotMatch(html, /今晚的队伍/);
+  const phone = renderToStaticMarkup(
+    createElement(TriviaPlayer, {
+      trivia: { ...trivia, ownTeamId: 1, status: 'armed' },
+      command: async () => {},
+      disabled: false,
+      closed: true,
+    }),
+  );
+  assert.match(phone, /本轮结束/);
+  assert.match(phone, /disabled=""/);
+  assert.doesNotMatch(phone, /本队抢答成功|可以抢答/);
+});
+
+test('host defaults scoring to the actual buzzer winner and makes the award destination explicit', () => {
+  const html = renderToStaticMarkup(
+    createElement(TriviaHost, {
+      trivia: { ...trivia, winner: { teamId: 2, playerId: 'c' }, board },
+      command: async () => {},
+      disabled: false,
+    }),
+  );
+  assert.match(html, /value="2" selected=""/);
+  assert.match(html, /答对 · 奖励Team 2每人/);
+  assert.match(html, /不计分 · 完成本题/);
 });
 
 test('question display identifies the buzzer winner without repeating instructions or a roster', () => {

@@ -66,13 +66,21 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
     auth: { role: 'player', code: room.code },
     extraHeaders: { Cookie: playerCookie },
   });
+  const host = io(base, {
+    autoConnect: false,
+    transports: ['websocket'],
+    auth: { role: 'host', code: room.code },
+    extraHeaders: { Cookie: hostCookie },
+  });
   t.after(() => {
     tv.close();
     phone.close();
+    host.close();
   });
-  const initial = [next(tv, () => true), next(phone, () => true)];
+  const initial = [next(tv, () => true), next(phone, () => true), next(host, () => true)];
   tv.connect();
   phone.connect();
+  host.connect();
   await Promise.all(initial);
   assert.equal((await request('player', playerCookie, command('select-cell'))).status, 403);
   // Display is not a valid command role; transport rejects it before dispatch.
@@ -124,4 +132,66 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
   await request('host', hostCookie, command('reveal-answer'));
   assert.match((await revealed).trivia!.board!.selected!.answer!, /哆啦A梦/);
   assert.equal((await request('player', playerCookie)).data.trivia.board, undefined);
+
+  // Score, correct, finish and change questions through the real transport, with all roles live.
+  const winningTeam = (await request('host', hostCookie)).data.trivia.winner.teamId;
+  const before = (await request('player', playerCookie)).data.self.accounts.spendable;
+  const ownTeam = (await request('player', playerCookie)).data.trivia.ownTeamId;
+  const beforeAwardVersion = (await request('host', hostCookie)).data.room.version;
+  const sync = (match: (s: RoomSnapshot) => boolean) =>
+    Promise.all([next(host, match), next(tv, match), next(phone, match)]);
+  const scored = sync(
+    (s) =>
+      s.trivia?.teams.find((t) => t.id === winningTeam)?.score === 100 ||
+      (s.self !== undefined && s.trivia?.question === 1 && s.room.version > beforeAwardVersion),
+  );
+  const award = await request(
+    'host',
+    hostCookie,
+    command('award', {
+      cellId: 'childhood-1',
+      teamId: winningTeam,
+      amount: 100,
+    }),
+  );
+  assert.equal(award.status, 200);
+  await scored;
+  assert.equal(
+    (await request('player', playerCookie)).data.self.accounts.spendable,
+    before + (ownTeam === winningTeam ? 100 : 0),
+  );
+  const awardId = (await request('host', hostCookie)).data.trivia.awardHistory[0].id;
+  assert.equal((await request('host', hostCookie, command('undo-award', { awardId }))).status, 200);
+  assert.equal((await request('player', playerCookie)).data.self.accounts.spendable, before);
+  assert.ok(
+    (await request('display', '')).data.trivia.teams.every((t: { score: number }) => t.score === 0),
+  );
+  const finished = sync(
+    (s) =>
+      s.trivia?.question === 1 &&
+      s.trivia.status === 'idle' &&
+      !s.trivia.winner &&
+      (!s.trivia.board || (!s.trivia.board.selected && s.trivia.board.cells[0].used)),
+  );
+  assert.equal((await request('host', hostCookie, command('finish-cell'))).status, 200);
+  await finished;
+  const changed = sync(
+    (s) => s.trivia?.question === 2 && s.trivia.status === 'idle' && !s.trivia.winner,
+  );
+  assert.equal(
+    (await request('host', hostCookie, command('select-cell', { cellId: 'childhood-2' }))).status,
+    200,
+  );
+  await changed;
+  assert.equal(
+    (await request('host', hostCookie, command('arm', { cellId: 'childhood-2' }))).status,
+    200,
+  );
+  assert.equal((await request('player', playerCookie, buzz())).data.code, 'STALE_WINDOW');
+  const nextWindow = (await request('player', playerCookie)).data.trivia.windowId;
+  const locked = sync((s) => s.trivia?.windowId === nextWindow && s.trivia?.status === 'locked');
+  const newBuzz = buzz();
+  newBuzz.payload.data.windowId = nextWindow;
+  assert.equal((await request('player', playerCookie, newBuzz)).status, 200);
+  await locked;
 });

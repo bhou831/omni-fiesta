@@ -186,7 +186,7 @@ function InvestmentPicker({ state, command, disabled, busyKey, revealBalance, ex
     setDraft((current) => {
       const next = { ...current };
       if (!on) delete next[id];
-      else next[id] = remaining > 0 ? String(Math.min(100, remaining)) : '';
+      else next[id] = '';
       return next;
     });
   const expand = (id: string) =>
@@ -205,7 +205,7 @@ function InvestmentPicker({ state, command, disabled, busyKey, revealBalance, ex
         </strong>
       </div>
       <p>
-        Tick one or more assets and set a stake for each. Returns are multiplied by{' '}
+        Tick one or more assets and enter your amount for each, then save. Returns are multiplied by{' '}
         {data.multiplier}
         ×. Stakes are locked until review; you can’t lose more than you invest.
       </p>
@@ -280,6 +280,7 @@ function InvestmentPicker({ state, command, disabled, busyKey, revealBalance, ex
                       max={data.cap}
                       step="1"
                       inputMode="numeric"
+                      placeholder="Enter tokens"
                       value={draft[a.provider_id]}
                       disabled={disabled}
                       onChange={(e) =>
@@ -287,21 +288,6 @@ function InvestmentPicker({ state, command, disabled, busyKey, revealBalance, ex
                       }
                     />
                   </label>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={disabled || remaining <= 0}
-                    onClick={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        [a.provider_id]: String(
-                          (Number(current[a.provider_id]) || 0) + Math.max(0, remaining),
-                        ),
-                      }))
-                    }
-                  >
-                    Add the rest
-                  </button>
                 </div>
               )}
               {expanded && (

@@ -532,6 +532,7 @@ function Player() {
             trivia={state.trivia}
             command={room.command}
             disabled={room.busy || !room.connected || !open}
+            closed={!open}
           />
         )}
         {state.room.status !== 'pending' && state.slots?.role === 'player' && (
@@ -687,7 +688,7 @@ const PHASE_LABELS: Record<string, string> = {
   investments: 'Investments',
   costume: 'Costume voting',
   'costume-reveal': 'Costume winners',
-  trivia: 'Trivia',
+  trivia: 'Jeopardy · 团队抢答',
   slots: 'Slots',
   powerball: 'Powerball',
   'investment-review': 'Closing bell',
@@ -1454,11 +1455,11 @@ function DisplayRoom({ code, token }: { code: string; token?: string }) {
   return (
     <DisplayFrame>
       <div className={`page display-page ${isTrivia ? 'is-trivia' : ''}`}>
-        {!isTrivia && <AmbientCelebration />}
+        <AmbientCelebration />
         {isTrivia ? (
           <header className="trivia-display-header">
             <Brand />
-            <h1>Trivia</h1>
+            <h1>{state.room.title}</h1>
             <div className="header-actions">
               {state.trivia?.demo && <span className="trivia-demo-label">演示</span>}
               {!room.connected && <Connection connected={false} chinese />}

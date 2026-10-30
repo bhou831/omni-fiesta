@@ -10,7 +10,9 @@ Host preparation fetches a USD `/coins/markets` batch for the exact configured I
 
 A player may hold a position in several assets at once (at most one per asset). Each principal is a positive whole-token amount; **the configured cap applies to the total across all of a player's positions** (assumption recorded 2026-10-28: 300 in VOO plus 200 in BTC fits a 600 cap). The total must be affordable from spendable balance plus the player's existing positions. Saving replaces the whole portfolio in one atomic command, and the reservation changes by the difference. A player may revise or cancel while open; cancelling restores all locked principal. No submission at expiry means no position. Each card has a checkbox to invest and a separate control that expands the research details; a ticked asset shows its own amount field, and a pinned bar shows the invested total against the cap and the save action. Expanded details lead with a "See live chart ↗" button (the configured market-and-chart link, opening in a new tab; the timer keeps running), keep the payoff examples in their own collapsed section, and sit on an opaque card so the celebration backdrop never crosses the text. Unsaved stakes are kept in the browser's session storage for the round, so a phone that discards the tab does not lose them. Confirm the selection on the phone. No real orders, wallets, or brokerage accounts are involved.
 
-Cards use the description, facts, and links defined in `spec.md`. Keep selection possible in two minutes on a portrait phone. Show price precision appropriate to the asset. Do not invent market statistics, forecasts, volatility rankings, or present the SPYx token quote as the cash index price.
+Each newly ticked asset begins with a blank **Enter tokens** field. Players type their own amounts; there is no auto-fill or **Add the rest** button. Keep one Save/Update investments action for the whole portfolio, with server-confirmed saved feedback. Previously saved or session-restored draft amounts remain visible.
+
+Cards use the description, facts, and links defined in `spec.md`. Keep selection possible within the configured timer on a portrait phone. Show price precision appropriate to the asset. Do not invent market statistics, forecasts, volatility rankings, or present the SPYx token quote as the cash index price.
 
 ## Review and settlement
 
@@ -20,10 +22,10 @@ Calculate using decimal arithmetic: `return = close/open - 1`; `gross_payout = f
 
 ## Acceptance examples
 
-- With current configuration, a player investing 600 from 1,000 has 400 spendable and 600 locked. A 601 request is rejected.
+- With an illustrative 600-token cap, a player investing 600 from 1,000 has 400 spendable and 600 locked. A 601 request is rejected. Production rooms use their own saved configured cap.
 - Repeated request or settlement IDs cause no repeated debit or credit.
 - Revising a 600 position to 400 releases 200 and retains one position.
-- Holding 300 in one asset and 200 in another locks 500; a request totalling 601 is rejected, as is a repeated asset or an unknown asset. Each position settles once with its own payout.
+- With that same 600 cap, holding 300 in one asset and 200 in another locks 500; a request totalling 601 is rejected, as is a repeated asset or an unknown asset. Each position settles once with its own payout.
 - For principal 600 and multiplier 20: +1% returns 720, -1% returns 480, -5% returns zero, and -8% also returns zero.
 - No submission before the deadline causes no debit. Researching offsite never pauses the timer.
 - A stale/missing/zero SPYx quote prevents opening or closing preparation, not a fabricated zero return. The host can retry. If closing prices remain unavailable, the host can refund every stake in full, and repeated refunds credit nothing further.

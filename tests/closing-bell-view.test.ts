@@ -19,8 +19,12 @@ test('closing bell separates credited profit from pending estimates and caps los
     renderToStaticMarkup(
       createElement(InvestmentPlayer, { state, command: async () => {}, disabled: true }),
     );
-  assert.match(render(), /\+120/);
-  assert.match(render(), /720 tokens/);
+  // The preview's first asset rises 1%; presentation follows the room's saved multiplier.
+  const data = state.investments!;
+  const principal = data.positions[0].principal;
+  const expectedPayout = Math.floor(principal * (1 + data.multiplier / 100));
+  assert.ok(render().includes(`+${(expectedPayout - principal).toLocaleString()}`));
+  assert.ok(render().includes(`${expectedPayout.toLocaleString()} tokens`));
   assert.match(render(), /✓ Settled/);
   state.investments!.positions[0]!.payout = null;
   assert.match(render(), /preview, not credited yet/);

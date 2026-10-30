@@ -1,4 +1,4 @@
-import React, { useRef, useState, type CSSProperties } from 'react';
+import React, { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { TriviaBoard, TriviaProjection } from '../server/games/trivia.js';
 import type { CommandSender } from '../shared/contracts.js';
 import { formatTokens } from './format.js';
@@ -8,6 +8,51 @@ export type TriviaViewProps = {
   command: CommandSender;
   disabled: boolean;
 };
+/** Decorative only: it never opens the real buzzer or shows a saved clue. */
+function JeopardyIntroArt() {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const update = () => setVisible(!document.hidden);
+    update();
+    document.addEventListener('visibilitychange', update);
+    return () => document.removeEventListener('visibilitychange', update);
+  }, []);
+  return (
+    <svg
+      className={`jeopardy-intro-art ${visible ? '' : 'is-paused'}`}
+      viewBox="0 0 440 300"
+      aria-hidden="true"
+    >
+      <rect className="intro-board-frame" x="42" y="16" width="356" height="190" rx="16" />
+      {[0, 1, 2].flatMap((row) =>
+        [0, 1, 2, 3, 4].map((column) => (
+          <g
+            className="intro-clue"
+            key={`${row}-${column}`}
+            style={{ '--clue-delay': `${(row * 5 + column) * 0.16}s` } as CSSProperties}
+          >
+            <rect x={58 + column * 66} y={32 + row * 54} width="60" height="46" rx="5" />
+            <text x={88 + column * 66} y={63 + row * 54} textAnchor="middle">
+              ?
+            </text>
+          </g>
+        )),
+      )}
+      <ellipse className="intro-buzzer-shadow" cx="220" cy="282" rx="82" ry="9" />
+      <path
+        className="intro-buzzer-base"
+        d="M142 265 Q142 247 161 247 H279 Q298 247 298 265 V274 H142Z"
+      />
+      <g className="intro-buzzer-cap">
+        <path d="M165 247 V234 Q165 208 220 208 Q275 208 275 234 V247Z" />
+        <ellipse cx="220" cy="233" rx="55" ry="24" />
+      </g>
+      <g className="intro-buzzer-rays">
+        <path d="M139 224 L122 213 M301 224 L318 213 M220 192 V178" />
+      </g>
+    </svg>
+  );
+}
 function TeamList({ trivia }: { trivia: TriviaProjection }) {
   return (
     <div className="team-list">
@@ -36,25 +81,25 @@ function BuzzStatus({ trivia }: { trivia: TriviaProjection }) {
     </p>
   );
 }
-export function TriviaPlayer({ trivia, command, disabled }: TriviaViewProps) {
+export function TriviaPlayer({
+  trivia,
+  command,
+  disabled,
+  closed = false,
+}: TriviaViewProps & { closed?: boolean }) {
   const team = trivia.teams.find((t) => t.id === trivia.ownTeamId);
-  const [feedback, setFeedback] = useState({ message: '', windowId: -1 });
   const [pending, setPending] = useState(false);
   const lock = useRef(false);
-  const canBuzz = team && !team.excluded && trivia.status === 'armed' && !disabled && !pending;
+  const canBuzz =
+    team && !team.excluded && trivia.status === 'armed' && !disabled && !pending && !closed;
   const buzz = async () => {
     if (lock.current || !canBuzz) return;
     lock.current = true;
     setPending(true);
-    setFeedback({ message: '', windowId: trivia.windowId });
     try {
-      const receipt = await command('phase.action', {
+      await command('phase.action', {
         action: 'buzz',
         data: { windowId: trivia.windowId },
-      });
-      setFeedback({
-        message: receipt ? '' : '本次未抢到，请查看当前抢答状态。',
-        windowId: trivia.windowId,
       });
     } finally {
       lock.current = false;
@@ -70,17 +115,16 @@ export function TriviaPlayer({ trivia, command, disabled }: TriviaViewProps) {
       <h2>{team ? <span style={{ color: team.color }}>{team.name}</span> : '等待分队'}</h2>
       {trivia.demo && <span className="trivia-phone-demo">演示</span>}
       <p role="status" aria-live="polite">
-        {pending
-          ? '提交中…'
-          : feedback.message === '本次未抢到，请查看当前抢答状态。' &&
-              feedback.windowId === trivia.windowId
-            ? '未抢到'
-            : team?.excluded
-              ? '本题已答错，等待下一题'
-              : trivia.winner
-                ? trivia.winner.teamId === trivia.ownTeamId
-                  ? '本队抢答成功'
-                  : `${trivia.teams.find((other) => other.id === trivia.winner?.teamId)?.name ?? '其他队'}抢答成功`
+        {closed
+          ? '本轮结束'
+          : team?.excluded
+            ? '本题已答错，等待下一题'
+            : trivia.winner
+              ? trivia.winner.teamId === trivia.ownTeamId
+                ? '本队抢答成功'
+                : `${trivia.teams.find((other) => other.id === trivia.winner?.teamId)?.name ?? '其他队'}抢答成功`
+              : pending
+                ? '提交中…'
                 : trivia.status === 'armed'
                   ? '可以抢答'
                   : '等待主持人'}
@@ -167,7 +211,7 @@ function Question({ board, host = false }: { board: TriviaBoard; host?: boolean 
 }
 export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
   const [count, setCount] = useState(String(trivia.teams.length || trivia.defaultTeamCount || 1));
-  const [team, setTeam] = useState('1');
+  const [teamChoice, setTeamChoice] = useState({ context: '', id: '' });
   const [amount, setAmount] = useState('100');
   const [correction, setCorrection] = useState('');
   const [acknowledgedAward, setAcknowledgedAward] = useState<{
@@ -182,6 +226,12 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
   const history = trivia.awardHistory ?? [];
   const awardCellId = correction || selected?.id;
   const awardCell = board?.cells.find((c) => c.id === awardCellId);
+  // A fresh buzz selects its winner. Manual overrides belong only to that question/window.
+  const teamContext = `${trivia.question}:${trivia.windowId}:${trivia.winner?.teamId ?? ''}:${correction}`;
+  const team =
+    teamChoice.context === teamContext && trivia.teams.some((t) => String(t.id) === teamChoice.id)
+      ? teamChoice.id
+      : String(trivia.winner?.teamId ?? trivia.teams[0]?.id ?? '');
   const awardSignature = board ? (awardCellId ?? '') : `${trivia.question}:${team}:${amount}`;
   const alreadyAwarded =
     (board
@@ -362,7 +412,6 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
               {board && (
                 <>
                   {button('reveal-answer', '公布答案', board.revealed)}
-                  {button('finish-cell', '完成本题 · 返回题板', trivia.status === 'armed')}
                   {button('cancel-selection', '选错了 · 返回且保留此格', !board.canCancel)}
                 </>
               )}
@@ -383,7 +432,11 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
         )}
         <label>
           获奖队伍{' '}
-          <select disabled={busy} value={team} onChange={(e) => setTeam(e.target.value)}>
+          <select
+            disabled={busy}
+            value={team}
+            onChange={(e) => setTeamChoice({ context: teamContext, id: e.target.value })}
+          >
             {trivia.teams.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
@@ -407,7 +460,9 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
         )}
         {button(
           'award',
-          alreadyAwarded ? '本题已计分' : '答对 · 奖励全队每人',
+          alreadyAwarded
+            ? '本题已计分'
+            : `答对 · 奖励${trivia.teams.find((t) => String(t.id) === team)?.name ?? '全队'}每人`,
           !trivia.teams.length ||
             alreadyAwarded ||
             (!!board && (!awardCell || trivia.status === 'armed')),
@@ -416,6 +471,15 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
             amount: board ? awardCell?.value : Number(amount),
             ...(awardCell ? { cellId: awardCell.id } : {}),
           },
+        )}
+        {board && selected && !correction && (
+          <div className="actions">
+            {button(
+              'finish-cell',
+              alreadyAwarded ? '完成本题 · 返回题板' : '不计分 · 完成本题',
+              trivia.status === 'armed',
+            )}
+          </div>
         )}
         {!!history.length && (
           <div className="award-history">
@@ -452,7 +516,10 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
                         disabled={busy}
                         onClick={() => {
                           setCorrection(a.cellId!);
-                          setTeam(String(a.teamId));
+                          setTeamChoice({
+                            context: `${trivia.question}:${trivia.windowId}:${trivia.winner?.teamId ?? ''}:${a.cellId}`,
+                            id: String(a.teamId),
+                          });
                         }}
                       >
                         重新计分此题
@@ -501,38 +568,57 @@ export function TriviaDisplay({
     >
       {showingGroups ? (
         <div className="trivia-landing">
-          <div className="trivia-landing-title">
-            <span className="eyebrow">{trivia.demo ? 'DEMO ROUND' : 'TRIVIA NIGHT'}</span>
-            <h2>{trivia.teams.length ? '今晚的队伍' : 'Trivia 即将开始'}</h2>
-            {trivia.teams.length > 0 && (
-              <p>
-                {trivia.teams.length} 支队伍 ·{' '}
-                {trivia.teams.reduce((sum, team) => sum + team.members.length, 0)} 位玩家
-              </p>
-            )}
+          <div className="trivia-introduction">
+            <div className="trivia-intro-copy">
+              <h2>组队，选题，抢答。</h2>
+              <ol className="trivia-intro-rules">
+                <li>
+                  <strong>选题</strong>
+                  <span>队伍选类别与分值，主持人打开题目。</span>
+                </li>
+                <li>
+                  <strong>抢答</strong>
+                  <span>抢答开启后按手机，最快的队伍口头回答。</span>
+                </li>
+                <li>
+                  <strong>计分</strong>
+                  <span>答对，全队每人获得题目分值。答错不扣分。</span>
+                </li>
+              </ol>
+            </div>
+            <JeopardyIntroArt />
           </div>
           {trivia.teams.length > 0 && (
-            <div className="team-board">
-              {trivia.teams.map((team) => (
-                <article
-                  key={team.id}
-                  className="team-card"
-                  style={{ '--team-color': team.color } as CSSProperties}
-                >
-                  <h3>
-                    {team.name}
-                    <small>{team.members.length} 人</small>
-                  </h3>
-                  <ul className="team-members">
-                    {team.members.map((player) => (
-                      <li key={player.id}>
-                        <span aria-hidden="true">{player.emoji}</span>
-                        {player.name}
-                      </li>
-                    ))}
-                  </ul>
-                </article>
-              ))}
+            <div className="trivia-intro-teams">
+              <h3>
+                今晚的队伍{' '}
+                <span>
+                  {trivia.teams.length} 支队伍 ·{' '}
+                  {trivia.teams.reduce((sum, team) => sum + team.members.length, 0)} 位玩家
+                </span>
+              </h3>
+              <div className="team-board">
+                {trivia.teams.map((team) => (
+                  <article
+                    key={team.id}
+                    className="team-card"
+                    style={{ '--team-color': team.color } as CSSProperties}
+                  >
+                    <h3>
+                      {team.name}
+                      <small>{team.members.length} 人</small>
+                    </h3>
+                    <ul className="team-members">
+                      {team.members.map((player) => (
+                        <li key={player.id}>
+                          <span aria-hidden="true">{player.emoji}</span>
+                          {player.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
+              </div>
             </div>
           )}
         </div>

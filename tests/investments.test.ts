@@ -11,6 +11,9 @@ test('investment reservations and settlement are atomic and retry-safe', (t) => 
   const store = new Store(':memory:');
   t.after(() => store.close());
   const config = loadConfig();
+  // This boundary example deliberately uses a 600 cap and 20× return.
+  config.investments.max_investment_tokens = 600;
+  config.investments.return_multiplier = 20;
   let now = 1000000;
   const room = store.transaction(() => store.createRoom(config, 'party', now));
   const joined = store.join(
@@ -178,6 +181,8 @@ test('a player can hold several positions, revise them together and settle each 
   const store = new Store(':memory:');
   t.after(() => store.close());
   const config = loadConfig();
+  config.investments.max_investment_tokens = 600;
+  config.investments.return_multiplier = 20;
   let now = 1000000;
   const room = store.transaction(() => store.createRoom(config, 'party', now));
   const joined = store.join(

@@ -32,7 +32,7 @@ For local UI development, `just preview [game]` opens an isolated, in-memory gal
 
 The lobby lists actual joined players only. There is no expected guest list or missing-guest comparison. Profiles require name, phone, and an emoji from a provided set of 24 (decided 2026-10-28: custom emoji were considered and dropped for simplicity). Email is optional and unused by gameplay; omitted or blank email is accepted, and a supplied address is validated. Email/SMS verification is not required for this version. Persistent player sessions support rejoining. Use an authenticated host session; knowing `/host` is not authorization.
 
-The private host view and TV display are separate so balances and the selected phone number stay private until intentional reveals. A host browser uses an extended screen or a separate control device. New rooms present Chinese trivia on a saved host-controlled 5×5 board; the TV shows questions and phones focus on buzzing. Existing numbered trivia rooms retain their legacy flow.
+The private host view and TV display are separate so balances and the selected phone number stay private until intentional reveals. A host browser uses an extended screen or a separate control device. New rooms present Chinese trivia on a saved host-controlled 5×5 board; the TV shows questions and phones focus on buzzing. The Jeopardy introduction shows concise Chinese rules and an animated board/buzzer, with shared balloons/fireworks behind the TV. Host scoring defaults to the buzzing team, with explicit manual correction. Existing numbered trivia rooms retain their legacy flow.
 A Mac can open `/screen`, sign in and select the same room while a phone/iPad remains signed in at `/host`; logins coexist independently and the TV receives only public state. Guests scan the TV lobby QR. Capability-based TV links remain supported; directly opening a signed-in TV never replaces these links.
 
 The 24 preset avatars include Moai 🗿, otter 🦦, dogs 🐶 🐕 🐩 🦮, Mount Fuji 🗻, Paris café choices 🥐 🥖 🧀, and playful meme faces. Saved profiles retain their existing emoji when the picker changes.
@@ -56,7 +56,7 @@ Only those four action sessions have countdowns. Advancing to a timed stage plac
 
 ## Economy and confirmed settings
 
-Current configuration grants each player 1,000 tokens once, allows an investment of at most 600, and locks the invested amount. Apply a configurable return multiplier, initially 20. Investment payout cannot fall below zero; maximum loss is the amount actually invested. Gains are uncapped.
+Current configuration grants each player 1,000 tokens once, allows an investment of at most 1,000, and locks the invested amount. The configured return multiplier is currently 100. These adjustable defaults come from `config/game.yaml`; existing rooms retain their saved settings. Investment payout cannot fall below zero; maximum loss is the amount actually invested. Gains are uncapped.
 
 Each slot spin costs 200. Independent gross payouts are 500 with 10% probability, 300 with 20%, 100 with 30%, and zero with 40%. There are no winner quotas. At most three accepted spins per player; a player must afford each spin at the time of purchase.
 
@@ -84,14 +84,14 @@ The provider change from the earlier Twelve Data candidate is an implementation 
 
 Each compact portrait card must contain:
 
-Present the five assets as cards with a checkbox to invest and a separate control to expand details. The cover shows a symbol/mark, name, opening price and 24h change. Opening a card reveals the description, facts, source/time and research links below. Ticking a card adds it to the draft; each ticked asset has its own amount, and Save investments commits the whole set. Researching a card alone never moves tokens.
+Present the five assets as cards with a checkbox to invest and a separate control to expand details. The cover shows a symbol/mark, name, opening price and 24h change. Opening a card reveals the description, facts, source/time and research links below. Ticking a card adds a blank amount field to the draft; the player types each stake directly, and Save investments commits the whole set. Do not auto-fill amounts or offer an add-remaining-balance button. Researching a card alone never moves tokens.
 
 - Name, symbol, category, and the short description above.
 - Opening USD price, 24-hour percentage change, 24-hour high/low, and reported 24-hour USD trading volume, when supplied by the provider.
 - A labeled recent-range indicator `(high_24h - low_24h) / opening_price`, if those inputs exist. Label it **24h price range**, never statistical volatility or predicted return.
 - Source and provider timestamp, with missing optional metrics shown as unavailable rather than zero.
 - A market/chart research link and optional project link. External links open separately; returning restores the same player and timer. Opening a link does not pause the round.
-- Selection and amount controls, available tokens, cap, locked-stake explanation, the 20x game multiplier, and loss limit.
+- Selection and amount controls, available tokens, cap, locked-stake explanation, the saved room's game multiplier, and loss limit.
 
 Use one opening `/coins/markets` response, requested for the five exact IDs, to provide both entry prices and research facts. Freeze that snapshot for all players. Use one further market snapshot at investment review for closing prices. Transport retries are allowed; the complete validated opening snapshot may be refreshed only while investment selection is pending and before any position exists. Starting selection requires a fresh snapshot; after opening, persist and reuse it. The accepted closing snapshot remains immutable. Do not embed polling third-party charts or periodically fetch extra prices inside the app. External research pages may show their own newer data; settlement always uses the saved game snapshots.
 

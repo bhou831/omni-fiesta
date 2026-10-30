@@ -43,7 +43,12 @@ test('each independent preview seeds real game projections with fixture prices a
     if (scenario.key === 'powerball-results') assert.equal(display.powerball?.revealed, true);
     if (scenario.stage === 'investment-review') {
       assert.equal(player.self?.accounts.locked, 0);
-      assert.equal(player.investments?.positions[0]?.payout, 720);
+      // The preview closes this first asset 1% above its opening price.
+      const data = player.investments!;
+      assert.equal(
+        data.positions[0]?.payout,
+        Math.floor(data.positions[0].principal * (1 + data.multiplier / 100)),
+      );
     }
     if (scenario.key === 'finish-podium') assert.equal(display.ranking?.length, 1);
     if (scenario.key === 'finish') assert.equal(display.ranking?.length, 6);

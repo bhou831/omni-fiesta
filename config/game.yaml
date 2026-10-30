@@ -6,14 +6,14 @@ party:
 
 # Only these action sessions have countdowns. Expiry never advances a stage.
 timers:
-  investment_selection_seconds: 120
+  investment_selection_seconds: 180
   costume_voting_seconds: 60
   slots_seconds: 90
   powerball_betting_seconds: 60
 
 investments:
-  max_investment_tokens: 600
-  return_multiplier: 20
+  max_investment_tokens: 1000
+  return_multiplier: 100
   loss_limit: invested_amount
   payout_rounding: floor
   quote_currency: usd
