@@ -47,6 +47,7 @@ export type TriviaBoard = {
     hostNotes?: string;
   } | null;
   revealed: boolean;
+  started: boolean;
   canCancel: boolean;
   /** Host-only review data; never sent to the TV or phones. */
   review?: {
@@ -263,6 +264,14 @@ export function triviaHostAction(
       )
       .run(JSON.stringify(nextContent), room, phase);
     return { demo: data.demo };
+  }
+  if (action === 'show-board') {
+    requireRule(board && members(c).length > 0, 'TEAM_REQUIRED', '请先分队。');
+    requireRule(!board.selected_cell, 'CELL_UNFINISHED', '请先完成当前题目。');
+    c.store.db
+      .prepare('UPDATE trivia_boards SET begun=1 WHERE room_id=? AND phase_instance=?')
+      .run(room, phase);
+    return { started: true };
   }
   if (action === 'select-cell') {
     requireRule(board && content, 'BOARD_REQUIRED', '本轮使用旧版编号题目。');
@@ -695,6 +704,7 @@ function projectBoard(c: PhaseContext, board: BoardRow, host: boolean): TriviaBo
         }
       : null,
     revealed: !!board.revealed,
+    started: !!board.begun || state(c).question > 0,
     canCancel: !!clue && !board.begun && state(c).status !== 'armed',
     ...(host
       ? {
