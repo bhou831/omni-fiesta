@@ -527,20 +527,29 @@ export function TriviaHost({
         )}
         {board && selected && !trivia.adventure && <Question board={board} host />}
         {selected?.kind === 'music' && selected.musicClip && audioUrl && selected.musicPlayback && (
-          <MusicClip
-            url={audioUrl}
-            start={selected.musicClip.start}
-            end={selected.musicClip.end}
-            playing={selected.musicPlayback.playing}
-            position={selected.musicPlayback.position}
-            changedAt={selected.musicPlayback.changedAt}
-            track={selected.musicTrack}
-            storeUrl={selected.musicStoreUrl}
-            host
-            command={command}
-            cellId={selected.id}
-            disabled={busy}
-          />
+          <>
+            <MusicClip
+              url={audioUrl}
+              start={selected.musicClip.start}
+              end={selected.musicClip.end}
+              playing={selected.musicPlayback.playing}
+              position={selected.musicPlayback.position}
+              changedAt={selected.musicPlayback.changedAt}
+              track={selected.musicTrack}
+              storeUrl={selected.musicStoreUrl}
+              host
+              command={command}
+              cellId={selected.id}
+              disabled={busy || (alreadyAwarded && !selected.musicPlayback.playing)}
+            />
+            <p className="fine-print">无需等待试听结束；可以随时抢答、公布答案、计分或完成本题。</p>
+            {!correction &&
+              button(
+                'finish-cell',
+                alreadyAwarded ? '完成本题 · 返回题板' : '不计分 · 完成本题',
+                trivia.status === 'armed',
+              )}
+          </>
         )}
         {trivia.adventure && (
           <AdventureHost
@@ -646,7 +655,7 @@ export function TriviaHost({
             ...(awardCell ? { cellId: awardCell.id } : {}),
           },
         )}
-        {board && selected && !correction && !trivia.adventure && (
+        {board && selected && !correction && !trivia.adventure && selected.kind !== 'music' && (
           <div className="actions">
             {button(
               'finish-cell',
