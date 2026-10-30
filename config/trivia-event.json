@@ -1,0 +1,414 @@
+{
+  "version": "event-adventure-2",
+  "categories": [
+    {
+      "id": "childhood",
+      "name": "童年DNA"
+    },
+    {
+      "id": "music",
+      "name": "听歌识曲名"
+    },
+    {
+      "id": "adventure",
+      "name": "大冒险"
+    },
+    {
+      "id": "geography",
+      "name": "自然地理"
+    },
+    {
+      "id": "random",
+      "name": "随机挑战"
+    }
+  ],
+  "adventureQuestionBank": {
+    "charades": [
+      "刷牙",
+      "刮胡子",
+      "系鞋带",
+      "拖地",
+      "晾衣服",
+      "倒垃圾",
+      "打鸡蛋",
+      "切洋葱",
+      "开瓶盖",
+      "撑雨伞",
+      "照镜子",
+      "喷香水",
+      "量体温",
+      "拍蚊子",
+      "赶飞机",
+      "游泳",
+      "打乒乓球",
+      "钓鱼",
+      "跳绳",
+      "放风筝",
+      "骑自行车",
+      "弹吉他",
+      "看恐怖片",
+      "拔苗助长",
+      "上班摸鱼",
+      "已读不回",
+      "老鼠人",
+      "社恐",
+      "刷短剧",
+      "打网球",
+      "饭搭子",
+      "豆包",
+      "份子钱",
+      "散粉",
+      "爬山",
+      "攀岩",
+      "钢管舞",
+      "八段锦",
+      "自拍",
+      "啤酒肚",
+      "打呼噜",
+      "吃瓜",
+      "凡尔赛",
+      "社牛",
+      "黑眼圈",
+      "牙疼",
+      "拍马屁",
+      "大猪蹄子",
+      "靓仔",
+      "显眼包",
+      "流口水",
+      "白骨精",
+      "玛丽莲梦露"
+    ],
+    "yesOrNo": [
+      "打开一瓶没有喝过的新饮料给队友喝",
+      "拿CYT的手机和她自拍",
+      "深蹲3次",
+      "在现场找一个垃圾丢到垃圾桶里",
+      "连续做 5 个开合跳"
+    ]
+  },
+  "adventureRules": {
+    "charadesSimple": [
+      "每队派两位队员：一人负责比划，另一人负责猜。",
+      "表演者可以说话，但不能说出题目中的词，也不能直接说出答案的一部分。",
+      "可以用动作、表情和声音提示。",
+      "2 分钟内猜中 6 题即挑战成功；可以跳过，跳过后继续抽题。"
+    ],
+    "yesOrNoSimple": [
+      "每队派一位代表抽题。代表不能看屏幕上的挑战内容，由主持人或队友将题目展示给其他队员。",
+      "代表通过提问猜出挑战内容。队友只能回答 Yes 或 No，不能做动作、提示答案或补充解释。",
+      "代表猜出挑战后，必须在规定时间内完成挑战。3 分钟内猜出并完成即成功。",
+      "涉及他人物品、饮食或身体接触时，必须先征得对方同意；不同意时由主持人换题。"
+    ],
+    "charadesComplex": [
+      "每队派两位队员：一人负责比划，另一人负责猜。",
+      "表演者不能说话、发出声音、做口型、写字或拼字，只能用动作和表情提示。",
+      "2 分钟内猜中 8 题即挑战成功；可以跳过，跳过后继续抽题。"
+    ],
+    "yesOrNoHard": [
+      "玩法与简单轮相同：代表通过提问猜挑战，队友只能回答 Yes 或 No。",
+      "代表猜出挑战后，必须在规定时间内完成。2 分钟内猜出并完成即成功。"
+    ],
+    "photoRecreation": [
+      "每队有两分钟还原大屏幕上的图片。",
+      "主持人根据现场拍摄结果判定挑战成功或失败。",
+      "首队失败后，可开启抢答邀请另一队挑战第二张图片。"
+    ]
+  },
+  "cells": [
+    {
+      "id": "childhood-1",
+      "categoryId": "childhood",
+      "value": 100,
+      "kind": "text",
+      "publicPrompt": "说出《快乐大本营》中「快乐家族」的五位常驻成员。",
+      "hostAnswer": "何炅、谢娜、李维嘉、吴昕、杜海涛。",
+      "hostNotes": "五人全部答对才得分。"
+    },
+    {
+      "id": "childhood-2",
+      "categoryId": "childhood",
+      "value": 200,
+      "kind": "text",
+      "publicPrompt": "在《武林外传》中，白展堂的成名绝技是什么？",
+      "hostAnswer": "葵花点穴手。"
+    },
+    {
+      "id": "childhood-3",
+      "categoryId": "childhood",
+      "value": 300,
+      "kind": "text",
+      "publicPrompt": "楚雨荨说过：「第一，我不是拽，我是愤怒。第二，……」请接出第二句。",
+      "hostAnswer": "我不叫喂，我叫楚雨荨。",
+      "hostNotes": "可忽略语气词和标点差异。"
+    },
+    {
+      "id": "childhood-4",
+      "categoryId": "childhood",
+      "value": 400,
+      "kind": "text",
+      "publicPrompt": "当年 QQ 空间有一款养成应用，要积攒爱心、阳光、雨露和营养值，让植物成长。它叫什么？",
+      "hostAnswer": "QQ 空间花藤。",
+      "hostNotes": "答「花藤」也可。"
+    },
+    {
+      "id": "childhood-5",
+      "categoryId": "childhood",
+      "value": 500,
+      "kind": "text",
+      "publicPrompt": "经典版《摩尔庄园》中，想成为 SMC 警官，需要收集四种特殊材料。请至少说出其中一种。",
+      "hostAnswer": "稀有矿石、魔幻水晶、沙之微粒、化学加热剂。",
+      "hostNotes": "任意一种即可得分。"
+    },
+    {
+      "id": "music-1",
+      "categoryId": "music",
+      "value": 100,
+      "kind": "music",
+      "publicPrompt": "请听一段音乐，猜出歌名。",
+      "hostAnswer": "遇到 — 方雅賢",
+      "musicTrack": {
+        "trackId": 1442199099,
+        "title": "遇到",
+        "artist": "方雅賢",
+        "album": "電視《惡作劇之吻》原聲帶",
+        "storeUrl": "https://music.apple.com/us/album/%E9%81%87%E5%88%B0/1442199094?i=1442199099&uo=4"
+      },
+      "musicAudio": {
+        "url": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/fe/1a/ee/fe1aee07-5786-d263-6bac-58f5a13dde85/mzaf_10539859810888527247.plus.aac.p.m4a",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 30
+      }
+    },
+    {
+      "id": "music-2",
+      "categoryId": "music",
+      "value": 200,
+      "kind": "music",
+      "publicPrompt": "请听一段音乐，猜出歌名。",
+      "hostAnswer": "Just Dance (feat. Colby O'Donis) — Lady Gaga",
+      "musicTrack": {
+        "trackId": 1440818653,
+        "title": "Just Dance (feat. Colby O'Donis)",
+        "artist": "Lady Gaga",
+        "album": "The Fame",
+        "storeUrl": "https://music.apple.com/us/album/just-dance-feat-colby-odonis/1440818588?i=1440818653&uo=4"
+      },
+      "musicAudio": {
+        "url": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/39/76/53/397653c4-c269-bc9b-5844-177ed04037ee/mzaf_5639582845135387910.plus.aac.p.m4a",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 30
+      }
+    },
+    {
+      "id": "music-3",
+      "categoryId": "music",
+      "value": 300,
+      "kind": "music",
+      "publicPrompt": "请听一段音乐，猜出歌名。",
+      "hostAnswer": "Girlfriend (Radio Edit) — Avril Lavigne",
+      "musicTrack": {
+        "trackId": 356980430,
+        "title": "Girlfriend (Radio Edit)",
+        "artist": "Avril Lavigne",
+        "album": "Girlfriend EP",
+        "storeUrl": "https://music.apple.com/us/album/girlfriend-radio-edit/356980429?i=356980430&uo=4"
+      },
+      "musicAudio": {
+        "url": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/1a/d8/5e/1ad85eda-c47d-993c-33f1-0664a9d0392e/mzaf_15344942824663417415.plus.aac.p.m4a",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 30
+      }
+    },
+    {
+      "id": "music-4",
+      "categoryId": "music",
+      "value": 400,
+      "kind": "music",
+      "publicPrompt": "请听一段音乐，猜出歌名。",
+      "hostAnswer": "下一個天亮 — Claire Kuo",
+      "musicTrack": {
+        "trackId": 535391944,
+        "title": "下一個天亮",
+        "artist": "Claire Kuo",
+        "album": "下一個天亮",
+        "storeUrl": "https://music.apple.com/us/album/%E4%B8%8B%E4%B8%80%E5%80%8B%E5%A4%A9%E4%BA%AE/535391943?i=535391944&uo=4"
+      },
+      "musicAudio": {
+        "url": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/7f/3c/29/7f3c2976-1fb7-6d6b-e15e-317973dfe865/mzaf_1809165267285849365.plus.aac.p.m4a",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 30
+      }
+    },
+    {
+      "id": "music-5",
+      "categoryId": "music",
+      "value": 500,
+      "kind": "music",
+      "publicPrompt": "请听一段音乐，猜出歌名。",
+      "hostAnswer": "K歌之王 — Eason Chan",
+      "musicTrack": {
+        "trackId": 542594345,
+        "title": "K歌之王",
+        "artist": "Eason Chan",
+        "album": "打得火熱",
+        "storeUrl": "https://music.apple.com/us/album/k%E6%AD%8C%E4%B9%8B%E7%8E%8B/542594340?i=542594345&uo=4"
+      },
+      "musicAudio": {
+        "url": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/3f/cc/a9/3fcca90c-648c-3627-ba7d-08c0c9183f1d/mzaf_8985623907447594504.plus.aac.p.m4a",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 30
+      }
+    },
+    {
+      "id": "adventure-1",
+      "categoryId": "adventure",
+      "value": 100,
+      "kind": "adventure",
+      "publicPrompt": "简单版你比我猜",
+      "adventureVariant": "charades-simple"
+    },
+    {
+      "id": "adventure-2",
+      "categoryId": "adventure",
+      "value": 200,
+      "kind": "adventure",
+      "publicPrompt": "Yes or No：简单轮",
+      "adventureVariant": "yes-no-simple"
+    },
+    {
+      "id": "adventure-3",
+      "categoryId": "adventure",
+      "value": 300,
+      "kind": "adventure",
+      "publicPrompt": "复杂版你比我猜",
+      "adventureVariant": "charades-complex"
+    },
+    {
+      "id": "adventure-4",
+      "categoryId": "adventure",
+      "value": 400,
+      "kind": "adventure",
+      "publicPrompt": "Yes or No：困难轮",
+      "adventureVariant": "yes-no-hard"
+    },
+    {
+      "id": "adventure-5",
+      "categoryId": "adventure",
+      "value": 500,
+      "kind": "adventure",
+      "publicPrompt": "AI 图片人体还原",
+      "adventureVariant": "photo-recreation",
+      "referenceImages": [
+        "/adventure/photo-recreation-attempt-1.png",
+        "/adventure/photo-recreation-attempt-2.png"
+      ]
+    },
+    {
+      "id": "geography-1",
+      "categoryId": "geography",
+      "value": 100,
+      "kind": "text",
+      "publicPrompt": "草莓、香蕉、樱桃，哪一种在植物学上属于真正的浆果？",
+      "hostAnswer": "香蕉。",
+      "hostNotes": "按植物学定义，不按日常水果名称判断。"
+    },
+    {
+      "id": "geography-2",
+      "categoryId": "geography",
+      "value": 200,
+      "kind": "text",
+      "publicPrompt": "以下哪种说法是真的？\nA. 金鱼的记忆只有三秒\nB. 闪电不会两次击中同一个地方\nC. 鲨鱼比树更早出现在地球上",
+      "hostAnswer": "C。鲨鱼比树更早出现。"
+    },
+    {
+      "id": "geography-3",
+      "categoryId": "geography",
+      "value": 300,
+      "kind": "text",
+      "publicPrompt": "以下哪种动物会排出近似立方体形状的粪便？\nA. 海狸　B. 袋熊　C. 水豚　D. 树懒",
+      "hostAnswer": "B. 袋熊。",
+      "hostNotes": "只说「袋熊」也可。"
+    },
+    {
+      "id": "geography-4",
+      "categoryId": "geography",
+      "value": 400,
+      "kind": "location",
+      "publicPrompt": "观察街景：猜出图片所在的国家。",
+      "hostAnswer": "奥地利（Austria）",
+      "hostNotes": "主持人判断国家名称；答对后使用统一计分按钮，答错后可开启另一队抢答。",
+      "location": {
+        "countryCode": "AT",
+        "city": "Vienna",
+        "latitude": 48.2100757,
+        "longitude": 16.3560874,
+        "panoId": "8GX-620Sn0daqIx4v4YCDA",
+        "heading": 90,
+        "pitch": 0,
+        "zoom": 1
+      }
+    },
+    {
+      "id": "geography-5",
+      "categoryId": "geography",
+      "value": 500,
+      "kind": "location",
+      "publicPrompt": "观察街景：猜出图片所在的城市。",
+      "hostAnswer": "布宜诺斯艾利斯（Buenos Aires）",
+      "hostNotes": "主持人判断城市名称；答对后使用统一计分按钮，答错后可开启另一队抢答。",
+      "location": {
+        "countryCode": "AR",
+        "city": "Buenos Aires",
+        "latitude": -34.58856,
+        "longitude": -58.3877892,
+        "panoId": "qcaBV0P-CPbeu0nFRYmeww",
+        "heading": 90,
+        "pitch": 0,
+        "zoom": 1
+      }
+    },
+    {
+      "id": "random-1",
+      "categoryId": "random",
+      "value": 100,
+      "kind": "text",
+      "publicPrompt": "金元素的化学符号是什么？\nA. Ag　B. Au　C. Cu　D. Fe",
+      "hostAnswer": "B. Au"
+    },
+    {
+      "id": "random-2",
+      "categoryId": "random",
+      "value": 200,
+      "kind": "text",
+      "publicPrompt": "诺贝尔和平奖的颁奖典礼在哪座城市举行？\nA. 斯德哥尔摩　B. 奥斯陆　C. 哥本哈根　D. 赫尔辛基",
+      "hostAnswer": "B. 奥斯陆"
+    },
+    {
+      "id": "random-3",
+      "categoryId": "random",
+      "value": 300,
+      "kind": "text",
+      "publicPrompt": "摄氏温度和华氏温度在多少度时数值相同？\nA. −40°　B. 0°　C. 32°　D. 100°",
+      "hostAnswer": "A. −40°。即 −40℃ = −40℉。"
+    },
+    {
+      "id": "random-4",
+      "categoryId": "random",
+      "value": 400,
+      "kind": "text",
+      "publicPrompt": "国际单位制中，压力的单位是什么？\nA. 焦耳　B. 瓦特　C. 帕斯卡　D. 牛顿",
+      "hostAnswer": "C. 帕斯卡"
+    },
+    {
+      "id": "random-5",
+      "categoryId": "random",
+      "value": 500,
+      "kind": "text",
+      "publicPrompt": "邀请函上的「RSVP」源自哪种语言？\nA. 拉丁语　B. 法语　C. 意大利语　D. 西班牙语",
+      "hostAnswer": "B. 法语。",
+      "hostNotes": "原文为「Répondez s’il vous plaît」。"
+    }
+  ],
+  "label": "正式题库（草稿）",
+  "mode": "event"
+}

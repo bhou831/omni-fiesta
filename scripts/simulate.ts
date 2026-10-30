@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { io, type Socket } from 'socket.io-client';
-import type { RoomSnapshot } from '../src/shared/contracts.js';
+import { EMOJIS, type RoomSnapshot } from '../src/shared/contracts.js';
 
 const count = Number(process.argv[2] ?? 15);
 if (!Number.isInteger(count) || count < 1 || count > 100)
@@ -38,7 +38,7 @@ try {
         joinKey: randomUUID(),
         profile: {
           name: `Guest ${index + 1}`,
-          emoji: ['🦊', '🐸', '🦄', '🐼'][index % 4],
+          emoji: EMOJIS[index % EMOJIS.length],
           email: `guest${index + 1}@example.test`,
           phone: '+1 212 555 0100',
         },

@@ -19,8 +19,8 @@ export type AdventureState = {
   correct: number;
   skipped: number;
   success: boolean | null;
-  score: number | null;
-  reason: string | null;
+  score?: number | null;
+  reason?: string | null;
   displayPrompt?: boolean;
 };
 
@@ -30,7 +30,6 @@ export type AdventureProjection = AdventureState & {
   durationSeconds: number;
   target: number | null;
   remaining: number | null;
-  scoringPrompt?: string;
 };
 
 const key = (c: PhaseContext) => [c.room.id, c.room.phase_instance] as const;
@@ -65,7 +64,7 @@ export function settings(c: PhaseContext, a: AdventureState) {
     case 'yes-no-hard':
       return { seconds: cfg.yes_no_hard_seconds, target: null };
     case 'photo-recreation':
-      return { seconds: cfg.photo_recreation_seconds, target: cfg.photo_success_score };
+      return { seconds: cfg.photo_recreation_seconds, target: null };
   }
 }
 
@@ -146,12 +145,11 @@ export function createAdventure(
     correct: 0,
     skipped: 0,
     success: null,
-    score: null,
-    reason: null,
     displayPrompt: false,
   };
   if (isYesNo(a)) a.item = draw(c, 'yesOrNo');
-  if (a.variant === 'photo-recreation') a.item = cell.referenceImage ?? null;
+  if (a.variant === 'photo-recreation')
+    a.item = cell.referenceImages?.[0] ?? cell.referenceImage ?? null;
   saveAdventure(c, a);
 }
 export function projectAdventure(
@@ -183,7 +181,7 @@ export function projectAdventure(
         : null,
     item:
       player ||
-      (isCharades(a) && !host) ||
+      (isCharades(a) && !host && a.phase !== 'active') ||
       (isYesNo(a) && !host && !a.displayPrompt) ||
       (!host &&
         !(isYesNo(a) && a.displayPrompt && a.phase === 'rules') &&
@@ -193,8 +191,7 @@ export function projectAdventure(
         a.phase !== 'closed')
         ? null
         : a.item,
-    ...(host && a.variant === 'photo-recreation' && content.photoScoringPrompt
-      ? { scoringPrompt: content.photoScoringPrompt }
-      : {}),
+    score: undefined,
+    reason: undefined,
   };
 }

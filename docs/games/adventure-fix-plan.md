@@ -14,7 +14,7 @@
 - `trivia_adventures` persists the attempt, selected team, phase, deadline, counts, current item, TV visibility and score. `trivia_adventure_pools` persists shuffled item order and cursor for the room. They are added by schema migration 15. Core host authorization, transactions and request deduplication remain unchanged.
 - `adventure-choose-team` validates membership and only works in the first waiting state. `arm` is limited to the second-attempt steal state. A buzz locks via the existing first-server-accepted update and enters rules for the winning team.
 - `adventure-display-prompt` accepts a boolean and an expected attempt. Host snapshots retain the prompt; TV snapshots omit it while hidden; player snapshots always omit it. The visibility flag resets to hidden for attempt 2.
-- The photo sample is a replaceable local reference asset. The actual question, rules, reference path and scoring prompt remain in ignored `private/trivia-event.json`. Team photos are handled outside the app and are not stored.
+- The photo sample is a replaceable local reference asset. The actual question, rules, reference path and scoring prompt remain in ignored `config/trivia-event.json`. Team photos are handled outside the app and are not stored.
 - The UI uses the existing Party notebook controls. The host receives team selection, timer, result, TV visibility and scoring controls; TV receives rules, active reference and result; phones receive team and buzzer status without private prompts.
 - The countdown uses the same server clock offset as the other game timers. The photo score control becomes available only after the saved pose deadline; server validation remains authoritative.
 

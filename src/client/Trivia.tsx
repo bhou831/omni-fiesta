@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, type CSSProperties } from 'react';
+import React, { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { TriviaBoard, TriviaProjection } from '../server/games/trivia.js';
 import type { CommandSender } from '../shared/contracts.js';
 import { formatTokens } from './format.js';
@@ -228,7 +228,7 @@ function MusicClip({
   track,
   storeUrl,
   host,
-  command,
+  onHost,
   cellId,
   disabled,
 }: {
@@ -241,7 +241,7 @@ function MusicClip({
   track?: NonNullable<TriviaBoard['selected']>['musicTrack'];
   storeUrl?: string;
   host?: boolean;
-  command?: CommandSender;
+  onHost?: (action: string, data?: Record<string, unknown>) => Promise<void>;
   cellId?: string;
   disabled?: boolean;
 }) {
@@ -249,16 +249,17 @@ function MusicClip({
   const [enabled, setEnabled] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [clipEnded, setClipEnded] = useState(false);
+  const duration = end - start;
   const playbackActive = playing && !clipEnded;
   useEffect(() => {
     setClipEnded(false);
     if (!playing) return;
     const timeout = window.setTimeout(
       () => setClipEnded(true),
-      Math.max(0, (end - position) * 1000),
+      Math.max(0, (duration - position) * 1000),
     );
     return () => window.clearTimeout(timeout);
-  }, [playing, position, changedAt, end]);
+  }, [playing, position, changedAt, duration]);
   useEffect(() => {
     const audio = ref.current;
     if (!audio) return;
@@ -284,17 +285,12 @@ function MusicClip({
         }}
         src={url}
       />
-      {host && command && cellId && (
+      {host && onHost && cellId && (
         <div className="trivia-music-host-controls">
           <button
             className="button primary"
             disabled={disabled}
-            onClick={() =>
-              void command('phase.host', {
-                action: playbackActive ? 'music-stop' : 'music-start',
-                data: { cellId },
-              })
-            }
+            onClick={() => void onHost(playbackActive ? 'music-stop' : 'music-start', { cellId })}
           >
             {playbackActive ? '结束播放' : '播放试听'}
           </button>
@@ -311,7 +307,7 @@ function MusicClip({
       {blocked && <p role="status">浏览器拦截了自动播放，请点“启用大屏声音”。</p>}
       <p role="status">
         {playbackActive
-          ? `主持人正在播放 · 约 ${Math.ceil(end - position)} 秒`
+          ? `主持人正在播放 · 约 ${Math.ceil(duration - position)} 秒`
           : position > 0 || clipEnded
             ? '试听已暂停'
             : '等待主持人播放'}
@@ -334,6 +330,30 @@ function MusicClip({
         <p>演示音频</p>
       )}
     </section>
+  );
+}
+function TriviaQuestionPanel({ children }: { children: ReactNode }) {
+  return (
+    <fieldset className="control-group">
+      <legend>题目</legend>
+      {children}
+    </fieldset>
+  );
+}
+function TriviaBuzzerAndReveal({ children }: { children: ReactNode }) {
+  return (
+    <fieldset className="control-group">
+      <legend>抢答与公布答案</legend>
+      {children}
+    </fieldset>
+  );
+}
+function TriviaScoreAndCorrections({ children }: { children: ReactNode }) {
+  return (
+    <fieldset className="control-group">
+      <legend>记分与修正</legend>
+      {children}
+    </fieldset>
   );
 }
 export function TriviaHost({
@@ -364,7 +384,11 @@ export function TriviaHost({
   const team =
     teamChoice.context === teamContext && trivia.teams.some((t) => String(t.id) === teamChoice.id)
       ? teamChoice.id
-      : String(trivia.winner?.teamId ?? trivia.teams[0]?.id ?? '');
+      : String(
+          trivia.winner?.teamId ??
+            (trivia.adventure?.success ? trivia.adventure.teamId : null) ??
+            '',
+        );
   const awardSignature = board ? (awardCellId ?? '') : `${trivia.question}:${team}:${amount}`;
   const alreadyAwarded =
     (board
@@ -443,6 +467,7 @@ export function TriviaHost({
     </button>
   );
   const eligible = trivia.teams.filter((t) => !t.excluded);
+  const controls = trivia.controls;
   return (
     <section lang="zh-CN" className="host-game-controls trivia-host">
       <p className="trivia-bank-label" role="status">
@@ -509,8 +534,7 @@ export function TriviaHost({
           <TeamList trivia={trivia} />
         </details>
       </fieldset>
-      <fieldset className="control-group">
-        <legend>2 · 选题与抢答</legend>
+      <TriviaQuestionPanel>
         {board &&
           trivia.teams.length > 0 &&
           !board.started &&
@@ -539,7 +563,7 @@ export function TriviaHost({
               track={selected.musicTrack}
               storeUrl={selected.musicStoreUrl}
               host
-              command={command}
+              onHost={host}
               cellId={selected.id}
               disabled={busy || (alreadyAwarded && !selected.musicPlayback.playing)}
             />
@@ -552,7 +576,6 @@ export function TriviaHost({
             teamName={trivia.teams.find((t) => t.id === trivia.adventure?.teamId)?.name}
             button={button}
             busy={busy}
-            buzzerStatus={trivia.status}
             teams={trivia.teams}
             clockOffset={clockOffset}
           />
@@ -560,41 +583,29 @@ export function TriviaHost({
         {!board &&
           button('new-question', '下一题', !trivia.teams.length || trivia.status === 'armed')}
         <BuzzStatus trivia={trivia} />
-        {(!board || selected) && !trivia.adventure && (
+      </TriviaQuestionPanel>
+      <TriviaBuzzerAndReveal>
+        {(!board || selected) && (
           <>
-            <p>可抢答：{eligible.map((t) => t.name).join('、') || '无。可公布答案并完成本题。'}</p>
+            <p>
+              {controls?.disabledReason ??
+                `可抢答：${eligible.map((t) => t.name).join('、') || '无。'}`}
+            </p>
             <div className="actions">
-              {button(
-                'arm',
-                '开启抢答',
-                !trivia.question ||
-                  trivia.status !== 'idle' ||
-                  !eligible.length ||
-                  !!board?.revealed ||
-                  (!!board && history.some((a) => !a.undone && a.cellId === selected?.id)),
-                {},
-                true,
-              )}
-              {button('close-buzzer', '关闭抢答', trivia.status !== 'armed')}
-              {button(
-                'incorrect',
-                '答错 · 不扣分',
-                trivia.status !== 'locked' ||
-                  !!board?.revealed ||
-                  (!!board && history.some((a) => !a.undone && a.cellId === selected?.id)),
-              )}
+              {button('arm', '开启抢答', !controls?.canArm, {}, true)}
+              {button('close-buzzer', '关闭抢答', !controls?.canCloseBuzzer)}
+              {button('incorrect', '答错 · 不扣分', !controls?.canMarkIncorrect)}
               {board && (
                 <>
-                  {button('reveal-answer', '公布答案', board.revealed)}
-                  {button('cancel-selection', '选错了 · 返回且保留此格', !board.canCancel)}
+                  {button('reveal-answer', '公布答案', !controls?.canReveal)}
+                  {button('cancel-selection', '选错了 · 返回且保留此格', !controls?.canCancel)}
                 </>
               )}
             </div>
           </>
         )}
-      </fieldset>
-      <fieldset className="control-group">
-        <legend>3 · 计分与修正</legend>
+      </TriviaBuzzerAndReveal>
+      <TriviaScoreAndCorrections>
         {trivia.adventure && (
           <p>当前大冒险由挑战队伍作答；请在上方确认结果并计分，或选择抢答／跳过。</p>
         )}
@@ -610,12 +621,21 @@ export function TriviaHost({
         <label>
           获奖队伍{' '}
           <select
-            disabled={busy || (!!trivia.adventure && !correction)}
+            disabled={busy || (!!trivia.adventure && !correction && !controls?.canAward)}
             value={team}
             onChange={(e) => setTeamChoice({ context: teamContext, id: e.target.value })}
           >
+            <option value="" disabled>
+              选择获奖队伍
+            </option>
             {trivia.teams.map((t) => (
-              <option key={t.id} value={t.id}>
+              <option
+                key={t.id}
+                value={t.id}
+                disabled={
+                  !!trivia.adventure && !correction && !controls?.awardableTeamIds.includes(t.id)
+                }
+              >
                 {t.name}
               </option>
             ))}
@@ -641,21 +661,22 @@ export function TriviaHost({
             ? '本题已计分'
             : `答对 · 奖励${trivia.teams.find((t) => String(t.id) === team)?.name ?? '全队'}每人`,
           !trivia.teams.length ||
-            (!!trivia.adventure && !correction) ||
+            !team ||
+            (!!trivia.adventure && !correction && !controls?.canAward) ||
             alreadyAwarded ||
-            (!!board && (!awardCell || trivia.status === 'armed')),
+            (!!board && (!awardCell || (correction ? false : !controls?.canAward))),
           {
             teamId: Number(team),
             amount: board ? awardCell?.value : Number(amount),
             ...(awardCell ? { cellId: awardCell.id } : {}),
           },
         )}
-        {board && selected && !correction && !trivia.adventure && (
+        {board && selected && !correction && (
           <div className="actions">
             {button(
               'finish-cell',
               alreadyAwarded ? '完成本题 · 返回题板' : '不计分 · 完成本题',
-              trivia.status === 'armed',
+              !controls?.canFinish,
             )}
           </div>
         )}
@@ -708,7 +729,7 @@ export function TriviaHost({
             </ul>
           </div>
         )}
-      </fieldset>
+      </TriviaScoreAndCorrections>
       {!!board?.review?.length && (
         <details className="trivia-review">
           <summary>待确认内容与音乐候选（仅主持人可见）</summary>
@@ -741,7 +762,14 @@ export function TriviaDisplay({
   const board = trivia.board;
   const winningTeam = trivia.teams.find((team) => team.id === trivia.winner?.teamId);
   const winner = winningTeam?.members.find((player) => player.id === trivia.winner?.playerId);
-  const answering = !closed && trivia.status === 'locked' && !!winningTeam && !board?.revealed;
+  const answering =
+    !closed &&
+    trivia.status === 'locked' &&
+    !!winningTeam &&
+    !board?.revealed &&
+    (!trivia.adventure ||
+      trivia.adventure.phase === 'rules' ||
+      trivia.adventure.phase === 'active');
   const showingGroups = !!board && !board.started && !board.selected && !closed;
   return (
     <section
@@ -849,6 +877,16 @@ export function TriviaDisplay({
               <span className="trivia-status-dot" aria-hidden="true" />
               {closed ? (
                 '本轮结束'
+              ) : answering ? (
+                <>
+                  <strong>{winningTeam.name}</strong>
+                  {winner && (
+                    <span>
+                      {winner.emoji} {winner.name}
+                    </span>
+                  )}
+                  <span className="sr-only">抢答成功</span>
+                </>
               ) : trivia.adventure ? (
                 trivia.adventure.phase === 'active' ? (
                   '挑战进行中'
@@ -867,16 +905,6 @@ export function TriviaDisplay({
                 )
               ) : board.revealed ? (
                 '答案已公布'
-              ) : answering ? (
-                <>
-                  <strong>{winningTeam.name}</strong>
-                  {winner && (
-                    <span>
-                      {winner.emoji} {winner.name}
-                    </span>
-                  )}
-                  <span className="sr-only">抢答成功</span>
-                </>
               ) : trivia.status === 'armed' ? (
                 '抢答开启'
               ) : !trivia.teams.length ? (

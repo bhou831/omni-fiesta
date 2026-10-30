@@ -106,7 +106,7 @@ test('location is answered aloud and host uses ordinary wrong, second buzz, awar
   );
   assert.match(hostMarkup, /开启抢答/);
   assert.match(hostMarkup, /公布答案/);
-  assert.match(hostMarkup, /计分与修正/);
+  assert.match(hostMarkup, /记分与修正/);
   assert.match(hostMarkup, /不计分 · 完成本题/);
   const displayMarkup = renderToStaticMarkup(
     createElement(TriviaDisplay, { trivia: snapshot('display') }),

@@ -665,3 +665,54 @@ for (const original of ['upstream-reveals-v13', 'local-trivia-v13'] as const)
       assert.equal(restored.awardHistory![0].cellId, null);
     }
   });
+
+test('nonzero-start music clip uses relative playback position through stop, resume and replay', async (t) => {
+  const clock = { value: 1_000_000 };
+  const f = await fixture(':memory:', () => clock.value);
+  t.after(() => f.app.close());
+  const board = f.app.store.db
+    .prepare('SELECT content FROM trivia_boards WHERE room_id=?')
+    .get(f.room.id) as { content: string };
+  const content = JSON.parse(board.content);
+  const cell = content.cells.find((entry: { kind: string }) => entry.kind === 'music');
+  cell.musicAudio.clipStartSeconds = 5;
+  cell.musicAudio.clipEndSeconds = 9;
+  f.app.store.db
+    .prepare('UPDATE trivia_boards SET content=? WHERE room_id=?')
+    .run(JSON.stringify(content), f.room.id);
+  f.execute('select-cell', { cellId: cell.id });
+  f.execute('music-start', { cellId: cell.id });
+  clock.value += 1_500;
+  f.execute('music-stop', { cellId: cell.id });
+  assert.ok(Math.abs(f.snapshot('display').board!.selected!.musicPlayback!.position - 1.5) < 0.001);
+  f.execute('music-start', { cellId: cell.id });
+  clock.value += 2_500;
+  assert.equal(f.snapshot('display').board!.selected!.musicPlayback!.playing, false);
+  assert.equal(f.snapshot('display').board!.selected!.musicPlayback!.position, 4);
+  f.execute('music-start', { cellId: cell.id });
+  assert.equal(f.snapshot('display').board!.selected!.musicPlayback!.position, 0);
+});
+
+test('host controls and server cap ordinary clues at two attempts in a four-team room', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  f.execute('assign', { count: 4 });
+  f.execute('select-cell', { cellId: f.cellId });
+  assert.equal(f.snapshot().controls?.canArm, true);
+  assert.equal(f.snapshot('display').controls, undefined);
+  for (const teamId of [1, 2]) {
+    f.execute('arm', { cellId: f.cellId });
+    const playerId = f.snapshot().teams.find((team) => team.id === teamId)!.members[0].id;
+    f.buzz(playerId, f.snapshot().windowId);
+    assert.equal(f.snapshot().controls?.canMarkIncorrect, true);
+    f.execute('incorrect', { cellId: f.cellId });
+  }
+  assert.equal(f.snapshot().controls?.attemptsUsed, 2);
+  assert.equal(f.snapshot().controls?.canArm, false);
+  assert.equal(f.snapshot().controls?.disabledReason, '本题两次机会已用完。');
+  assert.throws(() => f.execute('arm', { cellId: f.cellId }));
+  f.execute('reveal-answer', { cellId: f.cellId });
+  assert.equal(f.snapshot().controls?.canReveal, false);
+  f.execute('finish-cell', { cellId: f.cellId });
+  assert.equal(f.snapshot().board?.selected, null);
+});

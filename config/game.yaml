@@ -110,7 +110,6 @@ trivia:
     charades_complex_target: 8
     yes_no_hard_seconds: 120
     photo_recreation_seconds: 120
-    photo_success_score: 80
   # Draft tiers for local review; confirm before party use.
   board_values: [100, 200, 300, 400, 500]
   default_team_count: 4

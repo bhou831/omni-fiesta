@@ -1,6 +1,6 @@
 # Adventure and buzzer rehearsal fixes
 
-Status: implementation plan, 2026-10-30. The two supplied photo references are tracked at `public/adventure/photo-recreation-attempt-1.png` and `public/adventure/photo-recreation-attempt-2.png`. This plan does not claim the behavior changes are implemented.
+Status: implemented and verified in the feature checkout, 2026-10-30. The two supplied photo references are tracked at `public/adventure/photo-recreation-attempt-1.png` and `public/adventure/photo-recreation-attempt-2.png`. See `docs/plan.md` for verified implementation status.
 
 ## Accepted decisions and boundaries
 
@@ -46,4 +46,4 @@ Status: implementation plan, 2026-10-30. The two supplied photo references are t
 - In separate disposable fresh **event-bank** rooms, walk host, TV and phone through both charades variants and photo first failure → second-team buzzer → second image → judgement → award/reveal/finish. Check narrow phone, host desktop, and 1920×1080 and smaller TV; refresh during each active attempt. Verify TV word readability, image sizing and keyboard focus. Use the configured Maps-approved origin when geography is included.
 - Run `npm run trivia:check`, `npm run format:check`, `npm run typecheck`, focused tests, full `npm test`, `npm run build`, 15/100-player party simulations, and `git diff --check`. Verify the production build serves both PNGs and contains no private bank or host-only word in player snapshots. Leave a fresh preview running for review, and record exact outcomes and any physical-device limits in `docs/plan.md`.
 
-The images are assets only. The game logic above remains implementation work.
+Implementation and verification evidence are recorded in `docs/plan.md`.

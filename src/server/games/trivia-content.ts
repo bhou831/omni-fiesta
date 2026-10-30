@@ -1,5 +1,5 @@
-/** Server-only bank loading. Real event questions belong in an ignored local file. */
-import { readFileSync } from 'node:fs';
+/** Server-only bank loading. Event answers stay outside the public client bundle. */
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 
@@ -32,6 +32,13 @@ const clueSchema = z
       ])
       .optional(),
     referenceImage: z.string().trim().min(1).max(2000).optional(),
+    referenceImages: z
+      .tuple([
+        z.string().regex(/^\/adventure\/[a-z0-9-]+\.png$/),
+        z.string().regex(/^\/adventure\/[a-z0-9-]+\.png$/),
+      ])
+      .refine(([first, second]) => first !== second, 'Use two distinct images.')
+      .optional(),
     publicPrompt: z.string().trim().min(1).max(2000),
     hostAnswer: z.string().trim().min(1).max(2000).optional(),
     hostNotes: z.string().trim().min(1).max(2000).optional(),
@@ -145,10 +152,23 @@ export function validateTriviaContent(content: unknown): asserts content is Triv
     throw new Error('Event trivia bank is missing adventure questions.');
   if (
     bank.cells.some(
-      (c) => c.adventureVariant === 'photo-recreation' && !c.unavailableReason && !c.referenceImage,
+      (c) =>
+        c.adventureVariant === 'photo-recreation' &&
+        !c.unavailableReason &&
+        (bank.mode === 'event' ? !c.referenceImages : !c.referenceImages && !c.referenceImage),
     )
   )
     throw new Error('Photo recreation requires a reference image.');
+  if (
+    bank.mode === 'event' &&
+    bank.cells.some(
+      (c) =>
+        c.adventureVariant === 'photo-recreation' &&
+        !c.unavailableReason &&
+        c.referenceImages?.some((image) => !existsSync(resolve('public', image.slice(1)))),
+    )
+  )
+    throw new Error('Photo recreation reference image is missing.');
   if (
     bank.cells.some(
       (c) => c.musicAudio && c.musicAudio.clipEndSeconds <= c.musicAudio.clipStartSeconds,
@@ -216,7 +236,7 @@ export function eventTriviaBankFile(): string {
   if (process.env.TRIVIA_EVENT_BANK_FILE) return process.env.TRIVIA_EVENT_BANK_FILE;
   if (process.env.TRIVIA_BANK_FILE && resolve(process.env.TRIVIA_BANK_FILE) !== DEMO_TRIVIA_BANK)
     return process.env.TRIVIA_BANK_FILE;
-  return resolve('private/trivia-event.json');
+  return resolve('config/trivia-event.json');
 }
 export function triviaContentForMode(values: number[], demo: boolean): TriviaContent {
   const content = createTriviaContent(values, demo ? DEMO_TRIVIA_BANK : eventTriviaBankFile());

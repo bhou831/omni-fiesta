@@ -128,6 +128,19 @@ export type TriviaProjection = {
   awardHistory?: TriviaAward[];
   board?: TriviaBoard;
   adventure?: AdventureProjection;
+  /** Host-only guidance; commands still enforce their own rules. */
+  controls?: {
+    canArm: boolean;
+    canCloseBuzzer: boolean;
+    canMarkIncorrect: boolean;
+    canReveal: boolean;
+    canAward: boolean;
+    awardableTeamIds: number[];
+    canFinish: boolean;
+    canCancel: boolean;
+    attemptsUsed: number;
+    disabledReason?: string;
+  };
 };
 const colors = [
   '#8d2727',
@@ -271,7 +284,6 @@ export function triviaHostAction(
     'adventure-success',
     'adventure-fail',
     'adventure-replace',
-    'adventure-score',
     'adventure-steal',
     'adventure-abort',
     'adventure-choose-team',
@@ -348,8 +360,6 @@ export function triviaHostAction(
         '请先确认挑战成功。',
       );
       requireRule(data.teamId === a.teamId, 'INVALID_TEAM', '只能给本次挑战队伍计分。');
-      a.phase = 'won';
-      saveAdventure(c, a);
       return triviaHostAction(
         c,
         'award',
@@ -404,34 +414,24 @@ export function triviaHostAction(
       );
       return result(true);
     }
-    if (action === 'adventure-score') {
+    if (action === 'adventure-photo-success' || action === 'adventure-photo-fail') {
       requireRule(
         a.variant === 'photo-recreation' &&
           a.phase === 'active' &&
+          a.teamId !== null &&
           a.deadlineAt !== null &&
           c.now >= a.deadlineAt,
         'INVALID_ADVENTURE',
-        '请在摆拍时间结束后评分。',
+        '请在摆拍时间结束后判定。',
       );
-      requireRule(
-        typeof data.score === 'number' &&
-          Number.isInteger(data.score) &&
-          data.score >= 0 &&
-          data.score <= 100,
-        'INVALID_SCORE',
-        '请输入 0–100 的整数分数。',
-      );
-      requireRule(
-        typeof data.reason === 'string' && data.reason.length <= 500,
-        'INVALID_SCORE',
-        '评分理由过长。',
-      );
-      a.score = data.score;
-      a.reason = data.reason;
-      return result(a.score >= settings(c, a).target!);
+      return result(action === 'adventure-photo-success');
     }
     if (action === 'adventure-fail') {
-      requireRule(a.phase === 'active', 'INVALID_ADVENTURE', '挑战尚未开始。');
+      requireRule(
+        a.phase === 'active' && a.variant !== 'photo-recreation',
+        'INVALID_ADVENTURE',
+        '挑战尚未开始。',
+      );
       return result(false);
     }
     if (action === 'adventure-replace') {
@@ -453,6 +453,11 @@ export function triviaHostAction(
         'INVALID_ADVENTURE',
         '不能再次开启抢答。',
       );
+      requireRule(
+        members(c).some((member) => member.team !== a.firstTeamId),
+        'NO_ELIGIBLE_TEAMS',
+        '没有其他队伍可进行第二次挑战。',
+      );
       a.phase = 'steal';
       a.attempt = 2;
       a.teamId = null;
@@ -462,6 +467,8 @@ export function triviaHostAction(
       a.skipped = 0;
       a.success = null;
       if (isCharades(a)) a.item = null;
+      if (a.variant === 'photo-recreation')
+        a.item = selected.referenceImages?.[1] ?? selected.referenceImage ?? a.item;
       a.displayPrompt = false;
       c.store.db
         .prepare('INSERT OR IGNORE INTO trivia_exclusions VALUES(?,?,?,?)')
@@ -602,7 +609,10 @@ export function triviaHostAction(
       music_started_at: number | null;
       music_position: number;
     };
-    const end = selected.musicAudio.clipEndSeconds;
+    const end = Math.max(
+      0,
+      selected.musicAudio.clipEndSeconds - selected.musicAudio.clipStartSeconds,
+    );
     const currentPosition = Math.max(
       0,
       Math.min(
@@ -630,7 +640,12 @@ export function triviaHostAction(
     return { playing: false, position: currentPosition };
   }
   if (board && action === 'reveal-answer') {
-    requireRule(!adventure, 'INVALID_ADVENTURE', '请使用大冒险结果操作。');
+    if (adventure)
+      requireRule(
+        ['result', 'won', 'closed'].includes(adventure.phase),
+        'INVALID_ADVENTURE',
+        '挑战进行中不能公布答案。',
+      );
     requireRule(!board.revealed, 'ANSWER_REVEALED', '答案已经公布。');
     c.store.db
       .prepare('UPDATE trivia_boards SET revealed=1,begun=1 WHERE room_id=? AND phase_instance=?')
@@ -799,7 +814,9 @@ export function triviaHostAction(
   if (action === 'award') {
     if (adventure && selected?.id === data.cellId)
       requireRule(
-        adventure.phase === 'won' && data.teamId === adventure.teamId,
+        adventure.phase === 'result' &&
+          adventure.success === true &&
+          data.teamId === adventure.teamId,
         'INVALID_ADVENTURE',
         '只能给挑战成功的队伍计分。',
       );
@@ -887,6 +904,10 @@ export function triviaHostAction(
     c.store.db
       .prepare('UPDATE trivia_state SET awards=awards+1 WHERE room_id=? AND phase_instance=?')
       .run(room, phase);
+    if (adventure && selected?.id === awardCell?.id) {
+      adventure.phase = 'won';
+      saveAdventure(c, adventure);
+    }
     return { awarded: true, teamId: team, amount, awardId: requestId };
   }
   if (action === 'undo-award') {
@@ -928,6 +949,15 @@ export function triviaHostAction(
       VALUES(?,?,?,?) ON CONFLICT(room_id,phase_instance,award_id) DO UPDATE SET undone_at=excluded.undone_at`,
       )
       .run(room, phase, awardId, c.now);
+    const undoneCell = c.store.db
+      .prepare(
+        'SELECT cell_id FROM trivia_cell_awards WHERE room_id=? AND phase_instance=? AND award_id=?',
+      )
+      .get(room, phase, awardId) as { cell_id: string } | undefined;
+    if (adventure && undoneCell?.cell_id === selected?.id && adventure.phase === 'won') {
+      adventure.phase = 'result';
+      saveAdventure(c, adventure);
+    }
     return { undone: true, awardId };
   }
   requireRule(false, 'UNKNOWN_ACTION', 'That host action is not part of trivia.');
@@ -954,6 +984,56 @@ export function triviaProjection(
   const ids = [...new Set(all.map((m) => m.team))].sort((a, b) => a - b);
   const board = boardState(c);
   const history = triviaAwardHistory(c);
+  const selectedCellId = board?.selected_cell;
+  const selectedAwarded = !!history.find(
+    (award) => award.cellId === selectedCellId && !award.undone,
+  );
+  const attemptsUsed = excluded.size;
+  const adventure = getAdventure(c, selectedCellId ?? null);
+  const eligibleIds = ids.filter((id) => !excluded.has(id));
+  const canArm =
+    current.question > 0 &&
+    current.status === 'idle' &&
+    eligibleIds.length > 0 &&
+    (!board ||
+      (!!selectedCellId &&
+        !board.revealed &&
+        !selectedAwarded &&
+        (adventure ? adventure.phase === 'steal' : attemptsUsed < 2)));
+  const controls = {
+    canArm,
+    canCloseBuzzer: current.status === 'armed',
+    canMarkIncorrect:
+      current.status === 'locked' &&
+      current.winner_team !== null &&
+      (!board || (!adventure && !board.revealed && !selectedAwarded)),
+    canReveal:
+      !!board &&
+      !!selectedCellId &&
+      !board.revealed &&
+      (!adventure ||
+        adventure.phase === 'result' ||
+        adventure.phase === 'won' ||
+        adventure.phase === 'closed'),
+    canAward:
+      !!selectedCellId &&
+      current.status !== 'armed' &&
+      !selectedAwarded &&
+      (!adventure || (adventure.phase === 'result' && adventure.success === true)),
+    awardableTeamIds: adventure
+      ? adventure.phase === 'result' && adventure.success === true && adventure.teamId !== null
+        ? [adventure.teamId]
+        : []
+      : ids,
+    canFinish:
+      !!selectedCellId &&
+      current.status !== 'armed' &&
+      (!adventure || adventure.phase === 'won' || adventure.phase === 'closed'),
+    canCancel:
+      !!board && !!selectedCellId && !board.begun && current.status !== 'armed' && !adventure,
+    attemptsUsed,
+    ...(attemptsUsed >= 2 ? { disabledReason: '本题两次机会已用完。' } : {}),
+  };
   return {
     ...(board && !playerId ? { board: projectBoard(c, board, includeAwards) } : {}),
     ...(board?.selected_cell &&
@@ -1002,6 +1082,7 @@ export function triviaProjection(
     defaultTeamCount: Math.min(c.config.trivia.default_team_count, players.length),
     ...(includeAwards
       ? {
+          controls,
           awardHistory: history,
           ...(board
             ? {
@@ -1093,10 +1174,12 @@ function projectBoard(c: PhaseContext, board: BoardRow, host: boolean): TriviaBo
                     music_started_at: number | null;
                     music_position: number;
                   };
+                  const duration =
+                    clue.musicAudio!.clipEndSeconds - clue.musicAudio!.clipStartSeconds;
                   const position = Math.max(
                     0,
                     Math.min(
-                      clue.musicAudio!.clipEndSeconds,
+                      duration,
                       p.music_position +
                         (p.music_playing && p.music_started_at !== null
                           ? (c.now - p.music_started_at) / 1000
@@ -1104,7 +1187,7 @@ function projectBoard(c: PhaseContext, board: BoardRow, host: boolean): TriviaBo
                     ),
                   );
                   return {
-                    playing: !!p.music_playing && position < clue.musicAudio!.clipEndSeconds,
+                    playing: !!p.music_playing && position < duration,
                     position,
                     changedAt: p.music_started_at ?? c.now,
                   };

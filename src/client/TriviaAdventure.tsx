@@ -70,11 +70,6 @@ export function AdventureStage({
               猜对 {a.correct} / {a.target} · 跳过 {a.skipped}
             </p>
           )}
-          {a.score !== null && (
-            <p>
-              AI 评分：{a.score}/100 · {a.reason}
-            </p>
-          )}
           {a.phase === 'result' || a.phase === 'won' || a.phase === 'closed' ? (
             <p role="status">
               {a.success
@@ -95,7 +90,6 @@ export function AdventureHost({
   teamName,
   button,
   busy,
-  buzzerStatus,
   teams,
   clockOffset = 0,
 }: {
@@ -109,12 +103,9 @@ export function AdventureHost({
     primary?: boolean,
   ) => React.ReactNode;
   busy: boolean;
-  buzzerStatus: 'idle' | 'armed' | 'locked';
   teams: { id: number; name: string }[];
   clockOffset?: number;
 }) {
-  const [score, setScore] = useState('');
-  const [reason, setReason] = useState('');
   const [chosenTeam, setChosenTeam] = useState(teams[0]?.id ?? 0);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -126,7 +117,9 @@ export function AdventureHost({
   return (
     <div className="adventure-host" lang="zh-CN">
       <AdventureStage adventure={a} teamName={teamName} clockOffset={clockOffset} />
-      <p>题库剩余：{a.remaining ?? '—'}。已展示、跳过及换掉的题不会再次出现。</p>
+      {a.variant !== 'photo-recreation' && (
+        <p>题库剩余：{a.remaining ?? '—'}。已展示、跳过及换掉的题不会再次出现。</p>
+      )}
       {a.phase === 'waiting' && (
         <div className="actions">
           <label>
@@ -196,66 +189,36 @@ export function AdventureHost({
             </>
           ) : (
             <>
-              <p>{a.scoringPrompt}</p>
-              <label>
-                AI 分数{' '}
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={score}
-                  onChange={(e) => setScore(e.target.value)}
-                />
-              </label>
-              <label>
-                简短理由{' '}
-                <input value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
-              </label>
               {button(
-                'adventure-score',
-                '保存评分',
-                !Number.isInteger(Number(score)) ||
-                  score === '' ||
-                  Number(score) < 0 ||
-                  Number(score) > 100 ||
-                  (a.deadlineAt !== null && now + clockOffset < a.deadlineAt),
-                { ...data, score: Number(score), reason },
+                'adventure-photo-success',
+                '挑战成功',
+                a.deadlineAt !== null && now + clockOffset < a.deadlineAt,
+                data,
                 true,
+              )}
+              {button(
+                'adventure-photo-fail',
+                '挑战失败',
+                a.deadlineAt !== null && now + clockOffset < a.deadlineAt,
+                data,
               )}
             </>
           )}
-          {button('adventure-fail', '挑战失败 / 时间到', false, data)}
+          {a.variant !== 'photo-recreation' &&
+            button('adventure-fail', '挑战失败 / 时间到', false, data)}
         </div>
       )}
       {a.phase === 'result' && (
         <div className="actions">
           {a.success ? (
-            <>
-              <p>本题由 {teamName} 挑战成功。确认后，每位队员获得本题分值。</p>
-              {button(
-                'adventure-award',
-                `答对 · 给${teamName ?? '本队'}计分`,
-                false,
-                { ...data, teamId: a.teamId },
-                true,
-              )}
-            </>
+            <p>本题由 {teamName} 挑战成功。请在统一计分区确认获奖队伍。</p>
           ) : a.attempt === 1 ? (
-            button('adventure-steal', '开启抢答 · 仅限另一队', false, data, true)
+            button('adventure-steal', '开启抢答 · 仅限另一队', teams.length < 2, data, true)
           ) : null}
           {button('adventure-abort', '跳过本题 · 不计分', false, data)}
         </div>
       )}
-      {a.phase === 'steal' && (
-        <div className="actions">
-          {button('arm', '开启第二队抢答', buzzerStatus !== 'idle', {}, true)}
-          {buzzerStatus === 'armed'
-            ? button('close-buzzer', '无人抢答 · 关闭')
-            : button('adventure-abort', '无人挑战 · 结束本题', false, data)}
-        </div>
-      )}
-      {(a.phase === 'won' || a.phase === 'closed') &&
-        button('finish-cell', '完成本题 · 返回题板', false, {}, true)}
+      {a.phase === 'steal' && <p>请在“抢答与公布答案”中开启或关闭第二队抢答。</p>}
       {a.phase !== 'won' &&
         a.phase !== 'closed' &&
         button('adventure-finish-cell', '提前结束本题 · 返回题板', false, data)}

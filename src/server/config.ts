@@ -87,7 +87,8 @@ export const gameConfigSchema = z
             charades_complex_target: z.number().int().positive(),
             yes_no_hard_seconds: duration,
             photo_recreation_seconds: duration,
-            photo_success_score: z.number().int().min(0).max(100),
+            // Old saved rooms may still carry this setting; judging no longer reads it.
+            photo_success_score: z.number().int().min(0).max(100).optional(),
           })
           .strict()
           .optional(),
