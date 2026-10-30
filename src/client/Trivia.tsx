@@ -289,6 +289,13 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
       <p className="host-action-feedback" role="status" aria-live="polite">
         {feedback ? `✓ ${feedback}` : pending ? '保存中…' : ''}
       </p>
+      {board && !trivia.teams.length && (
+        <div className="trivia-start-card">
+          <strong>{trivia.demo ? '演示题板已就绪' : 'Trivia 题板已就绪'}</strong>
+          <p>先分队，然后在题板上选题。</p>
+          {button('assign', '开始 Trivia · 随机分队', false, { count: Number(count) }, true)}
+        </div>
+      )}
       <fieldset className="control-group">
         <legend>1 · 分队</legend>
         <label>
