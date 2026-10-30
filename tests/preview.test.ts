@@ -28,13 +28,17 @@ test('each independent preview seeds real game projections with fixture prices a
     if (scenario.stage === 'slots')
       assert.equal(player.slots?.role === 'player' && player.slots.data.spins.length, 0);
     if (scenario.stage === 'trivia') assert.equal(player.trivia?.status, 'armed');
-    if (scenario.key === 'costume-results') assert.equal(display.costume?.results?.length, 6);
+    if (scenario.key === 'costume-results') {
+      assert.equal(display.costumeReveal?.revealed.length, 1);
+      assert.equal(display.costumeReveal?.upcoming.length, 0);
+    }
     if (scenario.key === 'powerball-results') assert.equal(display.powerball?.revealed, true);
     if (scenario.stage === 'investment-review') {
       assert.equal(player.self?.accounts.locked, 0);
       assert.equal(player.investments?.positions[0]?.payout, 720);
     }
-    if (scenario.stage === 'finish') assert.equal(display.ranking?.length, 6);
+    if (scenario.key === 'finish-podium') assert.equal(display.ranking?.length, 1);
+    if (scenario.key === 'finish') assert.equal(display.ranking?.length, 6);
   }
 });
 

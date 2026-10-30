@@ -33,6 +33,7 @@ export const PARTY_STAGES = [
   'powerball',
   'investment-review',
   'somebody-calling',
+  'costume-reveal',
   'finish',
 ] as const;
 export type Stage = (typeof PARTY_STAGES)[number] | 'connection-check';
@@ -46,6 +47,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   powerball: 'Powerball red or blue',
   'investment-review': 'The closing bell',
   'somebody-calling': 'Somebody’s calling',
+  'costume-reveal': 'Best dressed: the winners',
   finish: 'That’s a wrap',
   'connection-check': 'Sound check',
 };
@@ -98,7 +100,11 @@ export interface RoomSnapshot {
     advanceBlocker: string | null;
   };
   players: PublicPlayer[];
+  /** Public viewers see only the places announced so far; the host always sees everyone. */
   ranking?: { rank: number; playerId: string; name: string; emoji: string; tokens: number }[];
+  /** Announcements made so far, out of `rankingSteps`. The last step shows the full ranking. */
+  rankingStep?: number;
+  rankingSteps?: number;
   self?: { id: string; accounts: Accounts; ready: boolean; checkedIn: boolean };
   investments?: {
     opening: import('../server/games/market.js').MarketSnapshot | null;
@@ -116,6 +122,7 @@ export interface RoomSnapshot {
     }[];
   };
   costume?: import('../server/games/costume.js').CostumeProjection & { allowSelfVote: boolean };
+  costumeReveal?: import('../server/games/costume.js').CostumeRevealProjection;
   trivia?: import('../server/games/trivia.js').TriviaProjection;
   slots?:
     | { role: 'player'; data: import('../server/games/slots.js').SlotsPlayerState }

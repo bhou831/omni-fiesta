@@ -8,6 +8,8 @@ import { formatTokens } from './format.js';
 import { InvestmentPlayer, InvestmentReviewDisplay } from './Investments.js';
 import { RoundDescription } from './RoundDescription.js';
 import { CostumePlayer, CostumeHost, CostumeDisplay } from './Costume.js';
+import { useRotatingPage } from './useRotatingPage.js';
+import { CostumeRevealDisplay, CostumeRevealHost, CostumeRevealPlayer } from './CostumeReveal.js';
 import { TriviaPlayer, TriviaHost, TriviaDisplay } from './Trivia.js';
 import { SlotsPlayer, SlotsHost, SlotsDisplay } from './Slots.js';
 import { PowerballPlayer, PowerballHost, PowerballDisplay } from './Powerball.js';
@@ -485,6 +487,9 @@ function Player() {
               busyKey={room.busyKey}
             />
           )}
+        {state.costumeReveal && (
+          <CostumeRevealPlayer state={state.costumeReveal} selfId={state.self.id} />
+        )}
         {state.costume && state.room.status !== 'pending' && (
           <CostumePlayer
             state={state.costume}
@@ -496,7 +501,7 @@ function Player() {
             onVote={(candidateId) =>
               void room.command('phase.action', { action: 'vote', data: { candidateId } })
             }
-            onReveal={() => {}}
+            onLock={() => {}}
           />
         )}
         {state.trivia && (
@@ -545,20 +550,36 @@ function Player() {
   );
 }
 const RANKING_PAGE = 4;
+/** Which place was announced last, so only its row plays the entrance animation. */
+const newestRank = (ranking: NonNullable<RoomSnapshot['ranking']>) =>
+  Math.min(...ranking.map((p) => p.rank));
 function Ranking({ state, display = false }: { state: RoomSnapshot; display?: boolean }) {
+  const ranking = state.ranking ?? [];
+  const complete = (state.rankingStep ?? 0) >= (state.rankingSteps ?? 0);
   // The TV keeps the podium in place and rotates everyone else beneath it.
-  const podium = state.ranking?.filter((p) => p.rank <= 3) ?? [];
-  const rest = state.ranking?.filter((p) => p.rank > 3) ?? [];
+  const podium = ranking.filter((p) => p.rank <= 3);
+  const rest = ranking.filter((p) => p.rank > 3);
   const page = useRotatingPage(rest.length, RANKING_PAGE);
-  return state.ranking ? (
+  if (!state.ranking) return null;
+  if (!ranking.length)
+    return (
+      <section className="ranking-wait">
+        <p className="costume-locked">And the final ranking is…</p>
+      </section>
+    );
+  const shown = display
+    ? [...podium, ...rest.slice(page * RANKING_PAGE, page * RANKING_PAGE + RANKING_PAGE)]
+    : ranking;
+  const newest = complete ? null : newestRank(ranking);
+  return (
     <section>
       {!display && <h2>Final ranking</h2>}
       <ol className="ranking-list">
-        {(display
-          ? [...podium, ...rest.slice(page * RANKING_PAGE, page * RANKING_PAGE + RANKING_PAGE)]
-          : state.ranking
-        ).map((p) => (
-          <li key={p.playerId} className={p.rank <= 3 ? `is-top rank-${p.rank}` : ''}>
+        {shown.map((p) => (
+          <li
+            key={p.playerId}
+            className={`${p.rank <= 3 ? `is-top rank-${p.rank}` : ''}${p.rank === newest ? ' is-new' : ''}`}
+          >
             <span className="rank-number">{p.rank}</span>
             <span className="rank-name">
               {p.emoji} {p.name}
@@ -568,7 +589,49 @@ function Ranking({ state, display = false }: { state: RoomSnapshot; display?: bo
         ))}
       </ol>
     </section>
-  ) : null;
+  );
+}
+/** Host: announces the podium from 3rd down, then the full list. The host always sees everyone. */
+function FinishRevealHost({
+  step,
+  steps,
+  ranking,
+  disabled,
+  busyKey,
+  onNext,
+}: {
+  step: number;
+  steps: number;
+  ranking: NonNullable<RoomSnapshot['ranking']>;
+  disabled: boolean;
+  busyKey?: string | null;
+  onNext: () => void;
+}) {
+  const ranks = [...new Set(ranking.map((p) => p.rank).filter((r) => r <= 3))].sort(
+    (a, b) => b - a,
+  );
+  const nextRank = steps > 1 ? ranks[step] : undefined;
+  const label =
+    step >= steps
+      ? null
+      : nextRank === undefined
+        ? 'Show the full ranking'
+        : `Reveal ${nextRank === 1 ? '1st' : nextRank === 2 ? '2nd' : '3rd'} place`;
+  return (
+    <section>
+      <h3>Final ranking</h3>
+      <p>
+        {Math.min(step, steps)} of {steps} announced.
+      </p>
+      {label ? (
+        <button className="button primary" disabled={disabled} onClick={onNext}>
+          {busyKey === 'phase.host:next' ? 'Revealing…' : label}
+        </button>
+      ) : (
+        <p role="status">✓ The full ranking is on screen.</p>
+      )}
+    </section>
+  );
 }
 function Loading({ error }: { error?: string }) {
   return (
@@ -598,6 +661,7 @@ const PHASE_LABELS: Record<string, string> = {
   'connection-check': 'Connection check',
   investments: 'Investments',
   costume: 'Costume voting',
+  'costume-reveal': 'Costume winners',
   trivia: 'Trivia',
   slots: 'Slots',
   powerball: 'Powerball',
@@ -982,6 +1046,37 @@ function Host() {
                       {room.busyKey === 'phase.host:settle' ? 'Settling…' : 'Settle investments'}
                     </button>
                   ))}
+                {state.costumeReveal && (
+                  <CostumeRevealHost
+                    state={state.costumeReveal}
+                    disabled={room.busy || !room.connected}
+                    busyKey={room.busyKey}
+                    onNext={() =>
+                      void room.command('phase.host', {
+                        action: 'next',
+                        data: { step: state.costumeReveal!.step },
+                      })
+                    }
+                  />
+                )}
+                {state.room.phase === 'finish' &&
+                  state.room.mode === 'party' &&
+                  state.rankingStep !== undefined &&
+                  state.rankingSteps !== undefined && (
+                    <FinishRevealHost
+                      step={state.rankingStep}
+                      steps={state.rankingSteps}
+                      ranking={state.ranking ?? []}
+                      disabled={room.busy || !room.connected}
+                      busyKey={room.busyKey}
+                      onNext={() =>
+                        void room.command('phase.host', {
+                          action: 'next',
+                          data: { step: state.rankingStep },
+                        })
+                      }
+                    />
+                  )}
                 {state.costume && state.room.status !== 'pending' && (
                   <CostumeHost
                     state={state.costume}
@@ -991,7 +1086,7 @@ function Host() {
                     busyKey={room.busyKey}
                     allowSelfVote={state.costume.allowSelfVote}
                     onVote={() => {}}
-                    onReveal={() => void room.command('phase.host', { action: 'reveal' })}
+                    onLock={() => void room.command('phase.host', { action: 'lock' })}
                     onRevote={() => void room.command('phase.host', { action: 'revote' })}
                   />
                 )}
@@ -1194,15 +1289,6 @@ function Host() {
     </div>
   );
 }
-function useRotatingPage(count: number, size: number) {
-  const [page, setPage] = useState(0);
-  const pages = Math.max(1, Math.ceil(count / size));
-  useEffect(() => {
-    const timer = setInterval(() => setPage((p) => (p + 1) % pages), 8000);
-    return () => clearInterval(timer);
-  }, [pages]);
-  return page % pages;
-}
 /** Balloons and fireworks behind content on every stage; `light` is the smaller phone version. */
 function AmbientCelebration({ light = false }: { light?: boolean }) {
   const [hidden, setHidden] = useState(document.hidden);
@@ -1327,7 +1413,7 @@ function Display() {
                 <SlotsDisplay state={state.slots.data} roomPlayers={state.players.length} />
               )}
               {state.room.phase === 'costume' &&
-                !state.costume?.revealed &&
+                !state.costume?.locked &&
                 !state.costume?.candidates && (
                   <div className="display-ghost" aria-hidden="true">
                     <span className="ghost-arm ghost-arm-left" />
@@ -1357,6 +1443,7 @@ function Display() {
               {state.room.status !== 'pending' && state.costume && (
                 <CostumeDisplay state={state.costume} />
               )}
+              {state.costumeReveal && <CostumeRevealDisplay state={state.costumeReveal} />}
               {state.trivia && <TriviaDisplay trivia={state.trivia} />}
               {state.room.phase === 'investment-review' && state.investments && (
                 <InvestmentReviewDisplay data={state.investments} />

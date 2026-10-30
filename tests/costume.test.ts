@@ -6,7 +6,11 @@ import { Engine } from '../src/server/core/engine.js';
 import { loadConfig } from '../src/server/config.js';
 import {
   costume,
+  costumeReveal,
   costumeHostAction,
+  costumeRevealHostAction,
+  costumeRevealProjection,
+  costumeRevealGroups,
   costumeProjection,
   costumeSchema,
 } from '../src/server/games/costume.js';
@@ -57,6 +61,14 @@ function setup(count: number) {
   };
 }
 
+type Fixture = ReturnType<typeof setup>;
+/** Lock the standings, then announce every place so balances reflect the whole contest. */
+function settle(f: Fixture) {
+  f.store.transaction(() => costumeHostAction(f.context(), 'lock'));
+  for (let i = 0; i < 10; i++)
+    if (f.store.transaction(() => costumeRevealHostAction(f.context(), 'next')).done) return;
+}
+
 test('costume votes, capped penalty, privacy, and atomic repeated reveal', (t) => {
   const f = setup(9);
   t.after(() => f.store.close());
@@ -90,7 +102,7 @@ test('costume votes, capped penalty, privacy, and atomic repeated reveal', (t) =
   assert.equal(own.results, null);
   assert.equal(costumeProjection(f.context(), 'display').results, null);
   assert.equal(costumeProjection(f.context(), 'host').results?.length, 9);
-  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'reveal')));
+  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'lock')));
   f.engine.execute(f.host, f.room.id, {
     requestId: randomUUID(),
     phaseInstance: 2,
@@ -102,7 +114,7 @@ test('costume votes, capped penalty, privacy, and atomic repeated reveal', (t) =
     f.players[1].playerId,
   ]);
   assert.deepEqual(costumeProjection(f.context(), 'display').tiedForFirst, []);
-  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'reveal')));
+  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'lock')));
   f.store.transaction(() => costumeHostAction(f.context(), 'revote'));
   assert.equal(f.store.room(f.room.id).status, 'open');
   assert.equal(costumeProjection(f.context(), 'display').round, 2);
@@ -118,9 +130,9 @@ test('costume votes, capped penalty, privacy, and atomic repeated reveal', (t) =
     phaseInstance: 2,
     type: 'phase.close',
   });
-  f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
-  f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
-  const result = costumeProjection(f.context(), 'display').results!;
+  settle(f);
+  settle(f);
+  const result = costumeProjection(f.context(), 'host').results!;
   const byId = new Map(result.map((r) => [r.playerId, r]));
   assert.deepEqual(
     f.players.map((p) => byId.get(p.playerId)?.votes),
@@ -147,12 +159,12 @@ test('no ballots have no financial effects and expiry never votes', (t) => {
   f.setTime(deadline);
   assert.throws(() => f.engine.execute(f.sessions[0], f.room.id, f.cmd(f.players[1].playerId)));
   assert.equal(f.store.room(f.room.id).status, 'closed');
-  f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
+  settle(f);
   assert.deepEqual(
     f.players.map((p) => f.store.player(p.playerId).spendable),
     [1000, 1000, 1000],
   );
-  assert.equal(costumeProjection(f.context(), 'display').results?.length, 3);
+  assert.equal(costumeProjection(f.context(), 'host').results?.length, 3);
   assert.equal(
     f.store.db.prepare("SELECT COUNT(*) AS n FROM ledger WHERE reason='Costume contest'").get()?.n,
     0,
@@ -179,7 +191,7 @@ test('vote revisions overwrite the previous ballot and one player can close with
     phaseInstance: 2,
     type: 'phase.close',
   });
-  solo.store.transaction(() => costumeHostAction(solo.context(), 'reveal'));
+  settle(solo);
   assert.equal(solo.store.player(solo.players[0].playerId).spendable, 1000);
 });
 
@@ -203,7 +215,7 @@ test('a tie for first is re-voted among the tied players until one player leads'
     [4, 2],
   ].forEach(([from, to]) => vote(from!, to!));
   close();
-  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'reveal')));
+  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'lock')));
   f.store.transaction(() => costumeHostAction(f.context(), 'revote'));
   // Round 2 ties again; the host must re-vote again, and still only the same two can win.
   [
@@ -213,7 +225,7 @@ test('a tie for first is re-voted among the tied players until one player leads'
     [3, 1],
   ].forEach(([from, to]) => vote(from!, to!));
   close();
-  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'reveal')));
+  assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'lock')));
   f.store.transaction(() => costumeHostAction(f.context(), 'revote'));
   assert.equal(costumeProjection(f.context(), 'display').round, 3);
   assert.deepEqual(
@@ -229,8 +241,8 @@ test('a tie for first is re-voted among the tied players until one player leads'
   ].forEach(([from, to]) => vote(from!, to!));
   close();
   assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'revote')));
-  f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
-  const results = costumeProjection(f.context(), 'display').results!;
+  settle(f);
+  const results = costumeProjection(f.context(), 'host').results!;
   const byId = new Map(results.map((result) => [result.playerId, result]));
   assert.deepEqual(
     f.players.map((p) => byId.get(p.playerId)?.place),
@@ -242,7 +254,7 @@ test('a tie for first is re-voted among the tied players until one player leads'
   );
   // Revealed results can no longer be re-voted, and a repeat settles nothing twice.
   assert.throws(() => f.store.transaction(() => costumeHostAction(f.context(), 'revote')));
-  f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
+  settle(f);
   assert.equal(
     f.store.db.prepare("SELECT COUNT(*) AS n FROM ledger WHERE reason='Costume contest'").get()?.n,
     5,
@@ -270,11 +282,162 @@ test('three-way ties for second place still share the second prize', (t) => {
     type: 'phase.close',
   });
   assert.deepEqual(costumeProjection(f.context(), 'host').tiedForFirst, []);
-  f.store.transaction(() => costumeHostAction(f.context(), 'reveal'));
-  const results = costumeProjection(f.context(), 'display').results!;
+  settle(f);
+  const results = costumeProjection(f.context(), 'host').results!;
   const byId = new Map(results.map((result) => [result.playerId, result]));
   assert.deepEqual(
     f.players.map((p) => byId.get(p.playerId)?.tokenChange).slice(0, 4),
     [1000, 800, 800, 800],
+  );
+});
+
+test('costume winners are announced 3rd, 2nd, last, then 1st, and tokens move one step at a time', (t) => {
+  const f = setup(6);
+  t.after(() => f.store.close());
+  // Counts: player 0 has 3 votes, player 1 has 2, player 2 has 1; players 3-5 have none and share last place.
+  [
+    [1, 0],
+    [2, 0],
+    [3, 0],
+    [4, 1],
+    [5, 1],
+    [0, 2],
+  ].forEach(([from, to]) =>
+    f.engine.execute(f.sessions[from!], f.room.id, f.cmd(f.players[to!].playerId)),
+  );
+  f.engine.execute(f.host, f.room.id, {
+    requestId: randomUUID(),
+    phaseInstance: 2,
+    type: 'phase.close',
+  });
+  const balances = () => f.players.map((p) => f.store.player(p.playerId).spendable);
+  f.store.transaction(() => costumeHostAction(f.context(), 'lock'));
+  assert.deepEqual(balances(), [1000, 1000, 1000, 1000, 1000, 1000]);
+  // Locked standings stay private to the host until announced.
+  assert.equal(costumeProjection(f.context(), 'player', f.players[0].playerId).results, null);
+  assert.equal(costumeProjection(f.context(), 'display').locked, true);
+  assert.equal(costumeRevealProjection(f.context(), 'host').upcoming.length, 4);
+  const display = () => costumeRevealProjection(f.context(), 'display');
+  assert.deepEqual(display(), {
+    revealed: [],
+    upcoming: [],
+    step: 0,
+    totalSteps: 5,
+    list: null,
+    listPending: false,
+  });
+  const next = () => f.store.transaction(() => costumeRevealHostAction(f.context(), 'next'));
+
+  next();
+  assert.deepEqual(
+    display().revealed.map((g) => g.kind),
+    ['third'],
+  );
+  assert.deepEqual(balances(), [1000, 1000, 1500, 1000, 1000, 1000]);
+  assert.throws(() => costumeReveal.assertCanAdvance!(f.context()), /Reveal every costume place/);
+  next();
+  assert.deepEqual(balances(), [1000, 1800, 1500, 1000, 1000, 1000]);
+  next();
+  assert.deepEqual(balances(), [1000, 1800, 1500, 834, 834, 834]);
+  assert.deepEqual(
+    display().revealed.map((g) => g.kind),
+    ['third', 'second', 'last'],
+  );
+  assert.equal(
+    display().revealed.some((g) => g.kind === 'first'),
+    false,
+  );
+  next();
+  assert.deepEqual(balances(), [2000, 1800, 1500, 834, 834, 834]);
+  // Every place is out, but the full list is one more click and the host cannot skip it.
+  assert.equal(display().list, null);
+  assert.equal(costumeRevealProjection(f.context(), 'host').listPending, true);
+  assert.equal(display().listPending, false);
+  assert.throws(() => costumeReveal.assertCanAdvance!(f.context()), /Reveal every costume place/);
+  next();
+  assert.deepEqual(
+    display().list?.map((r) => [r.place, r.tokenChange]),
+    [
+      [1, 1000],
+      [2, 800],
+      [3, 500],
+      [4, -166],
+      [4, -166],
+      [4, -166],
+    ],
+  );
+  assert.deepEqual(balances(), [2000, 1800, 1500, 834, 834, 834]);
+  costumeReveal.assertCanAdvance!(f.context());
+  // A repeat announces nothing and moves no more tokens.
+  assert.equal(next().done, true);
+  assert.deepEqual(balances(), [2000, 1800, 1500, 834, 834, 834]);
+  assert.equal(
+    f.store.db.prepare("SELECT COUNT(*) AS n FROM ledger WHERE reason='Costume contest'").get()?.n,
+    6,
+  );
+});
+
+test('reveal groups share a step for ties, skip empty places, and collapse for small parties', () => {
+  const r = (playerId: string, place: number) => ({
+    playerId,
+    name: playerId,
+    emoji: '🦊',
+    place,
+    votes: 0,
+    tokenChange: 0,
+  });
+  const kinds = (places: number[]) =>
+    costumeRevealGroups(places.map((place, i) => r(`p${i}`, place))).map((g) => g.kind);
+  assert.deepEqual(kinds([1, 2, 3]), ['third', 'second', 'first']);
+  assert.deepEqual(kinds([1, 2, 3, 4, 5]), ['third', 'second', 'last', 'first']);
+  assert.deepEqual(kinds([1, 2, 2, 3]), ['third', 'second', 'first']);
+  assert.deepEqual(
+    costumeRevealGroups([r('a', 1), r('b', 2), r('c', 2), r('d', 3)])
+      .find((g) => g.kind === 'second')
+      ?.players.map((p) => p.playerId),
+    ['b', 'c'],
+  );
+  assert.deepEqual(kinds([1, 1, 1]), ['first']);
+  assert.deepEqual(kinds([1, 2]), ['all']);
+  assert.deepEqual(kinds([1]), ['all']);
+  assert.deepEqual(kinds([]), []);
+});
+
+test('the last-place penalty uses the balance at reveal time, and a stale step announces nothing', (t) => {
+  const f = setup(6);
+  t.after(() => f.store.close());
+  // Votes: player 0 has 3, player 1 has 2, player 2 has 1; players 3-5 have none and share last place.
+  [
+    [1, 0],
+    [2, 0],
+    [3, 0],
+    [4, 1],
+    [5, 1],
+    [0, 2],
+  ].forEach(([from, to]) =>
+    f.engine.execute(f.sessions[from!], f.room.id, f.cmd(f.players[to!].playerId)),
+  );
+  f.engine.execute(f.host, f.room.id, {
+    requestId: randomUUID(),
+    phaseInstance: 2,
+    type: 'phase.close',
+  });
+  // Player 3 is broke when standings lock, then regains tokens before the winners are announced.
+  f.store.db.prepare('UPDATE players SET spendable=0 WHERE id=?').run(f.players[3].playerId);
+  f.store.transaction(() => costumeHostAction(f.context(), 'lock'));
+  f.store.db.prepare('UPDATE players SET spendable=1000 WHERE id=?').run(f.players[3].playerId);
+  const next = (step?: number) =>
+    f.store.transaction(() => costumeRevealHostAction(f.context(), 'next', step));
+  next(0);
+  // A second tap that still carries step 0 is rejected rather than announcing another place.
+  assert.throws(() => next(0), /already announced/);
+  assert.equal(costumeRevealProjection(f.context(), 'display').step, 1);
+  while (!next().done);
+  assert.equal(f.store.player(f.players[3].playerId).spendable, 834);
+  assert.equal(f.store.player(f.players[4].playerId).spendable, 834);
+  assert.equal(
+    costumeRevealProjection(f.context(), 'display').revealed.find((g) => g.kind === 'last')
+      ?.players[0]?.tokenChange,
+    -166,
   );
 });

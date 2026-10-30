@@ -353,6 +353,9 @@ test('party final ranking includes every player with shared tied ranks', (t) => 
   f.store.db
     .prepare("UPDATE rooms SET mode='party',phase='finish',status='open' WHERE id=?")
     .run(f.room.id);
+  // The ranking stays hidden from public screens until the host announces it; two players are one step.
+  assert.deepEqual(f.engine.snapshot({ role: 'display', roomId: f.room.id }).ranking, []);
+  f.store.db.prepare('INSERT INTO finish_reveal_progress(room_id,step) VALUES(?,1)').run(f.room.id);
   const state = f.engine.snapshot({ role: 'display', roomId: f.room.id });
   assert.equal(state.ranking?.length, 2);
   assert.deepEqual(

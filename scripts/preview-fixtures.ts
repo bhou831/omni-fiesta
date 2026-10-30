@@ -10,13 +10,14 @@ export const PREVIEW_SCENARIOS = [
   { key: 'lobby', stage: 'lobby', label: 'Waiting room' },
   { key: 'investments', stage: 'investments', label: 'Investment cards' },
   { key: 'costume', stage: 'costume', label: 'Costume voting' },
-  { key: 'costume-results', stage: 'costume', label: 'Costume results' },
+  { key: 'costume-results', stage: 'costume-reveal', label: 'Costume winners (3rd revealed)' },
   { key: 'trivia', stage: 'trivia', label: 'Trivia buzzer' },
   { key: 'slots', stage: 'slots', label: 'Slot machine' },
   { key: 'powerball', stage: 'powerball', label: 'Powerball betting / animation' },
   { key: 'powerball-results', stage: 'powerball', label: 'Powerball results' },
   { key: 'investment-review', stage: 'investment-review', label: 'Investment review' },
   { key: 'somebody-calling', stage: 'somebody-calling', label: 'Somebody’s Calling' },
+  { key: 'finish-podium', stage: 'finish', label: 'Final ranking (3rd revealed)' },
   { key: 'finish', stage: 'finish', label: 'Final ranking' },
 ] as const;
 export type PreviewScenario = (typeof PREVIEW_SCENARIOS)[number];
@@ -108,7 +109,7 @@ export async function seedPreviewRoom(engine: Engine, scenario: PreviewScenario)
       .prepare('INSERT INTO market_snapshots VALUES(?,?,?)')
       .run(room.id, 'closing', JSON.stringify(closing));
   }
-  if (scenario.stage !== 'lobby') stage(scenario.stage);
+  if (scenario.stage !== 'lobby' && scenario.key !== 'costume-results') stage(scenario.stage);
   if (scenario.stage === 'trivia') {
     hostAction('assign', { count: 2 });
     hostAction('new-question');
@@ -125,11 +126,14 @@ export async function seedPreviewRoom(engine: Engine, scenario: PreviewScenario)
     }
   }
   if (scenario.key === 'costume-results') {
+    stage('costume');
     people.forEach((_, i) =>
       playerAction(i, 'vote', { candidateId: people[i === 0 ? 1 : 0].playerId }),
     );
     command(host, 'phase.close');
-    hostAction('reveal');
+    hostAction('lock');
+    stage('costume-reveal');
+    hostAction('next');
   }
   if (scenario.stage === 'investment-review') hostAction('settle');
   if (scenario.stage === 'finish') {
@@ -145,6 +149,9 @@ export async function seedPreviewRoom(engine: Engine, scenario: PreviewScenario)
         ),
       ),
     );
+    // The podium is announced one place at a time; the plain finish scenario shows the full list.
+    for (let step = 0; step < (scenario.key === 'finish-podium' ? 1 : 6); step++)
+      hostAction('next');
   }
   return { ...room, playerId: people[0].playerId, scenario };
 }

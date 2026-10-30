@@ -10,6 +10,7 @@ import { trivia } from '../src/server/games/trivia.js';
 import { createSlotsModule } from '../src/server/games/slots.js';
 import { createPowerballModule } from '../src/server/games/powerball.js';
 import { somebodyCalling } from '../src/server/games/somebody-calling.js';
+import { costumeReveal } from '../src/server/games/costume.js';
 import { fixtureProvider } from '../src/server/games/market.js';
 import { prepareMarket } from '../src/server/games/prepare-market.js';
 import type { Command } from '../src/shared/contracts.js';
@@ -39,6 +40,7 @@ for (const count of [15, 100])
       createPowerballModule(),
       investmentReview,
       somebodyCalling,
+      costumeReveal,
     ]);
     const execute = (session: Session, type: Command['type'], payload?: Command['payload']) =>
       engine.execute(session, room.id, {
@@ -69,7 +71,7 @@ for (const count of [15, 100])
     );
     close();
     // Every guest got one vote, so everyone is tied for first: re-vote until one guest leads.
-    assert.throws(() => hostAction('reveal'));
+    assert.throws(() => hostAction('lock'));
     hostAction('revote');
     players.forEach((p, i) =>
       execute(p, 'phase.action', {
@@ -78,7 +80,7 @@ for (const count of [15, 100])
       }),
     );
     close();
-    hostAction('reveal');
+    hostAction('lock');
     advance();
     hostAction('assign', { count: 4 });
     hostAction('new-question');
@@ -123,7 +125,20 @@ for (const count of [15, 100])
     hostAction('reveal');
     close();
     advance();
+    // The costume winners are announced near the end; each click moves tokens for that place only.
+    assert.equal(
+      engine.snapshot({ role: 'display', roomId: room.id }).room.phase,
+      'costume-reveal',
+    );
+    assert.throws(() => advance());
+    for (let i = 0; i < count; i++) hostAction('next');
+    close();
+    advance();
+    const asHost = engine.snapshot({ role: 'host', roomId: room.id });
+    assert.equal(asHost.ranking?.length, count);
     const final = engine.snapshot({ role: 'display', roomId: room.id });
-    assert.equal(final.ranking?.length, count);
+    assert.deepEqual(final.ranking, []);
+    for (let i = 0; i < (asHost.rankingSteps ?? 0); i++) hostAction('next');
+    assert.equal(engine.snapshot({ role: 'display', roomId: room.id }).ranking?.length, count);
     assert.ok(store.players(room.id).every((p) => p.locked === 0 && p.reserved === 0));
   });

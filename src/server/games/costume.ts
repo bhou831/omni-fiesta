@@ -1,5 +1,6 @@
 import type { PhaseContext, PhaseModule } from '../core/phases.js';
 import { requireRule } from '../core/errors.js';
+import type { Stage } from '../../shared/contracts.js';
 
 /** The integration owner installs these tables in an ordered shared migration. */
 export const costumeSchema = `
@@ -11,6 +12,13 @@ CREATE TABLE IF NOT EXISTS costume_votes (
 CREATE TABLE IF NOT EXISTS costume_reveals (
   room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL,
   revealed_at INTEGER NOT NULL, PRIMARY KEY(room_id, phase_instance)
+);
+CREATE TABLE IF NOT EXISTS costume_locks (
+  room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL,
+  locked_at INTEGER NOT NULL, PRIMARY KEY(room_id, phase_instance)
+);
+CREATE TABLE IF NOT EXISTS costume_reveal_progress (
+  room_id TEXT PRIMARY KEY REFERENCES rooms(id), step INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS costume_results (
   room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL,
@@ -31,7 +39,9 @@ export interface CostumeProjection {
   lastPlacePenaltyPool: number;
   votedFor: string | null;
   voteCount: number;
-  revealed: boolean;
+  /** Voting is over and the standings are fixed; winners are announced later in the costume reveal stage. */
+  locked: boolean;
+  /** Host only: the private standings. Everyone else sees results in the costume reveal stage. */
   results: CostumeResult[] | null;
   /** 1 for the first vote; higher when a tie for first has been sent to a re-vote. */
   round: number;
@@ -39,6 +49,14 @@ export interface CostumeProjection {
   candidates: { playerId: string; name: string; emoji: string }[] | null;
   /** Host only: players currently tied for first, who must be re-voted before results. */
   tiedForFirst: string[];
+}
+
+function storedResults(context: PhaseContext, phaseInstance: number): CostumeResult[] {
+  return context.store.db
+    .prepare(
+      'SELECT r.player_id AS playerId,p.name,p.emoji,r.place,r.votes,r.token_change AS tokenChange FROM costume_results r JOIN players p ON p.id=r.player_id WHERE r.room_id=? AND r.phase_instance=? ORDER BY r.place,r.player_id',
+    )
+    .all(context.room.id, phaseInstance) as unknown as CostumeResult[];
 }
 
 function currentRound(context: PhaseContext): { round: number; candidates: string[] | null } {
@@ -164,10 +182,10 @@ export const costume: PhaseModule = {
   assertCanAdvance(context) {
     requireRule(
       context.store.db
-        .prepare('SELECT 1 FROM costume_reveals WHERE room_id=? AND phase_instance=?')
+        .prepare('SELECT 1 FROM costume_locks WHERE room_id=? AND phase_instance=?')
         .get(context.room.id, context.room.phase_instance),
-      'REVEAL_REQUIRED',
-      'Reveal costume results before advancing.',
+      'LOCK_REQUIRED',
+      'Lock costume results before advancing.',
     );
   },
 };
@@ -175,21 +193,21 @@ export const costume: PhaseModule = {
 /** Caller authorizes the host and executes this function in the command transaction. */
 export function costumeHostAction(context: PhaseContext, action: string): Record<string, unknown> {
   requireRule(
-    action === 'reveal' || action === 'revote',
+    action === 'lock' || action === 'revote',
     'UNKNOWN_ACTION',
     'Choose a costume host action.',
   );
   requireRule(
     context.room.phase === 'costume' && context.room.status === 'closed',
     'ROUND_OPEN',
-    'Close costume voting before revealing.',
+    'Close costume voting before locking results.',
   );
   const { store, room, now } = context;
-  const revealed = store.db
-    .prepare('SELECT 1 FROM costume_reveals WHERE room_id=? AND phase_instance=?')
+  const locked = store.db
+    .prepare('SELECT 1 FROM costume_locks WHERE room_id=? AND phase_instance=?')
     .get(room.id, room.phase_instance);
   if (action === 'revote') {
-    requireRule(!revealed, 'ALREADY_REVEALED', 'Results are already revealed.');
+    requireRule(!locked, 'ALREADY_LOCKED', 'Results are already locked.');
     const tied = tiedForFirst(context);
     requireRule(tied.length > 1, 'NO_TIE', 'No one is tied for first place.');
     const round = currentRound(context).round + 1;
@@ -204,26 +222,18 @@ export function costumeHostAction(context: PhaseContext, action: string): Record
       .run(now, now + seconds * 1000, room.id);
     return { round, candidates: tied };
   }
-  if (revealed) return { revealed: true };
+  if (locked) return { locked: true };
   requireRule(
     tiedForFirst(context).length === 0,
     'TIE_FOR_FIRST',
-    'Players are tied for first. Start a re-vote before revealing.',
+    'Players are tied for first. Start a re-vote before locking results.',
   );
   const results = calculate(context);
   const insert = store.db.prepare(
     'INSERT INTO costume_results(room_id,phase_instance,player_id,place,votes,token_change) VALUES(?,?,?,?,?,?)',
   );
-  for (const result of results) {
-    if (result.tokenChange !== 0)
-      store.adjust(
-        room.id,
-        result.playerId,
-        `costume:${room.phase_instance}`,
-        'Costume contest',
-        { spendable: result.tokenChange, locked: 0, reserved: 0 },
-        now,
-      );
+  // Tokens move later, one reveal step at a time, so locking never changes a balance.
+  for (const result of results)
     insert.run(
       room.id,
       room.phase_instance,
@@ -232,11 +242,10 @@ export function costumeHostAction(context: PhaseContext, action: string): Record
       result.votes,
       result.tokenChange,
     );
-  }
   store.db
-    .prepare('INSERT INTO costume_reveals(room_id,phase_instance,revealed_at) VALUES(?,?,?)')
+    .prepare('INSERT INTO costume_locks(room_id,phase_instance,locked_at) VALUES(?,?,?)')
     .run(room.id, room.phase_instance, now);
-  return { revealed: true };
+  return { locked: true };
 }
 
 /** Never use this as a common broadcast payload: invoke separately for each viewer role. */
@@ -246,8 +255,8 @@ export function costumeProjection(
   playerId?: string,
 ): CostumeProjection {
   const { store, room } = context;
-  const revealed = !!store.db
-    .prepare('SELECT 1 FROM costume_reveals WHERE room_id=? AND phase_instance=?')
+  const locked = !!store.db
+    .prepare('SELECT 1 FROM costume_locks WHERE room_id=? AND phase_instance=?')
     .get(room.id, room.phase_instance);
   const { round, candidates } = currentRound(context);
   const voteCount = (
@@ -267,19 +276,14 @@ export function costumeProjection(
           { candidate_id: string } | undefined)
       : undefined;
   let results: CostumeResult[] | null = null;
-  if (revealed)
-    results = store.db
-      .prepare(
-        'SELECT r.player_id AS playerId,p.name,p.emoji,r.place,r.votes,r.token_change AS tokenChange FROM costume_results r JOIN players p ON p.id=r.player_id WHERE r.room_id=? AND r.phase_instance=? ORDER BY r.place,r.player_id',
-      )
-      .all(room.id, room.phase_instance) as unknown as CostumeResult[];
-  else if (role === 'host') results = calculate(context);
+  if (role === 'host')
+    results = locked ? storedResults(context, room.phase_instance) : calculate(context);
   return {
     prizes: context.config.costume.prizes_per_player,
     lastPlacePenaltyPool: context.config.costume.last_place_penalty_pool_tokens,
     votedFor: own?.candidate_id ?? null,
-    voteCount: role === 'host' || revealed ? voteCount : 0,
-    revealed,
+    voteCount: role === 'host' ? voteCount : 0,
+    locked,
     results,
     round,
     candidates: candidates
@@ -288,6 +292,161 @@ export function costumeProjection(
           .filter((p) => candidates.includes(p.id))
           .map((p) => ({ playerId: p.id, name: p.name, emoji: p.emoji }))
       : null,
-    tiedForFirst: role === 'host' && !revealed ? tiedForFirst(context) : [],
+    tiedForFirst: role === 'host' && !locked ? tiedForFirst(context) : [],
+  };
+}
+
+export type CostumeRevealKind = 'third' | 'second' | 'last' | 'first' | 'all';
+export interface CostumeRevealGroup {
+  kind: CostumeRevealKind;
+  players: CostumeResult[];
+}
+export interface CostumeRevealProjection {
+  /** Groups announced so far, in reveal order. */
+  revealed: CostumeRevealGroup[];
+  /** Host only: the groups still to come, in order. */
+  upcoming: CostumeRevealGroup[];
+  step: number;
+  /** Every place announced, plus one final step that shows the full list when there are several places. */
+  totalSteps: number;
+  /** The full standings, shown once the host has taken the last step. Null before then. */
+  list: CostumeResult[] | null;
+  /** Host only: every place is announced and the next click shows the full list. */
+  listPending: boolean;
+}
+
+/**
+ * Reveal order is 3rd, 2nd, last place, then 1st. Ties share a step and empty steps are
+ * skipped. With fewer than 3 players there is one step that shows everyone.
+ */
+export function costumeRevealGroups(results: CostumeResult[]): CostumeRevealGroup[] {
+  if (!results.length) return [];
+  if (results.length < 3) return [{ kind: 'all', players: results }];
+  const maxPlace = Math.max(...results.map((r) => r.place));
+  const at = (place: number) => results.filter((r) => r.place === place);
+  const last = maxPlace > 3 ? at(maxPlace) : [];
+  // Only places 1-3 win tokens (the config requires exactly those prizes) and only the bottom group
+  // loses them, so players in between have nothing to announce.
+  const groups: CostumeRevealGroup[] = [
+    { kind: 'third', players: at(3) },
+    { kind: 'second', players: at(2) },
+    { kind: 'last', players: last },
+    { kind: 'first', players: at(1) },
+  ];
+  return groups.filter((g) => g.players.length > 0);
+}
+
+function lockedInstance(context: PhaseContext): number | null {
+  const row = context.store.db
+    .prepare(
+      'SELECT phase_instance FROM costume_locks WHERE room_id=? ORDER BY phase_instance DESC LIMIT 1',
+    )
+    .get(context.room.id) as { phase_instance: number } | undefined;
+  return row?.phase_instance ?? null;
+}
+function revealStep(context: PhaseContext): number {
+  const row = context.store.db
+    .prepare('SELECT step FROM costume_reveal_progress WHERE room_id=?')
+    .get(context.room.id) as { step: number } | undefined;
+  return row?.step ?? 0;
+}
+function lockedGroups(context: PhaseContext): {
+  instance: number | null;
+  groups: CostumeRevealGroup[];
+  results: CostumeResult[];
+  /** One extra step after the last place shows everyone; a single group already does. */
+  hasList: boolean;
+} {
+  const instance = lockedInstance(context);
+  const results = instance === null ? [] : storedResults(context, instance);
+  const groups = costumeRevealGroups(results);
+  return { instance, groups, results, hasList: groups.length > 1 };
+}
+
+export const costumeReveal: PhaseModule = {
+  id: 'costume-reveal' as Stage,
+  durationSeconds: () => null,
+  action() {
+    requireRule(false, 'INVALID_PHASE', 'The host announces the winners.');
+    return {};
+  },
+  assertCanAdvance(context) {
+    requireRule(
+      revealStep(context) >=
+        (({ groups, hasList }) => groups.length + (hasList ? 1 : 0))(lockedGroups(context)),
+      'REVEAL_REQUIRED',
+      'Reveal every costume place before advancing.',
+    );
+  },
+};
+
+/** Caller authorizes the host and executes this function in the command transaction. */
+export function costumeRevealHostAction(
+  context: PhaseContext,
+  action: string,
+  expectedStep?: unknown,
+): Record<string, unknown> {
+  requireRule(action === 'next', 'UNKNOWN_ACTION', 'Choose a costume reveal action.');
+  const { store, room, now } = context;
+  const { instance, groups, hasList } = lockedGroups(context);
+  const total = groups.length + (hasList ? 1 : 0);
+  const step = revealStep(context);
+  // A second tap or tab carries the step it saw, so it can never announce an extra place.
+  requireRule(
+    expectedStep === undefined || expectedStep === step,
+    'STALE_STEP',
+    'That place was already announced. Your screen has been refreshed.',
+    409,
+  );
+  if (instance === null || step >= total) return { done: true, step };
+  const progress = store.db.prepare(
+    'INSERT INTO costume_reveal_progress(room_id,step) VALUES(?,?) ON CONFLICT(room_id) DO UPDATE SET step=excluded.step',
+  );
+  if (step >= groups.length) {
+    // The full list only displays what was already announced; no tokens move.
+    progress.run(room.id, step + 1);
+    return { step: step + 1, kind: 'list', done: true };
+  }
+  const group = groups[step]!;
+  const update = store.db.prepare(
+    'UPDATE costume_results SET token_change=? WHERE room_id=? AND phase_instance=? AND player_id=?',
+  );
+  const pool = context.config.costume.last_place_penalty_pool_tokens;
+  for (const player of group.players) {
+    let change = player.tokenChange;
+    if (group.kind === 'last') {
+      // The penalty can only take what the player still has when their place is announced.
+      const spendable = store.players(room.id).find((p) => p.id === player.playerId)!.spendable;
+      change = -Math.min(spendable, Math.floor(pool / group.players.length));
+      update.run(change, room.id, instance, player.playerId);
+    }
+    if (change !== 0)
+      store.adjust(
+        room.id,
+        player.playerId,
+        `costume:${instance}`,
+        'Costume contest',
+        { spendable: change, locked: 0, reserved: 0 },
+        now,
+      );
+  }
+  progress.run(room.id, step + 1);
+  return { step: step + 1, kind: group.kind, done: step + 1 >= total };
+}
+
+/** Never use this as a common broadcast payload: invoke separately for each viewer role. */
+export function costumeRevealProjection(
+  context: PhaseContext,
+  role: 'host' | 'player' | 'display',
+): CostumeRevealProjection {
+  const { groups, results, hasList } = lockedGroups(context);
+  const step = revealStep(context);
+  return {
+    revealed: groups.slice(0, step),
+    upcoming: role === 'host' ? groups.slice(step) : [],
+    step,
+    totalSteps: groups.length + (hasList ? 1 : 0),
+    list: hasList && step > groups.length ? results : null,
+    listPending: role === 'host' && hasList && step === groups.length,
   };
 }

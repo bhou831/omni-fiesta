@@ -28,10 +28,11 @@ export function RoundDescription({ state }: { state: RoomSnapshot }) {
         </Rules>
       );
     case 'costume':
-      if (state.costume?.revealed)
+      if (state.costume?.locked)
         return (
           <Rules>
-            <Rule>Tonight’s best dressed.</Rule>
+            <Rule>Votes are in.</Rule>
+            <Rule>Winners are announced later tonight.</Rule>
           </Rules>
         );
       if (state.costume && state.costume.round > 1)
@@ -61,6 +62,13 @@ export function RoundDescription({ state }: { state: RoomSnapshot }) {
               exempt; limited to available tokens.
             </Rule>
           )}
+        </Rules>
+      );
+    case 'costume-reveal':
+      return (
+        <Rules>
+          <Rule>Tonight’s best dressed.</Rule>
+          <Rule>Winners are announced one place at a time.</Rule>
         </Rules>
       );
     case 'trivia':

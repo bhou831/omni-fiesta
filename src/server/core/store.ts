@@ -52,7 +52,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 12) {
+    if (schemaVersion > 13) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -118,6 +118,13 @@ export class Store {
         ALTER TABLE costume_votes_v12 RENAME TO costume_votes;
         CREATE TABLE IF NOT EXISTS costume_rounds(room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL, round INTEGER NOT NULL, candidates TEXT NOT NULL, PRIMARY KEY(room_id,phase_instance,round));
         PRAGMA user_version=12; COMMIT;`);
+    // Costume results are locked at voting time and announced later, a step at a time; so is the final ranking.
+    if (schemaVersion < 13)
+      this.db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE IF NOT EXISTS costume_locks(room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL, locked_at INTEGER NOT NULL, PRIMARY KEY(room_id,phase_instance));
+        CREATE TABLE IF NOT EXISTS costume_reveal_progress(room_id TEXT PRIMARY KEY REFERENCES rooms(id), step INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS finish_reveal_progress(room_id TEXT PRIMARY KEY REFERENCES rooms(id), step INTEGER NOT NULL);
+        PRAGMA user_version=13; COMMIT;`);
   }
 
   transaction<T>(run: () => T): T {

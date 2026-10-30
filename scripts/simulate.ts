@@ -129,7 +129,7 @@ try {
       }));
       await close();
     }
-    await action('reveal');
+    await action('lock');
     await advance();
     await action('assign', { count: Math.min(4, count) });
     await action('new-question');
@@ -164,7 +164,15 @@ try {
     await action('reveal');
     await close();
     await advance();
+    // Costume winners, then the final ranking, are announced one place at a time.
+    for (let i = 0; i < count; i++) await action('next');
+    await close();
+    await advance();
+    const before = await state();
+    assert.equal(before.rankingStep, 0);
+    for (let i = 0; i < (before.rankingSteps ?? 0); i++) await action('next');
     const final = await state();
+    assert.equal(final.rankingStep, final.rankingSteps);
     assert.equal(final.room.phase, 'finish');
     assert.equal(final.ranking?.length, count);
     assert.ok(

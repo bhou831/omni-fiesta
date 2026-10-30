@@ -36,17 +36,18 @@ The private host view and TV display are separate so balances and the selected p
 
 ## Stage sequence
 
-| Order | Stage                | Behavior                                                                                                                            | Session countdown                                    |
-| ----- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 0     | Lobby                | Join, choose profile, mark ready; host starts.                                                                                      | None                                                 |
-| 1     | Investment selection | One or more assets per player, with the cap applying to the total; starting grant, investment cap, locked stake, amplified return.  | Configuration: `timers.investment_selection_seconds` |
-| 2     | Costume contest      | One vote per player; award top three distinct vote groups; penalize lowest group when outside prize places.                         | Configuration: `timers.costume_voting_seconds`       |
-| 3     | Trivia               | Host assigns balanced teams, arms buzzer, judges answers, and awards each teammate.                                                 | None                                                 |
-| 4     | Slots                | Optional paid spins with immediate independent results, up to configured limit.                                                     | Configuration: `timers.slots_seconds`                |
-| 5     | Powerball            | Red/blue proportional pool betting; host locks, draws, and reveals.                                                                 | Configuration: `timers.powerball_betting_seconds`    |
-| 6     | Investment review    | Fetch one closing snapshot and settle all locked investments once. If closing prices are unavailable, the host refunds every stake. | None                                                 |
-| 7     | Somebody's Calling   | Free entry; one private random player selection; host calls manually, then reveals and awards.                                      | None                                                 |
-| 8     | Finish               | Show the complete final ranking from first through last.                                                                            | None                                                 |
+| Order | Stage                | Behavior                                                                                                                                                               | Session countdown                                    |
+| ----- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 0     | Lobby                | Join, choose profile, mark ready; host starts.                                                                                                                         | None                                                 |
+| 1     | Investment selection | One or more assets per player, with the cap applying to the total; starting grant, investment cap, locked stake, amplified return.                                     | Configuration: `timers.investment_selection_seconds` |
+| 2     | Costume contest      | One vote per player; host locks the standings (re-vote on a tie for first). Winners and tokens come later, in stage 8.                                                 | Configuration: `timers.costume_voting_seconds`       |
+| 3     | Trivia               | Host assigns balanced teams, arms buzzer, judges answers, and awards each teammate.                                                                                    | None                                                 |
+| 4     | Slots                | Optional paid spins with immediate independent results, up to configured limit.                                                                                        | Configuration: `timers.slots_seconds`                |
+| 5     | Powerball            | Red/blue proportional pool betting; host locks, draws, and reveals.                                                                                                    | Configuration: `timers.powerball_betting_seconds`    |
+| 6     | Investment review    | Fetch one closing snapshot and settle all locked investments once. If closing prices are unavailable, the host refunds every stake.                                    | None                                                 |
+| 7     | Somebody's Calling   | Free entry; one private random player selection; host calls manually, then reveals and awards.                                                                         | None                                                 |
+| 8     | Costume winners      | Host announces 3rd, 2nd, last place, then 1st, one click each, with an animation; tokens move per place; a last click shows the full list. Under 3 players: one click. |
+| 9     | Finish               | Host announces 3rd, 2nd, 1st, then the full ranking (podium fixed, rest rotating on the TV). Under 3 players: one click.                                               | None                                                 |
 
 Only those four action sessions have countdowns. Advancing to a timed stage places it in a waiting state; the host starts its timer explicitly, and player actions open at that moment. Display the same server-based countdown on phones, the TV, and optionally the host. Unsubmitted actions expire with no automatic choice, charge, vote, bet, or spin. Previously accepted actions remain valid and still settle. After expiry, show a waiting state until the host proceeds.
 
@@ -97,7 +98,7 @@ Slots is a ticket printer: the Spin button requests one spin, a ticket prints an
 
 ## Rankings and privacy
 
-The host can inspect all players in a complete ordered balance list. Public results are host-revealed. The final screen lists every participant, first through last, with final tokens. Equal balances share rank; use a stable secondary order for display without claiming a tied player earned a lower place. Costume results likewise include every candidate and vote count on reveal, including zero-vote candidates.
+The host can inspect all players in a complete ordered balance list. Public results are host-revealed. The final screen lists every participant, first through last, with final tokens. Equal balances share rank; use a stable secondary order for display without claiming a tied player earned a lower place. Costume winners are announced place by place near the end of the party: public screens show only places announced so far, the host always sees the standings, and tokens move as each place is announced. The final ranking is announced the same way, then shows every participant.
 
 Personal phone numbers/emails are not public. Balances are sent only to their owner and the authenticated host until an intentional leaderboard reveal. Hide the player's balance again on stage change. Reveal phone-draw selection and its reward publicly only when the host chooses.
 

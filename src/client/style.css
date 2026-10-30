@@ -3485,42 +3485,146 @@ td {
   letter-spacing: -0.02em;
 }
 
-/* Costume results on the TV: three columns so a full party fits without scrolling. */
-.display-content .costume-results {
-  columns: 3;
-  column-gap: 40px;
+/* Costume winners: each announced place is a card; the newest one enters with its own motion. */
+.costume-locked {
+  font-size: clamp(28px, calc(3 * var(--vw, 10px)), 56px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.reveal-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+  margin-top: 16px;
+}
+.reveal-card {
+  flex: 1 1 280px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.reveal-card h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+.reveal-card ul {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: clamp(18px, calc(1.5 * var(--vw)), 28px);
-  line-height: 1.25;
 }
-.display-content .costume-results li {
+.reveal-card li {
   display: grid;
-  grid-template-columns: 1.8em minmax(0, 1fr);
-  break-inside: avoid;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 4px 0;
 }
-.costume-results .rank-number {
-  grid-row: span 2;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.costume-results strong {
-  font-weight: 600;
+.reveal-card strong {
+  font-weight: 650;
   overflow-wrap: anywhere;
 }
-.costume-results .costume-result-meta {
-  grid-column: 2;
+.reveal-card .costume-result-meta {
   color: var(--muted);
-  font-size: 0.75em;
+  font-size: 0.8em;
 }
-.costume-results .is-top .rank-number {
-  color: var(--ink);
+.display-content .reveal-cards {
+  gap: 28px;
+  font-size: clamp(22px, calc(2 * var(--vw)), 40px);
 }
-.costume-results .is-top strong {
-  font-weight: 700;
+.display-content .reveal-card {
+  flex-basis: 30%;
+  padding: 24px 28px;
+}
+.display-content .reveal-card.kind-first {
+  flex-basis: 100%;
+  font-size: 1.2em;
+  border-color: var(--ink);
+}
+.display-content .reveal-card.kind-last {
+  flex-basis: 100%;
+  padding-block: 16px;
+  font-size: 0.78em;
+}
+.display-content .reveal-card.kind-first {
+  padding-block: 18px;
+}
+.display-content .reveal-cards {
+  gap: 20px;
+}
+/* A shared last place can be most of the party, so its names flow into two columns. */
+.reveal-card.kind-last ul {
+  columns: 2;
+  column-gap: 28px;
+}
+.reveal-card.kind-last li {
+  break-inside: avoid;
+}
+.reveal-card.is-new {
+  animation: reveal-pop 900ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.reveal-card.is-new.kind-last {
+  animation: reveal-wobble 1100ms ease-out both;
+}
+.reveal-card.is-new.kind-first {
+  animation:
+    reveal-pop 1200ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both,
+    reveal-glow 1800ms ease-out 400ms 2;
+}
+/* The final ranking announces the same way, one podium row at a time. */
+.ranking-list li.is-new {
+  animation: reveal-pop 900ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.ranking-list li.is-new.rank-1 {
+  animation:
+    reveal-pop 1200ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both,
+    reveal-glow 1800ms ease-out 400ms 2;
+}
+@keyframes reveal-pop {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes reveal-wobble {
+  0% {
+    opacity: 0;
+    transform: translateY(-30px) rotate(-6deg) scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: rotate(5deg);
+  }
+  60% {
+    transform: rotate(-4deg);
+  }
+  80% {
+    transform: rotate(2deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes reveal-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(0 0 0 / 0);
+  }
+  50% {
+    box-shadow: 0 0 60px 12px rgb(255 190 40 / 0.55);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-card.is-new,
+  .ranking-list li.is-new {
+    animation: none;
+  }
 }
 
 /* Closing bell without closing prices: one plain statement instead of the market cards. */
@@ -3532,4 +3636,24 @@ td {
 }
 .display-content .investment-refund p {
   font-size: clamp(22px, calc(2 * var(--vw)), 36px);
+}
+
+/* Costume winners full list: same shape as the final ranking, sized for the shorter winners stage. */
+.costume-list {
+  --rank-col: 72px;
+  margin: 0;
+  font-size: clamp(20px, calc(1.8 * var(--vw, 10px)), 36px);
+}
+.costume-list li:not(.is-top) {
+  font-size: 0.8em;
+}
+.costume-list .rank-1 {
+  font-size: 1.3em;
+}
+.costume-list .rank-2,
+.costume-list .rank-3 {
+  font-size: 1.1em;
+}
+.costume-list .rank-tokens {
+  font-size: 0.7em;
 }

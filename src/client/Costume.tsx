@@ -13,7 +13,7 @@ export interface CostumeViewProps {
   busyKey?: string | null;
   allowSelfVote: boolean;
   onVote: (candidateId: string) => void;
-  onReveal: () => void;
+  onLock: () => void;
   onRevote?: () => void;
 }
 
@@ -38,17 +38,15 @@ export function CostumePlayer(props: CostumeViewProps) {
   return (
     <section>
       <h2>{state.round > 1 ? 'Tie-break vote' : 'Vote for a costume'}</h2>
-      {state.revealed ? (
-        <Results state={state} />
+      {state.locked ? (
+        <p>Votes are in. Winners are announced near the end of the party.</p>
       ) : (
         <>
-          {state.round > 1 && !state.revealed && (
-            <p>Tied for first. Vote again between the players below.</p>
-          )}
+          {state.round > 1 && <p>Tied for first. Vote again between the players below.</p>}
           <p>
             {open
               ? 'Choose one person. You can change your vote until voting closes.'
-              : 'Voting is closed. Wait for the host to reveal the results.'}
+              : 'Voting is closed. Winners are announced near the end of the party.'}
           </p>
           {state.votedFor && (
             <p>Saved vote: {players.find((p) => p.id === state.votedFor)?.name ?? 'Player'}</p>
@@ -86,17 +84,21 @@ export function CostumeHost(props: CostumeViewProps) {
       <p>
         {props.state.voteCount} {props.state.voteCount === 1 ? 'vote' : 'votes'} received.
       </p>
-      {props.state.round > 1 && !props.state.revealed && (
+      {props.state.round > 1 && !props.state.locked && (
         <p>Re-vote round {props.state.round}: only the players tied for first can win.</p>
       )}
-      {!props.state.revealed && <p>Private preview; results become public when revealed.</p>}
+      <p>
+        {props.state.locked
+          ? '✓ Results locked. You announce the winners near the end of the party.'
+          : 'Private preview; nobody else sees results until you announce them.'}
+      </p>
       <Results state={props.state} />
       {tied.length > 0 && (
         <p className="notice">
           Tied for first: {tied.join(', ')}. Start a re-vote to choose one winner.
         </p>
       )}
-      {!props.state.revealed && tied.length > 0 && (
+      {!props.state.locked && tied.length > 0 && (
         <button
           className="button primary"
           disabled={props.disabled || props.open}
@@ -107,42 +109,23 @@ export function CostumeHost(props: CostumeViewProps) {
             : `Start re-vote between ${tied.length} players`}
         </button>
       )}
-      {!props.state.revealed && (
+      {!props.state.locked && (
         <button
           className="button secondary"
           disabled={props.disabled || props.open || tied.length > 0}
-          onClick={props.onReveal}
+          onClick={props.onLock}
         >
-          {props.busyKey === 'phase.host:reveal' ? 'Revealing…' : 'Settle and reveal results'}
+          {props.busyKey === 'phase.host:lock' ? 'Locking…' : 'Lock results'}
         </button>
       )}
     </section>
   );
 }
-/** TV results: name over votes and tokens, flowed into columns so every guest fits on the stage. */
-function DisplayResults({ results }: { results: NonNullable<CostumeProjection['results']> }) {
-  return (
-    <ol className="costume-results">
-      {results.map((result) => (
-        <li key={result.playerId} className={result.place <= 3 ? 'is-top' : ''}>
-          <span className="rank-number">{result.place}</span>
-          <strong>
-            {result.emoji} {result.name}
-          </strong>
-          <span className="costume-result-meta">
-            {result.votes} {result.votes === 1 ? 'vote' : 'votes'} ·{' '}
-            {formatTokens(result.tokenChange, { signed: true })} tokens
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
 export function CostumeDisplay({ state }: Pick<CostumeViewProps, 'state'>) {
   return (
     <section>
-      {state.revealed && state.results && <DisplayResults results={state.results} />}
-      {!state.revealed && state.candidates && (
+      {state.locked && <p className="costume-locked">Votes are in. Winners come later tonight.</p>}
+      {!state.locked && state.candidates && (
         <ul className="tie-candidates" aria-label="Tied for first">
           {state.candidates.map((c) => (
             <li key={c.playerId}>

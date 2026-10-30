@@ -289,3 +289,19 @@ At the user's request, a host-only `refund` action on the closing bell returns e
 - Opening prices are still required to leave the lobby; there is no skip for investments.
 
 Verified: format check, typecheck, `npm test` (88 pass, including refund idempotency, settle/refund exclusion, closing refusal after refund, the empty-review advance and refunded phone/TV rendering) and `npm run build`. Also drove a 15-player fixture party on a local server through the refund path to the final ranking. All locked balances returned to 0, closing preparation was refused, and the TV screenshot shows the refund message. Not verified on physical devices.
+
+### Costume winners and final ranking reveal (2026-10-29)
+
+At the user's request, the format changed so the costume winner reveal comes near the end and both reveals are announced one place at a time. Assumptions recorded: costume tokens move at each reveal step (so prizes cannot be spent in earlier games), and the final ranking shows the podium first, then the full list.
+
+- New stage `costume-reveal` between Somebody's calling and the finish. The costume stage now ends with a host **lock** (`costume_locks`); the old `reveal` action is gone. Costume results are host-only until announced.
+- `costume-reveal` host action `next`: 3rd, 2nd, last place, then 1st (ties share a step, empty steps skipped, under 3 players one step). Progress is in `costume_reveal_progress`; each step adjusts only that step's players, and the last-place penalty is recomputed against the balance at that moment.
+- Finish: host `next` announces 3rd, 2nd, 1st, then the full ranking (`finish_reveal_progress`). Public snapshots carry only announced places plus `rankingStep` and `rankingSteps`; the host always gets everyone. Schema version is now 13.
+- TV and phones: animated place cards (a wobble for last place, a glow for 1st), podium rows animate in the final ranking, reduced motion disables animation.
+- Preview scenarios `costume-results` (now the winners stage) and `finish-podium` were added or changed. The simulator and tests follow the new order.
+
+Verified: format, typecheck, `npm test` (96 pass), build, 15-player and 2-player fixture parties through every stage with the simulator, and 1920×1080 headless Chrome screenshots of every reveal step (6 players tied for last fit with the winner card). Not verified: physical TV and phones, and the phone reveal layout in a browser.
+
+An independent code review found no blockers. Follow-ups applied: the last-place penalty now always uses the balance when that place is announced, and `next` carries the step the host saw (`STALE_STEP`), so a double tap or second tab cannot announce an extra place. Not changed: a room already past the old costume reveal cannot advance on this build, so deploy before the Saturday room is created.
+
+Follow-up: after 1st place the costume winners stage has one more host click that shows the full list (place, votes, token change; podium fixed, rest rotating on the TV, like the final ranking). It is skipped when a single group already shows everyone. `costumeReveal.assertCanAdvance` requires it. Verified with `npm test` (97 pass), build, and a 1920×1080 screenshot of the list step.

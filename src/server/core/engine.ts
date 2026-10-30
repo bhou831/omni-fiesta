@@ -19,7 +19,18 @@ import {
   snapshot as marketSnapshot,
   positions,
 } from '../games/investments.js';
-import { costumeHostAction, costumeProjection } from '../games/costume.js';
+import {
+  costumeHostAction,
+  costumeProjection,
+  costumeRevealHostAction,
+  costumeRevealProjection,
+} from '../games/costume.js';
+import {
+  finishRevealAction,
+  finishRevealStep,
+  finishRevealSteps,
+  publicRanking,
+} from '../games/finish-reveal.js';
 import { triviaHostAction, triviaProjection } from '../games/trivia.js';
 import { slotsPlayerState, slotsHostState, slotsDisplayState } from '../games/slots.js';
 import { powerballHostAction, powerballProjection } from '../games/powerball.js';
@@ -75,6 +86,16 @@ export class Engine {
     if (next !== 'finish' && !this.modules.has(next))
       return `${STAGE_LABELS[next]} is not implemented yet.`;
     return null;
+  }
+  private ranking(room: RoomRow): NonNullable<RoomSnapshot['ranking']> {
+    const sorted = [...this.store.players(room.id)].sort(
+      (a, b) => b.spendable - a.spendable || a.id.localeCompare(b.id),
+    );
+    let rank = 0;
+    return sorted.map((p, index) => {
+      if (index === 0 || p.spendable !== sorted[index - 1].spendable) rank = index + 1;
+      return { rank, playerId: p.id, name: p.name, emoji: p.emoji, tokens: p.spendable };
+    });
   }
   expire(roomId: string): boolean {
     return this.store.transaction(() => {
@@ -217,6 +238,15 @@ export class Engine {
               refundInvestments(context);
               result = { refunded: true };
             } else if (room.phase === 'costume') result = costumeHostAction(context, action);
+            else if (room.phase === 'costume-reveal')
+              result = costumeRevealHostAction(context, action, command.payload?.data?.step);
+            else if (room.phase === 'finish' && room.mode === 'party')
+              result = finishRevealAction(
+                context,
+                action,
+                this.ranking(room),
+                command.payload?.data?.step,
+              );
             else if (room.phase === 'trivia') {
               requireRule(room.status === 'open', 'ROUND_CLOSED', 'Trivia is closed.');
               result = triviaHostAction(
@@ -327,15 +357,11 @@ export class Engine {
       },
       players,
     };
-    if (room.phase === 'finish' && room.mode === 'party') {
-      const sorted = [...rows].sort(
-        (a, b) => b.spendable - a.spendable || a.id.localeCompare(b.id),
-      );
-      let rank = 0;
-      base.ranking = sorted.map((p, index) => {
-        if (index === 0 || p.spendable !== sorted[index - 1].spendable) rank = index + 1;
-        return { rank, playerId: p.id, name: p.name, emoji: p.emoji, tokens: p.spendable };
-      });
+    const fullRanking =
+      room.phase === 'finish' && room.mode === 'party' ? this.ranking(room) : undefined;
+    if (fullRanking) {
+      base.rankingStep = finishRevealStep(this.context(room));
+      base.rankingSteps = finishRevealSteps(fullRanking).total;
     }
     const hostState = viewers.some((viewer) => viewer.role === 'host')
       ? {
@@ -385,6 +411,11 @@ export class Engine {
           positions: viewer.role === 'player' ? positions(context, viewer.playerId) : [],
         };
       }
+      if (fullRanking)
+        snapshot.ranking =
+          viewer.role === 'host' ? fullRanking : publicRanking(fullRanking, base.rankingStep!);
+      if (room.phase === 'costume-reveal')
+        snapshot.costumeReveal = costumeRevealProjection(this.context(room), viewer.role);
       if (room.phase === 'costume')
         snapshot.costume = {
           ...costumeProjection(
