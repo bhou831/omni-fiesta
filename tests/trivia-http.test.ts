@@ -212,8 +212,10 @@ test('selected synthetic music is served only to authenticated host or TV and ne
         content: string;
       }
     ).content,
-  ) as { cells: { id: string; kind: string }[] };
-  const cell = content.cells.find((c) => c.kind === 'music')!;
+  ) as { cells: { id: string; kind: string; musicAudio?: { file?: string } }[] };
+  const cells = content.cells.filter((c) => c.kind === 'music');
+  assert.equal(cells.length, 5);
+  const cell = cells[0];
   const hostSession = app.store.authenticate(
     hostCookie.split('=')[1],
     'host',
@@ -241,6 +243,8 @@ test('selected synthetic music is served only to authenticated host or TV and ne
   assert.equal(hostAudio.headers.get('content-type'), 'audio/wav');
   const audioSize = Number(hostAudio.headers.get('content-length'));
   assert.ok(audioSize > 44);
+  assert.equal(hostAudio.headers.get('content-type'), 'audio/wav');
+  const audioBytes = [new Uint8Array(await hostAudio.arrayBuffer())];
   const partial = await fetch(path, {
     headers: { Cookie: hostCookie, Range: 'bytes=0-43' },
   });
@@ -257,12 +261,15 @@ test('selected synthetic music is served only to authenticated host or TV and ne
     headers: { Cookie: hostCookie },
   });
   const hostState = (await hostStateResponse.json()) as RoomSnapshot;
-  assert.equal(hostState.trivia?.board?.selected?.answer, '三段音逐渐升高。');
+  assert.equal(
+    hostState.trivia?.board?.selected?.answer,
+    '《小星星》（Twinkle, Twinkle, Little Star）。',
+  );
   const tvStateResponse = await fetch(`${base}/api/rooms/${room.code}/state?role=display`, {
     headers: { Authorization: `Bearer ${room.displayToken}` },
   });
   const tvState = (await tvStateResponse.json()) as RoomSnapshot;
-  assert.deepEqual(tvState.trivia?.board?.selected?.musicClip, { start: 0, end: 1.2 });
+  assert.deepEqual(tvState.trivia?.board?.selected?.musicClip, { start: 0, end: 5.5 });
   assert.equal(tvState.trivia?.board?.selected?.answer, undefined);
   const phone = await fetch(`${base}/api/rooms/${room.code}/state?role=player`, {
     headers: {
@@ -273,6 +280,27 @@ test('selected synthetic music is served only to authenticated host or TV and ne
   assert.equal(phoneState.trivia?.board, undefined);
   assert.doesNotMatch(
     JSON.stringify(phoneState.trivia),
-    /demo-tone|audio-ssl|musicClip|hostAnswer/,
+    /demo-(?:twinkle|ode-to-joy|frere-jacques|mary-lamb|jingle-bells)|audio-ssl|musicClip|hostAnswer/,
   );
+  for (const [index, nextCell] of cells.slice(1).entries()) {
+    app.engine.execute(hostSession, room.id, {
+      requestId: randomUUID(),
+      phaseInstance: app.store.room(room.id).phase_instance,
+      type: 'phase.host',
+      payload: { action: 'finish-cell', data: { cellId: cells[index].id } },
+    });
+    app.engine.execute(hostSession, room.id, {
+      requestId: randomUUID(),
+      phaseInstance: app.store.room(room.id).phase_instance,
+      type: 'phase.host',
+      payload: { action: 'select-cell', data: { cellId: nextCell.id } },
+    });
+    const response = await fetch(`${base}/api/rooms/${room.code}/trivia-audio/${nextCell.id}`, {
+      headers: { Cookie: hostCookie },
+    });
+    assert.equal(response.status, 200, `${nextCell.id} should be playable`);
+    assert.equal(response.headers.get('content-type'), 'audio/wav');
+    audioBytes.push(new Uint8Array(await response.arrayBuffer()));
+  }
+  assert.equal(new Set(audioBytes.map((bytes) => Buffer.from(bytes).toString('hex'))).size, 5);
 });

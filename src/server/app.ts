@@ -425,11 +425,7 @@ export function createApp(options: AppOptions) {
       const root = realpathSync(
         bank.mode === 'demo' ? resolve('fixtures') : resolve('private/trivia-media'),
       );
-      path = realpathSync(
-        bank.mode === 'demo'
-          ? resolve(root, 'music-demo.wav')
-          : resolve(root, clue.musicAudio.file!),
-      );
+      path = realpathSync(resolve(root, clue.musicAudio.file!));
       requireRule(
         path.startsWith(`${root}/`),
         'AUDIO_UNAVAILABLE',

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createElement } from 'react';
@@ -66,10 +66,18 @@ test('demo content validates 25 playable slots and stays separate from custom ev
     ['类别 1', '类别 2', '类别 3', '类别 4', '类别 5'],
   );
   assert.equal(content.cells.flatMap((c) => c.musicCandidates ?? []).length, 0);
-  const music = content.cells.find((c) => c.kind === 'music')!;
-  assert.equal(music.musicAudio?.file, 'demo-tone.wav');
-  assert.equal(music.categoryId, 'music');
-  assert.equal(music.hostNotes, undefined);
+  const music = content.cells.filter((c) => c.kind === 'music');
+  assert.equal(music.length, 5);
+  assert.ok(music.every((c) => c.categoryId === 'music' && c.musicAudio && c.hostAnswer));
+  const fixtureNames = music.map((c) => c.musicAudio!.file!);
+  assert.equal(new Set(fixtureNames).size, 5);
+  const fixtureBytes = fixtureNames.map((name) => {
+    const path = new URL(`../fixtures/${name}`, import.meta.url);
+    assert.ok(statSync(path).size > 44);
+    return readFileSync(path).toString('hex');
+  });
+  assert.equal(new Set(fixtureBytes).size, 5);
+  assert.ok(music.every((c) => c.hostNotes === undefined));
   assert.equal(
     isApprovedApplePreviewUrl(
       'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/example.m4a',
@@ -87,8 +95,11 @@ test('demo content validates 25 playable slots and stays separate from custom ev
     validateTriviaContent({
       ...content,
       cells: content.cells.map((c) =>
-        c.id === music.id
-          ? { ...c, musicAudio: { file: 'demo-tone.wav', clipStartSeconds: 5, clipEndSeconds: 4 } }
+        c.id === music[0].id
+          ? {
+              ...c,
+              musicAudio: { file: 'demo-twinkle.wav', clipStartSeconds: 5, clipEndSeconds: 4 },
+            }
           : c,
       ),
     }),
@@ -97,7 +108,7 @@ test('demo content validates 25 playable slots and stays separate from custom ev
     validateTriviaContent({
       ...content,
       cells: content.cells.map((c) =>
-        c.id === music.id
+        c.id === music[0].id
           ? {
               ...c,
               musicAudio: {

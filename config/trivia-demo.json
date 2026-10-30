@@ -74,46 +74,65 @@
       "categoryId": "music",
       "value": 100,
       "kind": "music",
-      "publicPrompt": "听一段合成提示音，说出音高变化。",
-      "hostAnswer": "三段音逐渐升高。",
+      "publicPrompt": "听一段旋律，说出这首熟悉的童谣。",
+      "hostAnswer": "《小星星》（Twinkle, Twinkle, Little Star）。",
       "musicAudio": {
-        "file": "demo-tone.wav",
+        "file": "demo-twinkle.wav",
         "clipStartSeconds": 0,
-        "clipEndSeconds": 1.2
+        "clipEndSeconds": 5.5
       }
     },
     {
       "id": "music-2",
       "categoryId": "music",
       "value": 200,
-      "kind": "text",
-      "publicPrompt": "吉他和小提琴中，哪一种通常有六根弦？",
-      "hostAnswer": "吉他。"
+      "kind": "music",
+      "publicPrompt": "听一段旋律，说出这首熟悉的古典乐曲。",
+      "hostAnswer": "《欢乐颂》（Ode to Joy）。",
+      "musicAudio": {
+        "file": "demo-ode-to-joy.wav",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 5.5
+      }
     },
     {
       "id": "music-3",
       "categoryId": "music",
       "value": 300,
-      "kind": "text",
-      "publicPrompt": "「独唱」和「合唱」中，哪个通常指多人一起演唱？",
-      "hostAnswer": "合唱。"
+      "kind": "music",
+      "publicPrompt": "听一段旋律，说出这首熟悉的儿歌。",
+      "hostAnswer": "《两只老虎》（Frère Jacques）。",
+      "musicAudio": {
+        "file": "demo-frere-jacques.wav",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 5.5
+      }
     },
     {
       "id": "music-4",
       "categoryId": "music",
       "value": 400,
-      "kind": "text",
-      "publicPrompt": "标准钢琴通常有多少个琴键？",
-      "hostAnswer": "88 个。"
+      "kind": "music",
+      "publicPrompt": "听一段旋律，说出这首熟悉的童谣。",
+      "hostAnswer": "《玛丽有只小羊羔》（Mary Had a Little Lamb）。",
+      "musicAudio": {
+        "file": "demo-mary-lamb.wav",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 5.5
+      }
     },
     {
       "id": "music-5",
       "categoryId": "music",
       "value": 500,
-      "kind": "text",
-      "publicPrompt": "音乐中的 BPM 通常表示什么？",
-      "hostAnswer": "每分钟的拍数。",
-      "hostNotes": "可答「速度」并说明是每分钟多少拍。"
+      "kind": "music",
+      "publicPrompt": "听一段旋律，说出这首熟悉的节日歌曲。",
+      "hostAnswer": "《铃儿响叮当》（Jingle Bells）。",
+      "musicAudio": {
+        "file": "demo-jingle-bells.wav",
+        "clipStartSeconds": 0,
+        "clipEndSeconds": 5.5
+      }
     },
     {
       "id": "adventure-1",
