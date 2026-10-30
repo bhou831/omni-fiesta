@@ -71,6 +71,20 @@ test('demo content validates 25 playable slots and stays separate from custom ev
   );
 });
 
+test('host can reveal the board after teams are shown on the TV', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  assert.equal(f.snapshot('display').board!.started, false);
+  f.execute('show-board');
+  assert.equal(f.snapshot('display').board!.started, true);
+  assert.throws(() =>
+    f.execute('set-demo-mode', {
+      demo: false,
+      expectedBankVersion: f.snapshot().board!.version,
+    }),
+  );
+});
+
 test('host selects, safely cancels, and explicitly finishes; unavailable/used/stale cells are rejected', async (t) => {
   const f = await fixture();
   t.after(() => f.app.close());

@@ -212,6 +212,7 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
       if (action === 'undo-award') setAcknowledgedAward(null);
       const messages: Record<string, string> = {
         assign: '分队已保存。',
+        'show-board': '题板已显示在大屏幕。',
         'set-demo-mode': data.demo ? '演示模式已开启，类别已隐藏。' : '已切换到本机正式题库。',
         'select-cell': '题目已选定。',
         'cancel-selection': '已返回题板，此格仍可选择。',
@@ -289,6 +290,13 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
       <p className="host-action-feedback" role="status" aria-live="polite">
         {feedback ? `✓ ${feedback}` : pending ? '保存中…' : ''}
       </p>
+      {board && !trivia.teams.length && (
+        <div className="trivia-start-card">
+          <strong>{trivia.demo ? '演示题板已就绪' : 'Trivia 题板已就绪'}</strong>
+          <p>先分队，然后在题板上选题。</p>
+          {button('assign', '开始 Trivia · 随机分队', false, { count: Number(count) }, true)}
+        </div>
+      )}
       <fieldset className="control-group">
         <legend>1 · 分队</legend>
         <label>
@@ -309,6 +317,11 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
       </fieldset>
       <fieldset className="control-group">
         <legend>2 · 选题与抢答</legend>
+        {board &&
+          trivia.teams.length > 0 &&
+          !board.started &&
+          !selected &&
+          button('show-board', '显示题板 · 开始选题', false, {}, true)}
         {board && !selected && (
           <>
             <p>队伍口头选题，由主持人点击。待准备的题目暂不可选。</p>
@@ -480,12 +493,50 @@ export function TriviaDisplay({
   const winningTeam = trivia.teams.find((team) => team.id === trivia.winner?.teamId);
   const winner = winningTeam?.members.find((player) => player.id === trivia.winner?.playerId);
   const answering = !closed && trivia.status === 'locked' && !!winningTeam && !board?.revealed;
+  const showingGroups = !!board && !board.started && !board.selected && !closed;
   return (
     <section
       lang="zh-CN"
-      className={`trivia-board ${board ? 'has-jeopardy' : ''} ${board?.selected ? 'is-question' : 'is-selection'}`}
+      className={`trivia-board ${board && !showingGroups ? 'has-jeopardy' : ''} ${showingGroups ? 'is-groups' : board?.selected ? 'is-question' : 'is-selection'}`}
     >
-      {board ? (
+      {showingGroups ? (
+        <div className="trivia-landing">
+          <div className="trivia-landing-title">
+            <span className="eyebrow">{trivia.demo ? 'DEMO ROUND' : 'TRIVIA NIGHT'}</span>
+            <h2>{trivia.teams.length ? '今晚的队伍' : 'Trivia 即将开始'}</h2>
+            {trivia.teams.length > 0 && (
+              <p>
+                {trivia.teams.length} 支队伍 ·{' '}
+                {trivia.teams.reduce((sum, team) => sum + team.members.length, 0)} 位玩家
+              </p>
+            )}
+          </div>
+          {trivia.teams.length > 0 && (
+            <div className="team-board">
+              {trivia.teams.map((team) => (
+                <article
+                  key={team.id}
+                  className="team-card"
+                  style={{ '--team-color': team.color } as CSSProperties}
+                >
+                  <h3>
+                    {team.name}
+                    <small>{team.members.length} 人</small>
+                  </h3>
+                  <ul className="team-members">
+                    {team.members.map((player) => (
+                      <li key={player.id}>
+                        <span aria-hidden="true">{player.emoji}</span>
+                        {player.name}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : board ? (
         <>
           <div className="trivia-display-focus">
             {board.selected ? <Question board={board} /> : <Board board={board} />}
@@ -541,8 +592,12 @@ export function TriviaDisplay({
         </>
       ) : (
         <>
-          <div className="trivia-buzz-status">
-            <BuzzStatus trivia={trivia} />
+          <div className="trivia-landing-title">
+            {trivia.winner || trivia.status === 'armed' ? (
+              <BuzzStatus trivia={trivia} />
+            ) : (
+              <h2>Trivia 即将开始</h2>
+            )}
           </div>
           <div className="team-board">
             {trivia.teams.map((team) => (

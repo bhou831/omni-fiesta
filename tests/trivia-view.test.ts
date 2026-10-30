@@ -76,8 +76,35 @@ const board: NonNullable<TriviaProjection['board']> = {
   cells: [{ id: 'sample-100', categoryId: 'sample', value: 100, used: false, available: true }],
   selected: { id: 'sample-100', categoryId: 'sample', value: 100, publicPrompt: '示例问题？' },
   revealed: false,
+  started: true,
   canCancel: false,
 };
+
+test('TV landing shows each assigned group and removes phone-only instructions', () => {
+  const teams = [1, 2, 3, 4].map((id) => ({
+    id,
+    name: `第 ${id} 队`,
+    color: '#8d2727',
+    excluded: false,
+    members: [{ id: `player-${id}`, name: `玩家 ${id}`, emoji: '🦦' }],
+  }));
+  const html = renderToStaticMarkup(
+    createElement(TriviaDisplay, {
+      trivia: {
+        ...trivia,
+        question: 0,
+        winner: null,
+        status: 'idle',
+        teams,
+        board: { ...board, selected: null, started: false },
+      },
+    }),
+  );
+  assert.match(html, /今晚的队伍/);
+  assert.match(html, /4 支队伍/);
+  assert.equal((html.match(/class="team-card"/g) ?? []).length, 4);
+  assert.doesNotMatch(html, /看大屏幕|等待主持人/);
+});
 
 test('question display identifies the buzzer winner without repeating instructions or a roster', () => {
   const html = renderToStaticMarkup(createElement(TriviaDisplay, { trivia: { ...trivia, board } }));
