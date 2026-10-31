@@ -128,6 +128,7 @@ type State = {
 };
 type Member = { player_id: string; team: number };
 export type TriviaProjection = {
+  timer?: TriviaTimer;
   teams: {
     id: number;
     name: string;
@@ -160,6 +161,9 @@ export type TriviaProjection = {
   adventure?: AdventureProjection;
   /** Host-only guidance; commands still enforce their own rules. */
   controls?: {
+    canPauseTimer: boolean;
+    canResumeTimer: boolean;
+    canRestartTimer: boolean;
     canArm: boolean;
     canCloseBuzzer: boolean;
     canMarkIncorrect: boolean;
@@ -205,6 +209,8 @@ type AnswerAttempt = {
   attempt: number;
   team: number;
   deadline_at: number;
+  paused_remaining_ms: number | null;
+  timer_revision: number;
   status: 'active' | 'failed' | 'revealed' | 'resolved';
 };
 const answerAttempt = (c: PhaseContext, question: number): AnswerAttempt | undefined =>
@@ -219,7 +225,7 @@ const failAnswer = (c: PhaseContext, a: AnswerAttempt) => {
     .run(c.room.id, c.room.phase_instance, a.question, a.team);
   c.store.db
     .prepare(
-      "UPDATE trivia_answer_attempts SET status='failed' WHERE room_id=? AND phase_instance=? AND question=? AND status='active'",
+      "UPDATE trivia_answer_attempts SET status='failed',paused_remaining_ms=NULL WHERE room_id=? AND phase_instance=? AND question=? AND status='active'",
     )
     .run(c.room.id, c.room.phase_instance, a.question);
   c.store.db
@@ -231,11 +237,38 @@ const failAnswer = (c: PhaseContext, a: AnswerAttempt) => {
 const resolveAnswer = (c: PhaseContext, question: number, status = 'resolved') => {
   c.store.db
     .prepare(
-      "UPDATE trivia_answer_attempts SET status=? WHERE room_id=? AND phase_instance=? AND question=? AND status IN ('active','revealed')",
+      "UPDATE trivia_answer_attempts SET status=?,paused_remaining_ms=NULL WHERE room_id=? AND phase_instance=? AND question=? AND status IN ('active','revealed')",
     )
     .run(status, c.room.id, c.room.phase_instance, question);
 };
 const canScoreAnswer = (a: AnswerAttempt) => a.status === 'active' || a.status === 'revealed';
+export type TriviaTimer = {
+  attempt: number;
+  revision: number;
+  deadlineAt: number;
+  pausedRemainingMs: number | null;
+  durationSeconds: number;
+};
+function currentTimer(c: PhaseContext): TriviaTimer | undefined {
+  const a = getAdventure(c, boardState(c)?.selected_cell ?? null);
+  if (a?.phase === 'active' && a.deadlineAt !== null)
+    return {
+      attempt: a.attempt,
+      revision: a.timerRevision ?? 0,
+      deadlineAt: a.deadlineAt,
+      pausedRemainingMs: a.pausedRemainingMs ?? null,
+      durationSeconds: settings(c, a).seconds,
+    };
+  const answer = answerAttempt(c, state(c).question);
+  if (!a && answer?.status === 'active')
+    return {
+      attempt: answer.attempt,
+      revision: answer.timer_revision,
+      deadlineAt: answer.deadline_at,
+      pausedRemainingMs: answer.paused_remaining_ms,
+      durationSeconds: c.config.trivia.answer_seconds ?? 90,
+    };
+}
 function videoPlayback(c: PhaseContext, question: number) {
   const saved = c.store.db
     .prepare(
@@ -279,7 +312,8 @@ export function createTrivia(): PhaseModule {
     durationSeconds: () => null,
     reconcile(c) {
       const a = answerAttempt(c, state(c).question);
-      if (!a || a.status !== 'active' || c.now < a.deadline_at) return false;
+      if (!a || a.status !== 'active' || a.paused_remaining_ms !== null || c.now < a.deadline_at)
+        return false;
       failAnswer(c, a);
       return true;
     },
@@ -341,7 +375,7 @@ export function createTrivia(): PhaseModule {
         );
         c.store.db
           .prepare(
-            "UPDATE trivia_answer_attempts SET attempt=attempt+1,team=?,deadline_at=?,status='active' WHERE room_id=? AND phase_instance=? AND question=?",
+            "UPDATE trivia_answer_attempts SET attempt=attempt+1,team=?,deadline_at=?,status='active',paused_remaining_ms=NULL,timer_revision=0 WHERE room_id=? AND phase_instance=? AND question=?",
           )
           .run(
             team,
@@ -370,6 +404,8 @@ export function createTrivia(): PhaseModule {
           adventure.skipped = 0;
           adventure.startedAt = c.now;
           adventure.deadlineAt = c.now + settings(c, adventure).seconds * 1000;
+          adventure.pausedRemainingMs = null;
+          adventure.timerRevision = 0;
           adventure.phase = 'active';
         } else adventure.phase = 'rules';
         adventure.teamId = team;
@@ -442,6 +478,9 @@ export function triviaHostAction(
     'adventure-display-prompt',
     'adventure-award',
     'adventure-finish-cell',
+    'timer-pause',
+    'timer-resume',
+    'timer-restart',
   ].includes(action);
   if (board && selectedAction)
     requireRule(
@@ -456,6 +495,51 @@ export function triviaHostAction(
         `SELECT 1 FROM trivia_cell_awards b LEFT JOIN trivia_award_receipts r ON r.room_id=b.room_id AND r.phase_instance=b.phase_instance AND r.award_id=b.award_id WHERE b.room_id=? AND b.phase_instance=? AND b.cell_id=? AND r.undone_at IS NULL`,
       )
       .get(room, phase, cellId);
+  if (['timer-pause', 'timer-resume', 'timer-restart'].includes(action)) {
+    requireRule(
+      board && selected && !board.revealed && !activeAward(selected.id),
+      'TIMER_UNAVAILABLE',
+      '本题计时已结束。',
+    );
+    const timer = currentTimer(c);
+    requireRule(
+      timer && data.attempt === timer.attempt && data.timerRevision === timer.revision,
+      'STALE_TIMER',
+      '计时状态已变更，请重试。',
+      409,
+    );
+    const remainingMs = timer.pausedRemainingMs ?? timer.deadlineAt - c.now;
+    requireRule(remainingMs > 0, 'TIMER_EXPIRED', '时间已到，不能重开本次尝试。');
+    requireRule(
+      action !== 'timer-pause' || timer.pausedRemainingMs === null,
+      'TIMER_PAUSED',
+      '计时已暂停。',
+    );
+    requireRule(
+      action !== 'timer-resume' || timer.pausedRemainingMs !== null,
+      'TIMER_RUNNING',
+      '计时正在进行。',
+    );
+    const paused = action === 'timer-pause' ? remainingMs : null;
+    const deadline =
+      action === 'timer-restart'
+        ? c.now + timer.durationSeconds * 1000
+        : action === 'timer-resume'
+          ? c.now + remainingMs
+          : timer.deadlineAt;
+    if (adventure) {
+      adventure.pausedRemainingMs = paused;
+      adventure.deadlineAt = deadline;
+      adventure.timerRevision = timer.revision + 1;
+      saveAdventure(c, adventure);
+    } else
+      c.store.db
+        .prepare(
+          'UPDATE trivia_answer_attempts SET deadline_at=?,paused_remaining_ms=?,timer_revision=timer_revision+1 WHERE room_id=? AND phase_instance=? AND question=?',
+        )
+        .run(deadline, paused, room, phase, current.question);
+    return { paused: paused !== null, deadlineAt: deadline };
+  }
   if (action.startsWith('adventure-')) {
     requireRule(adventure && selected, 'ADVENTURE_REQUIRED', '请先选择大冒险题目。');
     requireRule(data.attempt === adventure.attempt, 'STALE_ATTEMPT', '挑战轮次已变更。', 409);
@@ -501,6 +585,7 @@ export function triviaHostAction(
     }
     const result = (success: boolean) => {
       a.success = success;
+      a.pausedRemainingMs = null;
       if (!success && a.teamId !== null)
         c.store.db
           .prepare('INSERT OR IGNORE INTO trivia_exclusions VALUES(?,?,?,?)')
@@ -541,6 +626,8 @@ export function triviaHostAction(
       a.phase = 'active';
       a.startedAt = c.now;
       a.deadlineAt = c.now + settings(c, a).seconds * 1000;
+      a.pausedRemainingMs = null;
+      a.timerRevision = (a.timerRevision ?? 0) + 1;
       saveAdventure(c, a);
       return { deadlineAt: a.deadlineAt };
     }
@@ -550,7 +637,7 @@ export function triviaHostAction(
           a.phase === 'active' &&
           a.item !== null &&
           a.deadlineAt !== null &&
-          c.now < a.deadlineAt,
+          (a.pausedRemainingMs != null || c.now < a.deadlineAt),
         'ADVENTURE_EXPIRED',
         '挑战时间已结束。',
       );
@@ -568,7 +655,10 @@ export function triviaHostAction(
     }
     if (action === 'adventure-success') {
       requireRule(
-        isYesNo(a) && a.phase === 'active' && a.deadlineAt !== null && c.now < a.deadlineAt,
+        isYesNo(a) &&
+          a.phase === 'active' &&
+          a.deadlineAt !== null &&
+          (a.pausedRemainingMs != null || c.now < a.deadlineAt),
         'ADVENTURE_EXPIRED',
         '挑战时间已结束。',
       );
@@ -604,6 +694,7 @@ export function triviaHostAction(
       a.phase = 'rules';
       a.startedAt = null;
       a.deadlineAt = null;
+      a.pausedRemainingMs = null;
       saveAdventure(c, a);
       return { replaced: true };
     }
@@ -636,6 +727,7 @@ export function triviaHostAction(
       a.teamId = null;
       a.startedAt = null;
       a.deadlineAt = null;
+      a.pausedRemainingMs = null;
       a.correct = 0;
       a.skipped = 0;
       a.success = null;
@@ -656,6 +748,7 @@ export function triviaHostAction(
       requireRule(a.phase !== 'won' && a.phase !== 'closed', 'INVALID_ADVENTURE', '挑战已经结束。');
       a.phase = 'closed';
       a.success = false;
+      a.pausedRemainingMs = null;
       saveAdventure(c, a);
       c.store.db
         .prepare(
@@ -729,7 +822,9 @@ export function triviaHostAction(
     );
     if (cell.kind !== 'adventure' && c.config.trivia.answer_seconds !== undefined) {
       c.store.db
-        .prepare("INSERT INTO trivia_answer_attempts VALUES(?,?,?,?,?,?,?,'active')")
+        .prepare(
+          "INSERT INTO trivia_answer_attempts(room_id,phase_instance,question,cell_id,attempt,team,deadline_at,status) VALUES(?,?,?,?,?,?,?,'active')",
+        )
         .run(
           room,
           phase,
@@ -1260,7 +1355,16 @@ export function triviaProjection(
               board,
               contentOf(board).cells.find((cell) => cell.id === selectedCellId)!,
             ))));
+  const timer = currentTimer(c);
+  const timerAvailable =
+    !!timer &&
+    (!board || !board.revealed) &&
+    !selectedAwarded &&
+    (timer.pausedRemainingMs ?? timer.deadlineAt - c.now) > 0;
   const controls = {
+    canPauseTimer: timerAvailable && timer?.pausedRemainingMs === null,
+    canResumeTimer: timerAvailable && timer?.pausedRemainingMs !== null,
+    canRestartTimer: timerAvailable,
     canArm,
     canCloseBuzzer: current.status === 'armed',
     canMarkIncorrect:
@@ -1315,6 +1419,7 @@ export function triviaProjection(
       : {}),
   };
   return {
+    ...(timer ? { timer } : {}),
     ...(board && !playerId ? { board: projectBoard(c, board, includeAwards) } : {}),
     ...(board?.selected_cell &&
     contentOf(board).cells.find((cell) => cell.id === board.selected_cell)?.kind === 'adventure'
@@ -1489,7 +1594,7 @@ function projectBoard(c: PhaseContext, board: BoardRow, host: boolean): TriviaBo
                   return {
                     playing: !!p.music_playing && position < duration,
                     position,
-                    changedAt: p.music_started_at ?? c.now,
+                    changedAt: c.now,
                   };
                 })(),
               }

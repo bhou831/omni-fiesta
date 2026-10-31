@@ -1,27 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { TriviaCountdown } from './TriviaCountdown.js';
 import type { AdventureProjection } from '../server/games/trivia-adventure.js';
-
-function Countdown({
-  deadlineAt,
-  clockOffset,
-}: {
-  deadlineAt: number | null;
-  clockOffset: number;
-}) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (!deadlineAt) return;
-    const id = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, [deadlineAt]);
-  if (!deadlineAt) return null;
-  const seconds = Math.max(0, Math.ceil((deadlineAt - now - clockOffset) / 1000));
-  return (
-    <p className="adventure-timer" role="timer">
-      {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-    </p>
-  );
-}
 
 export function AdventureStage({
   adventure: a,
@@ -58,7 +37,12 @@ export function AdventureStage({
         </>
       ) : (
         <>
-          <Countdown deadlineAt={a.deadlineAt} clockOffset={clockOffset} />
+          <TriviaCountdown
+            deadlineAt={a.deadlineAt}
+            pausedRemainingMs={a.pausedRemainingMs}
+            clockOffset={clockOffset}
+            className="adventure-timer"
+          />
           {a.item &&
             (a.variant === 'photo-recreation' ? (
               <img className="adventure-reference" src={a.item} alt="人体还原参考图" />

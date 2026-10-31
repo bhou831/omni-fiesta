@@ -57,7 +57,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 20) {
+    if (schemaVersion > 21) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -188,6 +188,13 @@ export class Store {
           PRIMARY KEY(room_id,phase_instance,question)
         );
         PRAGMA user_version=20; COMMIT;`);
+    if (schemaVersion < 21) {
+      const columns = this.db.prepare('PRAGMA table_info(trivia_answer_attempts)').all();
+      this.db.exec(`BEGIN IMMEDIATE;
+        ${columns.some((column) => column.name === 'paused_remaining_ms') ? '' : 'ALTER TABLE trivia_answer_attempts ADD COLUMN paused_remaining_ms INTEGER;'}
+        ${columns.some((column) => column.name === 'timer_revision') ? '' : 'ALTER TABLE trivia_answer_attempts ADD COLUMN timer_revision INTEGER NOT NULL DEFAULT 0;'}
+        PRAGMA user_version=21; COMMIT;`);
+    }
   }
 
   transaction<T>(run: () => T): T {

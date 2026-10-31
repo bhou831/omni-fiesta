@@ -5,6 +5,8 @@ import { formatTokens } from './format.js';
 import { AdventureHost, AdventureStage } from './TriviaAdventure.js';
 import { TriviaLocation, type TriviaLocationView } from './TriviaLocation.js';
 import { TriviaVideo } from './TriviaVideo.js';
+import { TriviaCountdown, useTriviaRemaining } from './TriviaCountdown.js';
+import { triviaPlaybackPosition } from './trivia-playback.js';
 
 export type TriviaViewProps = {
   trivia: TriviaProjection;
@@ -96,24 +98,40 @@ function BuzzStatus({ trivia }: { trivia: TriviaProjection }) {
 function AnswerTimer({
   trivia,
   clockOffset = 0,
+  includeAdventure = false,
 }: {
   trivia: TriviaProjection;
   clockOffset?: number;
+  includeAdventure?: boolean;
 }) {
-  const [now, setNow] = useState(Date.now());
-  const attempt = trivia.answerAttempt;
-  useEffect(() => {
-    if (attempt?.status !== 'active') return;
-    setNow(Date.now());
-    const id = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, [attempt?.deadlineAt, attempt?.status]);
-  if (!attempt || attempt.status !== 'active') return null;
-  const seconds = Math.max(0, Math.ceil((attempt.deadlineAt - now - clockOffset) / 1000));
+  if (!trivia.timer || (trivia.adventure && !includeAdventure)) return null;
   return (
-    <p className="trivia-answer-timer" role="timer">
-      {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-    </p>
+    <TriviaCountdown {...trivia.timer} clockOffset={clockOffset} className="trivia-answer-timer" />
+  );
+}
+function TriviaTimerControls({
+  timer,
+  controls,
+  button,
+  clockOffset,
+}: {
+  timer: NonNullable<TriviaProjection['timer']>;
+  controls: TriviaProjection['controls'];
+  button: React.ComponentProps<typeof AdventureHost>['button'];
+  clockOffset: number;
+}) {
+  const remaining = useTriviaRemaining({ ...timer, clockOffset });
+  const expired = remaining === null || remaining <= 0;
+  const data = { attempt: timer.attempt, timerRevision: timer.revision };
+  return (
+    <div className="control-group" aria-label="计时控制">
+      <p>计时控制 · 本轮时限 {timer.durationSeconds} 秒</p>
+      <div className="actions">
+        {button('timer-pause', '暂停计时', expired || !controls?.canPauseTimer, data)}
+        {button('timer-resume', '继续计时', expired || !controls?.canResumeTimer, data)}
+        {button('timer-restart', '重新计时', expired || !controls?.canRestartTimer, data)}
+      </div>
+    </div>
   );
 }
 export function TriviaPlayer({
@@ -182,7 +200,7 @@ export function TriviaPlayer({
                         ? '可以抢答'
                         : '等待主持人'}
       </p>
-      <AnswerTimer trivia={trivia} clockOffset={clockOffset} />
+      <AnswerTimer trivia={trivia} clockOffset={clockOffset} includeAdventure />
       <button
         className="button primary trivia-buzzer"
         disabled={!canBuzz}
@@ -301,6 +319,7 @@ function MusicClip({
   playing,
   position,
   changedAt,
+  clockOffset = 0,
   track,
   storeUrl,
   host,
@@ -314,6 +333,7 @@ function MusicClip({
   playing: boolean;
   position: number;
   changedAt: number;
+  clockOffset?: number;
   track?: NonNullable<TriviaBoard['selected']>['musicTrack'];
   storeUrl?: string;
   host?: boolean;
@@ -324,38 +344,53 @@ function MusicClip({
   const ref = useRef<HTMLAudioElement>(null);
   const [enabled, setEnabled] = useState(false);
   const [blocked, setBlocked] = useState(false);
-  const [clipEnded, setClipEnded] = useState(false);
   const duration = end - start;
-  const playbackActive = playing && !clipEnded;
-  useEffect(() => {
-    setClipEnded(false);
-    if (!playing) return;
-    const timeout = window.setTimeout(
-      () => setClipEnded(true),
-      Math.max(0, (duration - position) * 1000),
-    );
-    return () => window.clearTimeout(timeout);
-  }, [playing, position, changedAt, duration]);
-  useEffect(() => {
+  const remaining =
+    useTriviaRemaining({
+      deadlineAt: changedAt + Math.max(0, duration - position) * 1000,
+      pausedRemainingMs: playing ? null : Math.max(0, duration - position) * 1000,
+      clockOffset,
+    }) ?? 0;
+  const playbackActive = playing && remaining > 0;
+  const syncPlayback = (soundEnabled = enabled) => {
     const audio = ref.current;
-    if (!audio) return;
-    audio.currentTime = Math.min(end, start + position);
-    if (playbackActive && enabled) {
+    if (!audio || audio.readyState === 0) return;
+    const target = triviaPlaybackPosition(
+      { playing, position, changedAt },
+      Date.now(),
+      clockOffset,
+      duration,
+    );
+    audio.currentTime = start + target;
+    if (playing && target < duration && soundEnabled) {
       void audio
         .play()
         .then(() => setBlocked(false))
         .catch(() => setBlocked(true));
     } else audio.pause();
-  }, [playbackActive, position, changedAt, enabled, start, end]);
+  };
+  useEffect(syncPlayback, [
+    url,
+    playing,
+    playbackActive,
+    position,
+    changedAt,
+    clockOffset,
+    enabled,
+    start,
+    end,
+  ]);
+  const enableSound = () => {
+    setEnabled(true);
+    syncPlayback(true);
+  };
   return (
     <section className="trivia-music-playback" aria-label="听歌识曲播放">
       <audio
         ref={ref}
         preload="metadata"
         aria-label="听歌识曲片段"
-        onLoadedMetadata={() => {
-          if (ref.current) ref.current.currentTime = start + position;
-        }}
+        onLoadedMetadata={() => syncPlayback()}
         onTimeUpdate={() => {
           if (ref.current && ref.current.currentTime >= end) ref.current.pause();
         }}
@@ -370,21 +405,21 @@ function MusicClip({
           >
             {playbackActive ? '结束播放' : '播放试听'}
           </button>
-          <button className="button secondary" disabled={enabled} onClick={() => setEnabled(true)}>
+          <button className="button secondary" disabled={enabled && !blocked} onClick={enableSound}>
             {enabled ? '本机声音已启用' : '启用本机声音'}
           </button>
         </div>
       )}
-      {!enabled && !host && (
-        <button className="button secondary" onClick={() => setEnabled(true)}>
+      {(!enabled || blocked) && !host && (
+        <button className="button secondary" onClick={enableSound}>
           启用大屏声音
         </button>
       )}
       {blocked && <p role="status">浏览器拦截了自动播放，请点“启用大屏声音”。</p>}
       <p role="status">
         {playbackActive
-          ? `主持人正在播放 · 约 ${Math.ceil(duration - position)} 秒`
-          : position > 0 || clipEnded
+          ? `主持人正在播放 · 约 ${Math.ceil(remaining / 1000)} 秒`
+          : position > 0 || (playing && remaining <= 0)
             ? '试听已暂停'
             : '等待主持人播放'}
       </p>
@@ -525,6 +560,9 @@ export function TriviaHost({
         'adventure-steal': '第二队可以抢答。',
         'adventure-award': '已给挑战队伍计分。',
         'adventure-finish-cell': '本题已提前结束，已返回题板。',
+        'timer-pause': '计时已暂停。',
+        'timer-resume': '计时已继续。',
+        'timer-restart': '已按本轮时限重新计时，挑战进度不变。',
       };
       setFeedback(messages[action] ?? '操作已保存。');
       if (
@@ -678,6 +716,7 @@ export function TriviaHost({
                   playing={selected.musicPlayback.playing}
                   position={selected.musicPlayback.position}
                   changedAt={selected.musicPlayback.changedAt}
+                  clockOffset={clockOffset}
                   track={selected.musicTrack}
                   storeUrl={selected.musicStoreUrl}
                   host
@@ -710,6 +749,14 @@ export function TriviaHost({
           {!board &&
             button('new-question', '下一题', !trivia.teams.length || trivia.status === 'armed')}
           <AnswerTimer trivia={trivia} clockOffset={clockOffset} />
+          {trivia.timer && (
+            <TriviaTimerControls
+              timer={trivia.timer}
+              controls={controls}
+              button={button}
+              clockOffset={clockOffset}
+            />
+          )}
           <BuzzStatus trivia={trivia} />
         </TriviaQuestionPanel>
         <TriviaBuzzerAndReveal>
@@ -1017,6 +1064,7 @@ export function TriviaDisplay({
                       playing={board.selected.musicPlayback.playing}
                       position={board.selected.musicPlayback.position}
                       changedAt={board.selected.musicPlayback.changedAt}
+                      clockOffset={clockOffset}
                       track={board.selected.musicTrack}
                       storeUrl={board.selected.musicStoreUrl}
                     />

@@ -16,6 +16,8 @@ export type AdventureState = {
   item: string | null;
   startedAt: number | null;
   deadlineAt: number | null;
+  pausedRemainingMs?: number | null;
+  timerRevision?: number;
   correct: number;
   skipped: number;
   success: boolean | null;

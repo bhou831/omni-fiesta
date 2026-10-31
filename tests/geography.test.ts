@@ -90,7 +90,7 @@ test('location is answered aloud and host uses ordinary wrong, second buzz, awar
     );
   assert.equal(
     (app.store.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version,
-    20,
+    21,
   );
   hostAction('select-cell', { teamId: 1 });
   assert.equal(snapshot('display').board?.selected?.locationView?.panoId, 'test-pano');

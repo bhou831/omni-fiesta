@@ -292,13 +292,15 @@ for (const version of [18, 19])
     const savedConfig = store.room(room.id).config;
     if (version === 19)
       store.db
-        .prepare("INSERT INTO trivia_answer_attempts VALUES(?,?,?,?,?,?,?,'active')")
+        .prepare(
+          "INSERT INTO trivia_answer_attempts(room_id,phase_instance,question,cell_id,attempt,team,deadline_at,status) VALUES(?,?,?,?,?,?,?,'active')",
+        )
         .run(room.id, 1, 1, 'synthetic', 1, 1, 91000);
     else store.db.exec('DROP TABLE trivia_answer_attempts');
     store.db.exec(`DROP TABLE trivia_video_playback; PRAGMA user_version=${version}`);
     store.close();
     store = new Store(path);
-    assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 20);
+    assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 21);
     assert.ok(
       store.db.prepare("SELECT name FROM sqlite_master WHERE name='trivia_video_playback'").get(),
     );
