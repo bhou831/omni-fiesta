@@ -4,6 +4,8 @@ This is a single-instance application: do not run multiple writers against the s
 
 For Lightsail, install a supported Node 22 release, build the application, create a dedicated `omni-fiesta` service user and persistent `/var/lib/omni-fiesta` directory, and adapt `deploy/omni-fiesta.service` to the actual installation and Node paths. Put `HOST_PASSWORD` and `COINGECKO_API_KEY` in a private `/etc/omni-fiesta.env` readable only by the service and administrator; never commit it. The production Node listener binds to loopback; configure `PUBLIC_ORIGIN`, HTTPS, firewall and DNS for the real host, then use `deploy/Caddyfile` as the starting reverse proxy configuration. Verify Caddy's HTTPS and WebSocket proxying and service startup before inviting players. Set `ENABLE_REHEARSAL=false` in production. Verify CoinGecko API access and freshness for all configured IDs before the event.
 
+The geography TV also needs `VITE_GOOGLE_MAPS_API_KEY` in `/etc/omni-fiesta.env` **before deployment**. The deployment script passes it to Vite while building the client; adding it only to the running systemd service cannot update an existing browser bundle. Restrict this browser key in Google Cloud to Maps JavaScript API and the actual HTTPS referrer `https://game.bowen-hou.com/*`. Rebuild and deploy after adding or changing it, then refresh the TV page.
+
 ## Operator shortcuts
 
 After the server, SSH access and service are configured, set these variables locally (do not put the private key or credentials in the repository):
