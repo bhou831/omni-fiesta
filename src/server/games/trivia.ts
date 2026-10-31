@@ -283,6 +283,8 @@ export function triviaHostAction(
     'adventure-skip',
     'adventure-success',
     'adventure-fail',
+    'adventure-photo-success',
+    'adventure-photo-fail',
     'adventure-replace',
     'adventure-steal',
     'adventure-abort',
@@ -419,10 +421,10 @@ export function triviaHostAction(
         a.variant === 'photo-recreation' &&
           a.phase === 'active' &&
           a.teamId !== null &&
-          a.deadlineAt !== null &&
-          c.now >= a.deadlineAt,
+          a.startedAt !== null &&
+          a.deadlineAt !== null,
         'INVALID_ADVENTURE',
-        '请在摆拍时间结束后判定。',
+        '请先开始摆拍计时。',
       );
       return result(action === 'adventure-photo-success');
     }

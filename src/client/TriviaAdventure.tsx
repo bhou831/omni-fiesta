@@ -107,12 +107,6 @@ export function AdventureHost({
   clockOffset?: number;
 }) {
   const [chosenTeam, setChosenTeam] = useState(teams[0]?.id ?? 0);
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (a.variant !== 'photo-recreation' || a.phase !== 'active') return;
-    const id = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, [a.variant, a.phase]);
   const data = { attempt: a.attempt };
   return (
     <div className="adventure-host" lang="zh-CN">
@@ -189,19 +183,8 @@ export function AdventureHost({
             </>
           ) : (
             <>
-              {button(
-                'adventure-photo-success',
-                '挑战成功',
-                a.deadlineAt !== null && now + clockOffset < a.deadlineAt,
-                data,
-                true,
-              )}
-              {button(
-                'adventure-photo-fail',
-                '挑战失败',
-                a.deadlineAt !== null && now + clockOffset < a.deadlineAt,
-                data,
-              )}
+              {button('adventure-photo-success', '挑战成功', false, data, true)}
+              {button('adventure-photo-fail', '挑战失败', false, data)}
             </>
           )}
           {a.variant !== 'photo-recreation' &&

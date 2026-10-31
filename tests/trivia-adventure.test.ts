@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { AdventureHost } from '../src/client/TriviaAdventure.js';
 import { TriviaDisplay, TriviaHost, TriviaPlayer } from '../src/client/Trivia.js';
 import { createApp } from '../src/server/app.js';
 import {
@@ -257,7 +258,7 @@ test('Yes or No consent replacement consumes a prompt; second team retries the s
   assert.equal(f.snapshot().teams[1].score, 200);
 });
 
-test('photo recreation uses host judgement after the timer and awards the selected team', async (t) => {
+test('photo recreation accepts early host judgement and awards the selected team', async (t) => {
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-5';
@@ -268,10 +269,10 @@ test('photo recreation uses host judgement after the timer and awards the select
   f.execute('adventure-start', cell, { attempt: 1 });
   assert.equal(f.snapshot('display').adventure?.item, '/adventure/photo-recreation-attempt-1.png');
   assert.equal(f.snapshot('player').adventure?.item, null);
-  assert.throws(() => f.execute('adventure-photo-success', cell, { attempt: 1 }));
-  f.setNow(1_120_000);
   assert.throws(() => f.execute('adventure-score', cell, { attempt: 1, score: 100 }));
-  f.execute('adventure-photo-success', cell, { attempt: 1 });
+  const requestId = randomUUID();
+  f.execute('adventure-photo-success', cell, { attempt: 1 }, requestId);
+  f.execute('adventure-photo-success', cell, { attempt: 1 }, requestId);
   assert.equal(f.snapshot().adventure?.phase, 'result');
   f.execute('adventure-award', cell, { attempt: 1, teamId: 1 });
   assert.equal(f.snapshot().adventure?.phase, 'won');
@@ -286,8 +287,6 @@ test('photo failure rotates to the second image and permits only the other team'
   f.execute('select-cell', cell);
   f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
   f.execute('adventure-start', cell, { attempt: 1 });
-  assert.throws(() => f.execute('adventure-photo-fail', cell, { attempt: 1 }));
-  f.setNow(1_120_000);
   f.execute('adventure-photo-fail', cell, { attempt: 1 });
   f.execute('adventure-steal', cell, { attempt: 1 });
   assert.equal(f.snapshot().adventure?.item, '/adventure/photo-recreation-attempt-2.png');
@@ -297,8 +296,9 @@ test('photo failure rotates to the second image and permits only the other team'
   f.buzz(2);
   f.execute('adventure-start', cell, { attempt: 2 });
   assert.equal(f.snapshot('display').adventure?.item, '/adventure/photo-recreation-attempt-2.png');
-  assert.equal(f.snapshot().adventure?.deadlineAt, 1_240_000);
-  f.setNow(1_240_000);
+  assert.equal(f.snapshot().adventure?.deadlineAt, 1_120_000);
+  assert.throws(() => f.execute('adventure-photo-fail', cell, { attempt: 1 }));
+  f.setNow(1_120_000);
   f.execute('adventure-photo-fail', cell, { attempt: 2 });
   assert.equal(f.snapshot().adventure?.phase, 'closed');
   assert.throws(() => f.execute('adventure-steal', cell, { attempt: 2 }));
@@ -306,6 +306,65 @@ test('photo failure rotates to the second image and permits only the other team'
     f.snapshot().teams.reduce((n, team) => n + (team.score ?? 0), 0),
     0,
   );
+});
+
+for (const action of ['adventure-photo-success', 'adventure-photo-fail'] as const) {
+  for (const [label, time] of [
+    ['before', 1_119_999],
+    ['at', 1_120_000],
+    ['after', 1_120_001],
+  ] as const) {
+    test(`photo ${action} works ${label} the deadline`, async (t) => {
+      const f = await fixture();
+      t.after(() => f.app.close());
+      const cell = 'adventure-5';
+      f.execute('select-cell', cell);
+      f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+      assert.throws(() => f.execute(action, cell, { attempt: 1 }));
+      f.execute('adventure-start', cell, { attempt: 1 });
+      assert.throws(() => f.execute(action, cell, { attempt: 2 }));
+      assert.throws(() => f.execute(action, 'adventure-4', { attempt: 1 }));
+      assert.throws(() =>
+        f.app.engine.execute(
+          { role: 'player', roomId: f.room.id, playerId: f.room.playerId, tokenHash: '' },
+          f.room.id,
+          {
+            type: 'phase.host',
+            phaseInstance: f.app.store.room(f.room.id).phase_instance,
+            requestId: randomUUID(),
+            payload: { action, data: { cellId: cell, attempt: 1 } },
+          },
+        ),
+      );
+      f.setNow(time);
+      f.execute(action, cell, { attempt: 1 });
+      assert.equal(f.snapshot().adventure?.success, action === 'adventure-photo-success');
+      assert.equal(f.snapshot().adventure?.phase, 'result');
+      assert.equal(f.snapshot('player').adventure?.item, null);
+    });
+  }
+}
+
+test('photo host judging buttons are enabled while the countdown is running', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  const cell = 'adventure-5';
+  f.execute('select-cell', cell);
+  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+  f.execute('adventure-start', cell, { attempt: 1 });
+  const html = renderToStaticMarkup(
+    createElement(AdventureHost, {
+      adventure: f.snapshot().adventure!,
+      teams: f.snapshot().teams,
+      busy: false,
+      clockOffset: 1_000_000 - Date.now(),
+      button: (action, label, blocked) =>
+        createElement('button', { key: action, disabled: blocked }, label),
+    }),
+  );
+  assert.match(html, /role="timer"/);
+  assert.match(html, /<button>挑战成功<\/button>/);
+  assert.match(html, /<button>挑战失败<\/button>/);
 });
 
 test('new event photo content requires two distinct local images', () => {
