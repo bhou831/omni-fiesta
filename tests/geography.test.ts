@@ -38,6 +38,8 @@ test('location is answered aloud and host uses ordinary wrong, second buzz, awar
   const room = await seedPreviewRoom(
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
+    false,
+    true,
   );
   const board = app.store.db
     .prepare('SELECT content FROM trivia_boards WHERE room_id=?')
@@ -88,7 +90,7 @@ test('location is answered aloud and host uses ordinary wrong, second buzz, awar
     );
   assert.equal(
     (app.store.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version,
-    18,
+    20,
   );
   hostAction('select-cell');
   assert.equal(snapshot('display').board?.selected?.locationView?.panoId, 'test-pano');

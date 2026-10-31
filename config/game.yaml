@@ -102,6 +102,7 @@ costume:
   no_votes_policy: no_awards_or_penalties
 
 trivia:
+  answer_seconds: 90
   adventure:
     charades_simple_seconds: 120
     charades_simple_target: 6

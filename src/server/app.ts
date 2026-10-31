@@ -218,6 +218,12 @@ export function createApp(options: AppOptions) {
       }, 16),
     );
   }
+  function synchronizedSnapshot(authorizedViewer: Viewer) {
+    const version = store.room(authorizedViewer.roomId).version;
+    const snapshot = engine.snapshot(authorizedViewer);
+    if (snapshot.room.version !== version) broadcast(authorizedViewer.roomId);
+    return snapshot;
+  }
   const attempts = new Map<string, { count: number; until: number }>();
   app.post('/api/login', (req, res) => {
     const key = req.ip ?? req.socket.remoteAddress ?? 'unknown';
@@ -362,7 +368,8 @@ export function createApp(options: AppOptions) {
   });
   app.get('/api/rooms/:code/state', (req, res) => {
     const room = store.roomByCode(codeSchema.parse(req.params.code));
-    res.json(engine.snapshot(viewer(req, room.id)));
+    const authorizedViewer = viewer(req, room.id);
+    res.json(synchronizedSnapshot(authorizedViewer));
   });
   app.get('/api/rooms/:code/trivia-audio/:cellId', (req, res) => {
     const room = store.roomByCode(codeSchema.parse(req.params.code));
@@ -501,9 +508,12 @@ export function createApp(options: AppOptions) {
     const role = z.enum(['host', 'player']).parse(req.query.role ?? 'player');
     const session = needSession(req, role);
     const command = commandSchema.parse(req.body) as Command;
-    const result = engine.execute(session, room.id, command);
-    broadcast(room.id);
-    res.json(result);
+    try {
+      const result = engine.execute(session, room.id, command);
+      res.json(result);
+    } finally {
+      broadcast(room.id);
+    }
   });
   app.post('/api/rooms/:code/display-link', (req, res) => {
     needSession(req, 'host');
@@ -581,7 +591,8 @@ export function createApp(options: AppOptions) {
     if (currentViewer.role === 'player') engine.presence(currentViewer.playerId, 1);
     socket.on('sync', () => {
       try {
-        socket.emit('state', engine.snapshot(socket.data.authorize()));
+        const authorizedViewer = socket.data.authorize() as Viewer;
+        socket.emit('state', synchronizedSnapshot(authorizedViewer));
       } catch {
         socket.disconnect();
       }

@@ -85,15 +85,8 @@ for (const count of [15, 100])
     hostAction('lock');
     advance();
     hostAction('assign', { count: 4 });
-    hostAction('select-cell', { cellId: 'childhood-1' });
-    hostAction('arm', { cellId: 'childhood-1' });
-    const window = engine.snapshot({
-      role: 'player',
-      roomId: room.id,
-      playerId: players[0].playerId!,
-    }).trivia!.windowId;
-    execute(players[0], 'phase.action', { action: 'buzz', data: { windowId: window } });
-    hostAction('award', { teamId: 1, amount: 100, cellId: 'childhood-1' });
+    hostAction('select-cell', { cellId: 'childhood-1', teamId: 1 });
+    hostAction('award', { teamId: 1, amount: 100, cellId: 'childhood-1', attempt: 1 });
     hostAction('finish-cell', { cellId: 'childhood-1' });
     close();
     advance();

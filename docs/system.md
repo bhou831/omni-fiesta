@@ -90,3 +90,14 @@ The trivia module projects a `controls` object only to authenticated host snapsh
 ## Adventure rehearsal corrections (2026-10-30)
 
 Charades words are public to the TV only during an active attempt and remain absent from player snapshots. The TV shows an accepted buzzer winner by team and player until judging or advancement. Photo recreation references are two tracked local images frozen in each new event room; saved one-image rooms remain readable. Once the posing timer starts, the host may record success or failure at any time, including after the deadline, without an AI score or reason. The first failure may open a second-team buzzer with a fresh timer and the second image; awards and undo use the shared trivia receipt ledger.
+
+
+## Ordinary Trivia answer attempts
+
+For saved room configurations containing `trivia.answer_seconds`, ordinary board clues persist an answering team, attempt number, deadline and status separately from the room phase deadline. The host assigns the first team when selecting the clue; a failed first team is excluded and a second team's accepted buzz starts a fresh deadline. Core expiry reconciliation commits before commands and broadcasts state changes, including on restart. At deadline the attempt fails without a debit, award or phase transition. Saved configurations without the setting retain the previous untimed ordinary flow and are not rewritten. Adventure timers remain separate.
+
+### Trivia media and reconciliation (2026-10-31)
+
+Schema v20 adds per-question video playback state without rewriting frozen room configuration or answer attempts. Only selected-cell host commands can start, pause or restart video; host and TV project the same saved playback position and server time, while phones receive no media state. Reveal, finish and valid cancellation stop playback. The host preview is muted; the TV starts muted and offers an explicit sound-enable gesture for browser policy. Playback never resets an answer deadline.
+
+HTTP state reads and socket sync compare room versions around snapshot reconciliation and broadcast any committed deadline change to every authorized role. An ordinary answer revealed while active enters `revealed`: its timer stops, but its assigned team remains scoreable. An already failed attempt stays failed. Finish or award resolves it; reveal never reopens a buzzer or revives an expired team.

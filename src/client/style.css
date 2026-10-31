@@ -4501,7 +4501,11 @@ button.jeopardy-cell:not(:disabled):hover {
   gap: 24px;
   align-items: start;
 }
-@media (min-width: 1500px) {
+.trivia-host {
+  grid-template-columns: minmax(0, 1fr);
+  container-type: inline-size;
+}
+@container (min-width: 1150px) {
   .trivia-gameplay {
     grid-template-columns: minmax(460px, 1.3fr) repeat(2, minmax(300px, 1fr));
   }
@@ -4560,4 +4564,35 @@ button.jeopardy-cell:not(:disabled):hover {
 }
 .trivia-display-focus .trivia-location-map {
   height: clamp(300px, calc(48 * var(--vh)), 550px);
+}
+
+.trivia-display-focus .adventure-stage {
+  max-height: 100%;
+  overflow-y: auto;
+}
+.trivia-display-focus.has-location {
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
+  overflow-y: auto;
+}
+.trivia-display-focus.has-location .trivia-question {
+  padding: 0;
+}
+.trivia-display-focus.has-location .trivia-location {
+  min-height: 0;
+  grid-template-rows: minmax(220px, 1fr) auto auto;
+}
+.trivia-display-focus.has-location .trivia-location-map {
+  height: 100%;
+  min-height: 220px;
+}
+
+.trivia-answer-timer {
+  margin: 0;
+  font-size: 1.4em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.trivia-display-strip .trivia-answer-timer {
+  font-size: clamp(28px, calc(2.2 * var(--vw)), 42px);
 }

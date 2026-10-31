@@ -7,6 +7,8 @@ import { z } from 'zod';
 const id = z.string().regex(/^[a-z0-9-]{1,80}$/);
 // The source and compiled module both live three directories below the project root.
 const projectFile = (path: string) => fileURLToPath(new URL(`../../../${path}`, import.meta.url));
+const publicAssetExists = (path: string) =>
+  existsSync(projectFile(`public${path}`)) || existsSync(projectFile(`dist/client${path}`));
 const locationSchema = z
   .object({
     countryCode: z.string().regex(/^[A-Z]{2}$/),
@@ -176,21 +178,13 @@ export function validateTriviaContent(content: unknown): asserts content is Triv
       (c) =>
         c.adventureVariant === 'photo-recreation' &&
         !c.unavailableReason &&
-        c.referenceImages?.some(
-          (image) =>
-            !existsSync(projectFile(`public${image}`)) &&
-            !existsSync(projectFile(`dist/client${image}`)),
-        ),
+        c.referenceImages?.some((image) => !publicAssetExists(image)),
     )
   )
     throw new Error('Photo recreation reference image is missing.');
-  if (
-    bank.cells.some((c) => c.questionImage && !existsSync(projectFile(`public${c.questionImage}`)))
-  )
+  if (bank.cells.some((c) => c.questionImage && !publicAssetExists(c.questionImage)))
     throw new Error('Trivia question image is missing.');
-  if (
-    bank.cells.some((c) => c.questionVideo && !existsSync(projectFile(`public${c.questionVideo}`)))
-  )
+  if (bank.cells.some((c) => c.questionVideo && !publicAssetExists(c.questionVideo)))
     throw new Error('Trivia question video is missing.');
   if (
     bank.cells.some(

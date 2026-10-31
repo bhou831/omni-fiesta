@@ -85,7 +85,7 @@ test('TV question renders a playable video clue from the saved media path', () =
       },
     }),
   );
-  assert.match(html, /<video[^>]*src="\/trivia\/childhood-300\.mp4"[^>]*controls=""/);
+  assert.match(html, /<video[^>]*src="\/trivia\/childhood-300\.mp4"/);
   assert.match(html, /playsInline=""/);
 });
 

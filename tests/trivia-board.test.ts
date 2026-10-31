@@ -27,6 +27,8 @@ async function fixture(path = ':memory:', now = () => 1000000) {
   const room = await seedPreviewRoom(
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
+    false,
+    true,
   );
   const execute = (
     action: string,
@@ -313,7 +315,7 @@ test('frozen clues, selection, reveal and used cells survive restart and a v12 m
   await app.close();
   const store = new Store(path);
   t.after(() => store.close());
-  assert.equal(store.db.prepare('PRAGMA user_version').get()!.user_version, 18);
+  assert.equal(store.db.prepare('PRAGMA user_version').get()!.user_version, 20);
   assert.equal(
     store.db.prepare('SELECT question FROM trivia_state WHERE room_id=?').get(f.room.id)!.question,
     1,
@@ -334,7 +336,7 @@ test('v15 adds host-controlled music playback state without changing trivia rows
   await f.app.close();
   const app = createApp({ databasePath: path, hostPassword: 'board-test-password' });
   t.after(() => app.close());
-  assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 18);
+  assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 20);
   assert.equal(
     app.store.db.prepare('SELECT question FROM trivia_state WHERE room_id=?').get(room.id)!
       .question,
@@ -454,7 +456,7 @@ test('custom banks validate without exposing data and a selected room keeps its 
   const displayHtml = renderToStaticMarkup(
     createElement(TriviaDisplay, { trivia: f.snapshot('display') }),
   );
-  assert.match(displayHtml, /<video[^>]*src="\/trivia\/childhood-300\.mp4"[^>]*controls=""/);
+  assert.match(displayHtml, /<video[^>]*src="\/trivia\/childhood-300\.mp4"/);
   assert.equal(f.snapshot().board!.review![0].musicCandidates!.length, 9);
   f.execute('reveal-answer', { cellId: f.cellId });
   assert.equal(f.snapshot('display').board!.selected!.answer, 'PRIVATE TEST ANSWER');
@@ -646,7 +648,7 @@ for (const original of ['upstream-reveals-v13', 'local-trivia-v13'] as const)
     await f.app.close();
     const app = createApp({ databasePath: path, hostPassword: 'board-test-password' });
     t.after(() => app.close());
-    assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 18);
+    assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 20);
     for (const name of [
       'trivia_boards',
       'trivia_cells',

@@ -29,6 +29,8 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
   const room = await seedPreviewRoom(
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
+    false,
+    true,
   );
   const base = `http://127.0.0.1:${await app.listen()}`;
   t.after(() => app.close());
@@ -207,6 +209,8 @@ test('selected synthetic music is served only to authenticated host or TV and ne
   const room = await seedPreviewRoom(
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
+    false,
+    true,
   );
   const base = `http://127.0.0.1:${await app.listen()}`;
   t.after(() => app.close());

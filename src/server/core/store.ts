@@ -57,7 +57,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 18) {
+    if (schemaVersion > 20) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -170,6 +170,24 @@ export class Store {
         `BEGIN IMMEDIATE; ${TRIVIA_ADVENTURE_SCHEMA} ${hasRewardKind ? '' : 'ALTER TABLE ledger ADD COLUMN reward_kind TEXT;'} PRAGMA user_version=18; COMMIT;`,
       );
     }
+    if (schemaVersion < 19)
+      this.db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE IF NOT EXISTS trivia_answer_attempts (
+          room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL,
+          question INTEGER NOT NULL, cell_id TEXT NOT NULL, attempt INTEGER NOT NULL,
+          team INTEGER NOT NULL, deadline_at INTEGER NOT NULL, status TEXT NOT NULL,
+          PRIMARY KEY(room_id,phase_instance,question)
+        );
+        PRAGMA user_version=19; COMMIT;`);
+    if (schemaVersion < 20)
+      this.db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE IF NOT EXISTS trivia_video_playback (
+          room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL,
+          question INTEGER NOT NULL, playing INTEGER NOT NULL DEFAULT 0,
+          position REAL NOT NULL DEFAULT 0, started_at INTEGER,
+          PRIMARY KEY(room_id,phase_instance,question)
+        );
+        PRAGMA user_version=20; COMMIT;`);
   }
 
   transaction<T>(run: () => T): T {

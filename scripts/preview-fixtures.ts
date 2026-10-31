@@ -27,11 +27,13 @@ export async function seedPreviewRoom(
   engine: Engine,
   scenario: PreviewScenario,
   legacyTrivia = false,
+  legacyAnswerFlow = false,
 ) {
   const { store } = engine;
   const now = engine.now();
   const config = loadConfig();
   if (legacyTrivia) delete config.trivia.board_values;
+  if (legacyAnswerFlow) delete config.trivia.answer_seconds;
   // Generous inspection windows belong only to these disposable fixture rooms.
   for (const key of Object.keys(config.timers) as (keyof typeof config.timers)[])
     config.timers[key] = 900;

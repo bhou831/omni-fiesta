@@ -536,6 +536,7 @@ function Player() {
         {state.triviaScoreboard && <TriviaScoreboard data={state.triviaScoreboard} />}
         {state.trivia && (
           <TriviaPlayer
+            clockOffset={room.clockOffset}
             trivia={state.trivia}
             command={room.command}
             disabled={room.busy || !room.connected || !open}

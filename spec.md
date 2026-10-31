@@ -161,3 +161,11 @@ Every positive game reward triggers a small private amount-free four-bill 💸 a
 ## Trivia host flow (2026-10-30)
 
 Each selected board cell presents three host areas in order: 题目, 抢答与公布答案, and 记分与修正. Music, geography, text, and adventure share final host judgement and scoring controls; adventure retains its own challenge rules, timers, prompt visibility, and host pass/fail decisions inside 题目. Charades words appear on host and TV only; photo recreation uses a different tracked reference for each attempt, with offline host judgement at any time after the attempt timer starts, including after expiry, and no entered score or reason. Ordinary board clues allow at most two teams to try. The host may choose a different awarded team deliberately, and the selection is initially blank until a winner or explicit choice exists. Legacy numbered trivia retains its free-form amount.
+
+
+## Ordinary Trivia answer attempts (confirmed)
+
+For new rooms, the host chooses the first answering team before opening an ordinary text, music or geography clue. Opening starts the configured 90-second answer window; expiry and early incorrect judgement exclude that team for the clue without a penalty. After failure the host may open the buzzer for one other team, whose accepted buzz starts a fresh window. At most two teams answer. The host may award the current team before expiry, or reveal and finish without scoring. Timers never advance the party or award automatically. Saved rooms without the new setting retain their untimed ordinary flow; no saved configuration is rewritten. Adventure continues to use its own challenge flow.
+
+
+2026-10-31 trivia corrections: early answer reveal stops an ordinary attempt timer while retaining its assigned team for scoring; failed attempts remain ineligible. Video clues use persisted host-controlled TV playback with a muted host preview and an explicit TV sound gesture. Reload/restart resumes the saved timeline without changing any answer deadline. Source and packaged media paths are validated.

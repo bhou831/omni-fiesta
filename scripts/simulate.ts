@@ -132,20 +132,8 @@ try {
     await action('lock');
     await advance();
     await action('assign', { count: Math.min(4, count) });
-    await action('select-cell', { cellId: 'childhood-1' });
-    await action('arm', { cellId: 'childhood-1' });
-    const current = await state();
-    await request(
-      `/api/rooms/${room.code}/commands`,
-      {
-        requestId: randomUUID(),
-        phaseInstance: current.room.phaseInstance,
-        type: 'phase.action',
-        payload: { action: 'buzz', data: { windowId: current.trivia?.windowId } },
-      },
-      players[0].cookie,
-    );
-    await action('award', { teamId: 1, amount: 100, cellId: 'childhood-1' });
+    await action('select-cell', { cellId: 'childhood-1', teamId: 1 });
+    await action('award', { teamId: 1, amount: 100, cellId: 'childhood-1', attempt: 1 });
     await action('finish-cell', { cellId: 'childhood-1' });
     await close();
     await advance();

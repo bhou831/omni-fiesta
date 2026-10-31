@@ -32,7 +32,7 @@ for (const version of [15, 16, 17]) {
       store.db.exec(`PRAGMA user_version=${version}`);
       store.close();
       store = new Store(path);
-      assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 18);
+      assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 20);
       assert.equal(store.room(room.id).code, room.code);
       assert.equal(store.player(player.playerId).spendable, 1000);
       assert.equal(
