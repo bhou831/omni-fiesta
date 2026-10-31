@@ -4484,3 +4484,80 @@ button.jeopardy-cell:not(:disabled):hover {
     min-height: 220px;
   }
 }
+
+/* Trivia host setup spans the page; gameplay columns have room for the board. */
+.trivia-setup,
+.trivia-gameplay,
+.trivia-gameplay > fieldset {
+  min-width: 0;
+}
+.trivia-setup {
+  display: grid;
+  gap: 16px;
+}
+.trivia-gameplay {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (min-width: 1500px) {
+  .trivia-gameplay {
+    grid-template-columns: minmax(460px, 1.3fr) repeat(2, minmax(300px, 1fr));
+  }
+}
+.trivia-host .jeopardy-grid {
+  gap: 6px;
+}
+.trivia-host .jeopardy-column h3 {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.trivia-host .control-group {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Scaled TV stage only; host and player typography stay independent. */
+.trivia-display-focus .adventure-stage {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  text-align: center;
+  gap: clamp(8px, calc(1.2 * var(--vh)), 14px);
+}
+.trivia-display-focus .adventure-stage h2,
+.trivia-display-focus .adventure-stage h3,
+.trivia-display-focus .adventure-stage p {
+  margin: 0;
+}
+.trivia-display-focus .adventure-stage h2 {
+  font-size: clamp(28px, calc(2.3 * var(--vw)), 44px);
+}
+.trivia-display-focus .adventure-stage ol {
+  max-width: min(100%, 1200px);
+  margin: 0 auto;
+  padding-left: 1.5em;
+  text-align: left;
+  font-size: clamp(22px, calc(1.8 * var(--vw)), 34px);
+  line-height: 1.55;
+}
+.trivia-display-focus .adventure-stage li + li {
+  margin-top: 0.35em;
+}
+.trivia-display-focus .adventure-reference {
+  max-width: min(100%, 1100px);
+  max-height: calc(43 * var(--vh));
+  margin: 0 auto;
+}
+.trivia-display-focus .trivia-location {
+  width: min(1400px, 100%);
+  margin-top: calc(1 * var(--vh));
+  gap: 4px;
+}
+.trivia-display-focus .trivia-location-map {
+  height: clamp(300px, calc(48 * var(--vh)), 550px);
+}

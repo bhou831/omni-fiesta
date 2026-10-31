@@ -491,266 +491,281 @@ export function TriviaHost({
   const controls = trivia.controls;
   return (
     <section lang="zh-CN" className="host-game-controls trivia-host">
-      <p className="trivia-bank-label" role="status">
-        {trivia.bankLabel}
-      </p>
-      {trivia.bankSwitch && (
-        <div className="trivia-mode-control">
-          <label className="trivia-mode-switch">
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label="演示模式"
-              checked={!!trivia.demo}
-              disabled={
-                busy ||
-                !trivia.bankSwitch.allowed ||
-                (!!trivia.demo && !trivia.bankSwitch.eventAvailable)
-              }
-              onChange={(event) =>
-                void host('set-demo-mode', {
-                  demo: event.target.checked,
-                  expectedBankVersion: board?.version,
-                })
-              }
-            />
-            <span>
-              演示模式 <strong>{trivia.demo ? '开启' : '关闭'}</strong>
-            </span>
-          </label>
-          <p className="fine-print">开启：示例题，类别 1–5。关闭：本机正式题库。首次选题后锁定。</p>
-          {!trivia.bankSwitch.allowed && (
-            <p className="fine-print">本轮已经选题或结束，切换题库请新建派对。</p>
-          )}
-          {trivia.demo && !trivia.bankSwitch.eventAvailable && (
-            <p className="fine-print">本机未找到正式题库，暂时只能使用演示模式。</p>
-          )}
-        </div>
-      )}
-      <p className="host-action-feedback" role="status" aria-live="polite">
-        {feedback ? `✓ ${feedback}` : pending ? '保存中…' : ''}
-      </p>
-      {board && !trivia.teams.length && (
-        <div className="trivia-start-card">
-          <strong>{trivia.demo ? '演示题板已就绪' : 'Trivia 题板已就绪'}</strong>
-          <p>先分队，然后在题板上选题。</p>
-          {button('assign', '开始 Trivia · 随机分队', false, { count: Number(count) }, true)}
-        </div>
-      )}
-      <fieldset className="control-group">
-        <legend>1 · 分队</legend>
-        <label>
-          队伍数量{' '}
-          <input
-            type="number"
-            min="1"
-            value={count}
-            disabled={busy || trivia.question > 0}
-            onChange={(e) => setCount(e.target.value)}
-          />
-        </label>{' '}
-        {button('assign', '随机分队', trivia.question > 0, { count: Number(count) })}
-        <details>
-          <summary>查看队伍与成员</summary>
-          <TeamList trivia={trivia} />
-        </details>
-      </fieldset>
-      <TriviaQuestionPanel>
-        {board &&
-          trivia.teams.length > 0 &&
-          !board.started &&
-          !selected &&
-          button('show-board', '显示题板 · 开始选题', false, {}, true)}
-        {board && !selected && (
-          <>
-            <p>队伍口头选题，由主持人点击。待准备的题目暂不可选。</p>
-            <Board
-              board={board}
-              disabled={busy || !trivia.teams.length}
-              onSelect={(id) => void host('select-cell', { cellId: id })}
-            />
-          </>
-        )}
-        {board && selected && !trivia.adventure && <Question board={board} host />}
-        {selected?.kind === 'music' && selected.musicClip && audioUrl && selected.musicPlayback && (
-          <>
-            <MusicClip
-              url={audioUrl}
-              start={selected.musicClip.start}
-              end={selected.musicClip.end}
-              playing={selected.musicPlayback.playing}
-              position={selected.musicPlayback.position}
-              changedAt={selected.musicPlayback.changedAt}
-              track={selected.musicTrack}
-              storeUrl={selected.musicStoreUrl}
-              host
-              onHost={host}
-              cellId={selected.id}
-              disabled={busy || (alreadyAwarded && !selected.musicPlayback.playing)}
-            />
-            <p className="fine-print">无需等待试听结束；可以随时抢答、公布答案、计分或完成本题。</p>
-          </>
-        )}
-        {trivia.adventure && (
-          <AdventureHost
-            adventure={trivia.adventure}
-            teamName={trivia.teams.find((t) => t.id === trivia.adventure?.teamId)?.name}
-            button={button}
-            busy={busy}
-            teams={trivia.teams}
-            clockOffset={clockOffset}
-          />
-        )}
-        {!board &&
-          button('new-question', '下一题', !trivia.teams.length || trivia.status === 'armed')}
-        <BuzzStatus trivia={trivia} />
-      </TriviaQuestionPanel>
-      <TriviaBuzzerAndReveal>
-        {(!board || selected) && (
-          <>
-            <p>
-              {controls?.disabledReason ??
-                `可抢答：${eligible.map((t) => t.name).join('、') || '无。'}`}
-            </p>
-            <div className="actions">
-              {button('arm', '开启抢答', !controls?.canArm, {}, true)}
-              {button('close-buzzer', '关闭抢答', !controls?.canCloseBuzzer)}
-              {button('incorrect', '答错 · 不扣分', !controls?.canMarkIncorrect)}
-              {board && (
-                <>
-                  {button('reveal-answer', '公布答案', !controls?.canReveal)}
-                  {button('cancel-selection', '选错了 · 返回且保留此格', !controls?.canCancel)}
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </TriviaBuzzerAndReveal>
-      <TriviaScoreAndCorrections>
-        {trivia.adventure && (
-          <p>当前大冒险由挑战队伍作答；请在上方确认结果并计分，或选择抢答／跳过。</p>
-        )}
-        {correction && (
-          <p>
-            正在修正：{board?.categories.find((c) => c.id === awardCell?.categoryId)?.name} ·{' '}
-            {awardCell?.value} 分{' '}
-            <button className="button secondary" disabled={busy} onClick={() => setCorrection('')}>
-              取消修正
-            </button>
-          </p>
-        )}
-        <label>
-          获奖队伍{' '}
-          <select
-            disabled={busy || (!!trivia.adventure && !correction && !controls?.canAward)}
-            value={team}
-            onChange={(e) => setTeamChoice({ context: teamContext, id: e.target.value })}
-          >
-            <option value="" disabled>
-              选择获奖队伍
-            </option>
-            {trivia.teams.map((t) => (
-              <option
-                key={t.id}
-                value={t.id}
+      <div className="trivia-setup">
+        <p className="trivia-bank-label" role="status">
+          {trivia.bankLabel}
+        </p>
+        {trivia.bankSwitch && (
+          <div className="trivia-mode-control">
+            <label className="trivia-mode-switch">
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="演示模式"
+                checked={!!trivia.demo}
                 disabled={
-                  !!trivia.adventure && !correction && !controls?.awardableTeamIds.includes(t.id)
+                  busy ||
+                  !trivia.bankSwitch.allowed ||
+                  (!!trivia.demo && !trivia.bankSwitch.eventAvailable)
                 }
-              >
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>{' '}
-        {board ? (
-          <p>每名队员获得 {awardCell ? formatTokens(awardCell.value) : '—'} 分。答错不扣分。</p>
-        ) : (
-          <label>
-            每名队员奖励{' '}
-            <input
-              type="number"
-              min="1"
-              value={amount}
-              disabled={busy}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </label>
-        )}
-        {button(
-          'award',
-          alreadyAwarded
-            ? '本题已计分'
-            : `答对 · 奖励${trivia.teams.find((t) => String(t.id) === team)?.name ?? '全队'}每人`,
-          !trivia.teams.length ||
-            !team ||
-            (!!trivia.adventure && !correction && !controls?.canAward) ||
-            alreadyAwarded ||
-            (!!board && (!awardCell || (correction ? false : !controls?.canAward))),
-          {
-            teamId: Number(team),
-            amount: board ? awardCell?.value : Number(amount),
-            ...(awardCell ? { cellId: awardCell.id } : {}),
-          },
-        )}
-        {board && selected && !correction && (
-          <div className="actions">
-            {button(
-              'finish-cell',
-              alreadyAwarded ? '完成本题 · 返回题板' : '不计分 · 完成本题',
-              !controls?.canFinish,
+                onChange={(event) =>
+                  void host('set-demo-mode', {
+                    demo: event.target.checked,
+                    expectedBankVersion: board?.version,
+                  })
+                }
+              />
+              <span>
+                演示模式 <strong>{trivia.demo ? '开启' : '关闭'}</strong>
+              </span>
+            </label>
+            <p className="fine-print">
+              开启：示例题，类别 1–5。关闭：本机正式题库。首次选题后锁定。
+            </p>
+            {!trivia.bankSwitch.allowed && (
+              <p className="fine-print">本轮已经选题或结束，切换题库请新建派对。</p>
+            )}
+            {trivia.demo && !trivia.bankSwitch.eventAvailable && (
+              <p className="fine-print">本机未找到正式题库，暂时只能使用演示模式。</p>
             )}
           </div>
         )}
-        {!!history.length && (
-          <div className="award-history">
-            <h4>计分与撤销记录</h4>
-            <ul>
-              {history.map((a) => (
-                <li key={a.id}>
-                  <div>
-                    <strong>
-                      {trivia.teams.find((t) => t.id === a.teamId)?.name} · 每人 +
-                      {formatTokens(a.amount)}
-                    </strong>
-                    <span>
-                      {a.cellId
-                        ? `${board?.categories.find((c) => c.id === board.cells.find((cell) => cell.id === a.cellId)?.categoryId)?.name} · ${a.amount} 分`
-                        : a.question === null
-                          ? '早期计分'
-                          : `第 ${a.question} 题`}{' '}
-                      · {a.undone ? '已撤销' : '已计分'}
-                    </span>
-                  </div>
-                  <button
-                    className="button secondary"
-                    disabled={busy || a.undone}
-                    onClick={() => void host('undo-award', { awardId: a.id })}
-                  >
-                    {a.undone ? '已撤销' : '撤销计分'}
-                  </button>
-                  {a.undone &&
-                    a.cellId &&
-                    !history.some((other) => other.cellId === a.cellId && !other.undone) && (
-                      <button
-                        className="button secondary"
-                        disabled={busy}
-                        onClick={() => {
-                          setCorrection(a.cellId!);
-                          setTeamChoice({
-                            context: `${trivia.question}:${trivia.windowId}:${trivia.winner?.teamId ?? ''}:${a.cellId}`,
-                            id: String(a.teamId),
-                          });
-                        }}
-                      >
-                        重新计分此题
-                      </button>
-                    )}
-                </li>
-              ))}
-            </ul>
+        <p className="host-action-feedback" role="status" aria-live="polite">
+          {feedback ? `✓ ${feedback}` : pending ? '保存中…' : ''}
+        </p>
+        {board && !trivia.teams.length && (
+          <div className="trivia-start-card">
+            <strong>{trivia.demo ? '演示题板已就绪' : 'Trivia 题板已就绪'}</strong>
+            <p>先分队，然后在题板上选题。</p>
+            {button('assign', '开始 Trivia · 随机分队', false, { count: Number(count) }, true)}
           </div>
         )}
-      </TriviaScoreAndCorrections>
+        <fieldset className="control-group">
+          <legend>1 · 分队</legend>
+          <label>
+            队伍数量{' '}
+            <input
+              type="number"
+              min="1"
+              value={count}
+              disabled={busy || trivia.question > 0}
+              onChange={(e) => setCount(e.target.value)}
+            />
+          </label>{' '}
+          {button('assign', '随机分队', trivia.question > 0, { count: Number(count) })}
+          <details>
+            <summary>查看队伍与成员</summary>
+            <TeamList trivia={trivia} />
+          </details>
+        </fieldset>
+      </div>
+      <div className="trivia-gameplay">
+        <TriviaQuestionPanel>
+          {board &&
+            trivia.teams.length > 0 &&
+            !board.started &&
+            !selected &&
+            button('show-board', '显示题板 · 开始选题', false, {}, true)}
+          {board && !selected && (
+            <>
+              <p>队伍口头选题，由主持人点击。待准备的题目暂不可选。</p>
+              <Board
+                board={board}
+                disabled={busy || !trivia.teams.length}
+                onSelect={(id) => void host('select-cell', { cellId: id })}
+              />
+            </>
+          )}
+          {board && selected && !trivia.adventure && <Question board={board} host />}
+          {selected?.kind === 'music' &&
+            selected.musicClip &&
+            audioUrl &&
+            selected.musicPlayback && (
+              <>
+                <MusicClip
+                  url={audioUrl}
+                  start={selected.musicClip.start}
+                  end={selected.musicClip.end}
+                  playing={selected.musicPlayback.playing}
+                  position={selected.musicPlayback.position}
+                  changedAt={selected.musicPlayback.changedAt}
+                  track={selected.musicTrack}
+                  storeUrl={selected.musicStoreUrl}
+                  host
+                  onHost={host}
+                  cellId={selected.id}
+                  disabled={busy || (alreadyAwarded && !selected.musicPlayback.playing)}
+                />
+                <p className="fine-print">
+                  无需等待试听结束；可以随时抢答、公布答案、计分或完成本题。
+                </p>
+              </>
+            )}
+          {trivia.adventure && (
+            <AdventureHost
+              adventure={trivia.adventure}
+              teamName={trivia.teams.find((t) => t.id === trivia.adventure?.teamId)?.name}
+              button={button}
+              busy={busy}
+              teams={trivia.teams}
+              clockOffset={clockOffset}
+            />
+          )}
+          {!board &&
+            button('new-question', '下一题', !trivia.teams.length || trivia.status === 'armed')}
+          <BuzzStatus trivia={trivia} />
+        </TriviaQuestionPanel>
+        <TriviaBuzzerAndReveal>
+          {(!board || selected) && (
+            <>
+              <p>
+                {controls?.disabledReason ??
+                  `可抢答：${eligible.map((t) => t.name).join('、') || '无。'}`}
+              </p>
+              <div className="actions">
+                {button('arm', '开启抢答', !controls?.canArm, {}, true)}
+                {button('close-buzzer', '关闭抢答', !controls?.canCloseBuzzer)}
+                {button('incorrect', '答错 · 不扣分', !controls?.canMarkIncorrect)}
+                {board && (
+                  <>
+                    {button('reveal-answer', '公布答案', !controls?.canReveal)}
+                    {button('cancel-selection', '选错了 · 返回且保留此格', !controls?.canCancel)}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </TriviaBuzzerAndReveal>
+        <TriviaScoreAndCorrections>
+          {trivia.adventure && (
+            <p>当前大冒险由挑战队伍作答；请在上方确认结果并计分，或选择抢答／跳过。</p>
+          )}
+          {correction && (
+            <p>
+              正在修正：{board?.categories.find((c) => c.id === awardCell?.categoryId)?.name} ·{' '}
+              {awardCell?.value} 分{' '}
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={() => setCorrection('')}
+              >
+                取消修正
+              </button>
+            </p>
+          )}
+          <label>
+            获奖队伍{' '}
+            <select
+              disabled={busy || (!!trivia.adventure && !correction && !controls?.canAward)}
+              value={team}
+              onChange={(e) => setTeamChoice({ context: teamContext, id: e.target.value })}
+            >
+              <option value="" disabled>
+                选择获奖队伍
+              </option>
+              {trivia.teams.map((t) => (
+                <option
+                  key={t.id}
+                  value={t.id}
+                  disabled={
+                    !!trivia.adventure && !correction && !controls?.awardableTeamIds.includes(t.id)
+                  }
+                >
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>{' '}
+          {board ? (
+            <p>每名队员获得 {awardCell ? formatTokens(awardCell.value) : '—'} 分。答错不扣分。</p>
+          ) : (
+            <label>
+              每名队员奖励{' '}
+              <input
+                type="number"
+                min="1"
+                value={amount}
+                disabled={busy}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </label>
+          )}
+          {button(
+            'award',
+            alreadyAwarded
+              ? '本题已计分'
+              : `答对 · 奖励${trivia.teams.find((t) => String(t.id) === team)?.name ?? '全队'}每人`,
+            !trivia.teams.length ||
+              !team ||
+              (!!trivia.adventure && !correction && !controls?.canAward) ||
+              alreadyAwarded ||
+              (!!board && (!awardCell || (correction ? false : !controls?.canAward))),
+            {
+              teamId: Number(team),
+              amount: board ? awardCell?.value : Number(amount),
+              ...(awardCell ? { cellId: awardCell.id } : {}),
+            },
+          )}
+          {board && selected && !correction && (
+            <div className="actions">
+              {button(
+                'finish-cell',
+                alreadyAwarded ? '完成本题 · 返回题板' : '不计分 · 完成本题',
+                !controls?.canFinish,
+              )}
+            </div>
+          )}
+          {!!history.length && (
+            <div className="award-history">
+              <h4>计分与撤销记录</h4>
+              <ul>
+                {history.map((a) => (
+                  <li key={a.id}>
+                    <div>
+                      <strong>
+                        {trivia.teams.find((t) => t.id === a.teamId)?.name} · 每人 +
+                        {formatTokens(a.amount)}
+                      </strong>
+                      <span>
+                        {a.cellId
+                          ? `${board?.categories.find((c) => c.id === board.cells.find((cell) => cell.id === a.cellId)?.categoryId)?.name} · ${a.amount} 分`
+                          : a.question === null
+                            ? '早期计分'
+                            : `第 ${a.question} 题`}{' '}
+                        · {a.undone ? '已撤销' : '已计分'}
+                      </span>
+                    </div>
+                    <button
+                      className="button secondary"
+                      disabled={busy || a.undone}
+                      onClick={() => void host('undo-award', { awardId: a.id })}
+                    >
+                      {a.undone ? '已撤销' : '撤销计分'}
+                    </button>
+                    {a.undone &&
+                      a.cellId &&
+                      !history.some((other) => other.cellId === a.cellId && !other.undone) && (
+                        <button
+                          className="button secondary"
+                          disabled={busy}
+                          onClick={() => {
+                            setCorrection(a.cellId!);
+                            setTeamChoice({
+                              context: `${trivia.question}:${trivia.windowId}:${trivia.winner?.teamId ?? ''}:${a.cellId}`,
+                              id: String(a.teamId),
+                            });
+                          }}
+                        >
+                          重新计分此题
+                        </button>
+                      )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </TriviaScoreAndCorrections>
+      </div>
       {!!board?.review?.length && (
         <details className="trivia-review">
           <summary>待确认内容与音乐候选（仅主持人可见）</summary>

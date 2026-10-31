@@ -506,3 +506,9 @@ Checks passed: `npm run format:check`, `npm run build` (including typecheck), fu
 ### Photo recreation judging during the countdown (2026-10-30)
 
 The host may now judge a photo attempt as soon as its timer starts and after it expires. Both judging buttons remain available during active play; the countdown and saved room durations are unchanged. The server retains selected-cell, attempt, team, active-phase and started-timer checks. An early failure still permits the second-team flow and second reference image. No schema or event bank changes. Observed: format check, typecheck, production build, and the full suite passed (154 tests, including HTTP/WebSocket tests with permitted loopback access). Focused fake-clock checks cover both decisions before, at and after the deadline, stale attempts, early second-team flow, and host button markup. Browser and physical-device interaction were not tested; no deployment.
+
+### Trivia layout and answer-timer work in progress
+
+The host setup now has its own full-width area, with the three gameplay panels in a responsive grid. TV adventure rules and image bounds use display-scoped sizing, and the geography map has a larger display-scoped area. Format checking, typecheck (through build), production build and all 155 existing tests passed with loopback access. These layout changes have not been visually checked in a browser or on physical devices.
+
+The requested ordinary-clue answer timer, host-selected first team, timeout reconciliation and related exclusion/restart coverage are not implemented. Existing ordinary Trivia rules are unchanged. The layout still needs synthetic-fixture browser verification at TV and tablet sizes before it can be considered complete. No event bank was used for this work.
