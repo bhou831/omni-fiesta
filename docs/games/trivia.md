@@ -12,6 +12,8 @@ New rooms use a host-controlled 5×5 board, in this order: 童年DNA、听歌识
 
 The tracked server-side `config/trivia-event.json` is the source of event questions; it is not copied into the public client bundle. The two geography cells contain curated non-U.S. Street View scenes. The display shows the panorama. The winning team answers aloud; the host privately judges it against the saved host answer. No typed answer, geocoding or automatic pass/fail is used. The browser Maps key is still needed for Street View. Selected music previews are technically playable but Apple terms limit them to promotional use and do not clear them for an entertainment game. The event bank readiness check covers the remaining adventure content.
 
+Text clues may include a checked-in `questionVideo` asset under `/trivia/`. The host and public display receive the selected clip with native playback controls; phones do not receive the question board. Use browser-compatible MP4/H.264 media and keep the answer and judging notes in server-side bank fields.
+
 Image clues may set `questionImage` to a checked-in asset under `/trivia/`. The host and public display receive the image with the selected prompt; phones do not receive the question board. Keep any accepted answer and judging guidance in the server-side bank fields.
 
 ## State and actions

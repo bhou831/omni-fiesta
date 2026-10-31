@@ -39,6 +39,10 @@ const clueSchema = z
       .string()
       .regex(/^\/trivia\/[a-z0-9-]+\.(?:png|jpe?g|webp)$/)
       .optional(),
+    questionVideo: z
+      .string()
+      .regex(/^\/trivia\/[a-z0-9-]+\.mp4$/)
+      .optional(),
     referenceImages: z
       .tuple([
         z.string().regex(/^\/adventure\/[a-z0-9-]+\.png$/),
@@ -184,6 +188,10 @@ export function validateTriviaContent(content: unknown): asserts content is Triv
     bank.cells.some((c) => c.questionImage && !existsSync(projectFile(`public${c.questionImage}`)))
   )
     throw new Error('Trivia question image is missing.');
+  if (
+    bank.cells.some((c) => c.questionVideo && !existsSync(projectFile(`public${c.questionVideo}`)))
+  )
+    throw new Error('Trivia question video is missing.');
   if (
     bank.cells.some(
       (c) => c.musicAudio && c.musicAudio.clipEndSeconds <= c.musicAudio.clipStartSeconds,

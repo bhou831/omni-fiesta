@@ -3927,6 +3927,14 @@ button.jeopardy-cell:not(:disabled):hover {
   margin: 24px auto 0;
   border-radius: 8px;
 }
+.trivia-question-video {
+  display: block;
+  width: min(100%, 760px);
+  max-height: 48vh;
+  margin: 24px auto 0;
+  border-radius: 8px;
+  background: #000;
+}
 .trivia-answer {
   border-top: 1px solid var(--line);
   padding-top: 16px;
@@ -4086,6 +4094,11 @@ button.jeopardy-cell:not(:disabled):hover {
 .has-jeopardy .trivia-question-image {
   max-width: min(100%, 560px);
   max-height: 42vh;
+  margin-top: 28px;
+}
+.has-jeopardy .trivia-question-video {
+  width: min(100%, 860px);
+  max-height: 46vh;
   margin-top: 28px;
 }
 .has-jeopardy .trivia-question.is-medium .trivia-prompt {

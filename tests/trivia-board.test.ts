@@ -414,6 +414,7 @@ test('custom banks validate without exposing data and a selected room keeps its 
   bank.version = 'custom-test-1';
   bank.cells[0].hostAnswer = 'PRIVATE TEST ANSWER';
   bank.cells[0].hostNotes = 'PRIVATE TEST NOTES';
+  bank.cells[0].questionVideo = '/trivia/childhood-300.mp4';
   bank.cells.find((c) => c.id === 'music-1')!.musicCandidates = Array.from(
     { length: 9 },
     (_, i) => `PRIVATE TEST SONG ${i + 1}`,
@@ -437,6 +438,8 @@ test('custom banks validate without exposing data and a selected room keeps its 
   bank.cells[0].hostAnswer = 'CHANGED TEST ANSWER';
   writeFileSync(file, JSON.stringify(bank));
   assert.equal(f.snapshot().board!.selected!.answer, 'PRIVATE TEST ANSWER');
+  assert.equal(f.snapshot().board!.selected!.questionVideo, '/trivia/childhood-300.mp4');
+  assert.equal(f.snapshot('display').board!.selected!.questionVideo, '/trivia/childhood-300.mp4');
   assert.equal(f.snapshot().demo, false);
   assert.doesNotMatch(
     JSON.stringify(f.snapshot('display')),
@@ -446,6 +449,12 @@ test('custom banks validate without exposing data and a selected room keeps its 
     JSON.stringify(f.snapshot('player')),
     /PRIVATE TEST ANSWER|PRIVATE TEST NOTES|PRIVATE TEST SONG/,
   );
+  assert.equal(f.snapshot('player').board, undefined);
+  assert.doesNotMatch(JSON.stringify(f.snapshot('player')), /childhood-300\.mp4/);
+  const displayHtml = renderToStaticMarkup(
+    createElement(TriviaDisplay, { trivia: f.snapshot('display') }),
+  );
+  assert.match(displayHtml, /<video[^>]*src="\/trivia\/childhood-300\.mp4"[^>]*controls=""/);
   assert.equal(f.snapshot().board!.review![0].musicCandidates!.length, 9);
   f.execute('reveal-answer', { cellId: f.cellId });
   assert.equal(f.snapshot('display').board!.selected!.answer, 'PRIVATE TEST ANSWER');

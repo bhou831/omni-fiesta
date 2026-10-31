@@ -219,6 +219,16 @@ function Question({ board, host = false }: { board: TriviaBoard; host?: boolean 
           alt="题目图片：摩尔庄园角色"
         />
       )}
+      {clue.questionVideo && (
+        <video
+          className="trivia-question-video"
+          src={clue.questionVideo}
+          controls
+          playsInline
+          preload="metadata"
+          aria-label="题目视频"
+        />
+      )}
       {clue.answer && (
         <div className="trivia-answer">
           <strong>{host ? '主持人答案（私密）' : '答案'}</strong>

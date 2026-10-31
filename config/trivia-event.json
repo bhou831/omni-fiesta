@@ -1,5 +1,5 @@
 {
-  "version": "event-adventure-2",
+  "version": "event-adventure-3",
   "categories": [
     {
       "id": "childhood",
@@ -139,7 +139,8 @@
       "kind": "text",
       "publicPrompt": "楚雨荨说过：「第一，我不是拽，我是愤怒。第二，……」请接出第二句。",
       "hostAnswer": "我不叫喂，我叫楚雨荨。",
-      "hostNotes": "可忽略语气词和标点差异。"
+      "hostNotes": "可忽略语气词和标点差异。",
+      "questionVideo": "/trivia/childhood-300.mp4"
     },
     {
       "id": "childhood-4",

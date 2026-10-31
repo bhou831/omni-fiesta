@@ -1,5 +1,11 @@
 # Implementation plan
 
+## 童年DNA 300 video clue (2026-10-30)
+
+Added the supplied 14-second clip to the 300-point 童年DNA clue. Converted the HEVC source to browser-compatible H.264 MP4 and reduced it from 21.5 MB to 3.5 MB. The event-bank schema validates local `/trivia/*.mp4` assets; the selected video path is included in host and public-display snapshots and omitted from player snapshots. Host and TV render native controls; playback is started on the display itself. Updated both the tracked event bank and ignored local private bank and bumped their content version. Existing rooms keep their frozen clue board; create a new party to load the clip.
+
+Verification: all 155 tests passed, including role privacy and TV video rendering; `npm run format:check`, `npm run build`, and private-bank validation passed. Browser preview at port 43129 showed the selected 300-point clue and played the clip on the public display. This verifies the desktop browser path; physical TV/HDMI playback was not tested.
+
 ## 童年DNA image clue (2026-10-30)
 
 Updated the 500-point event clue to ask which 摩尔庄园 character appears in the supplied picture. The host accepts 菩提大伯 or any of the supplied roles: 拉姆学院校长、前皇家骑士团团长、SMC 拉姆小导师. Added the picture as `public/trivia/childhood-5-mole.png`; the host and TV show it with the clue, while player snapshots remain question-free. Updated both the tracked deployment bank and the ignored local private bank. Existing rooms retain their frozen trivia board; use a new room to load this content.
