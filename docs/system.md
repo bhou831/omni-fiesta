@@ -94,6 +94,8 @@ Charades words are public to the TV only during an active attempt and remain abs
 
 ## Ordinary Trivia answer attempts
 
+The saved optional `trivia.attempt_limit` and `trivia.limited_attempt_limit` settings freeze new-room retry limits. Missing settings retain the earlier two-team limit. Category IDs, geography tier rank, and adventure variant determine the limited policy; available teams cap both limits. Board selection requires a host-selected first team. Adventure retries assign a team, draw any needed charades item, and start the challenge deadline atomically with the accepted buzz. Photo references cycle through the frozen pair. The saved photo scoring text is included only in the host adventure projection.
+
 For saved room configurations containing `trivia.answer_seconds`, ordinary board clues persist an answering team, attempt number, deadline and status separately from the room phase deadline. The host assigns the first team when selecting the clue; a failed first team is excluded and a second team's accepted buzz starts a fresh deadline. Core expiry reconciliation commits before commands and broadcasts state changes, including on restart. At deadline the attempt fails without a debit, award or phase transition. Saved configurations without the setting retain the previous untimed ordinary flow and are not rewritten. Adventure timers remain separate.
 
 ### Trivia media and reconciliation (2026-10-31)

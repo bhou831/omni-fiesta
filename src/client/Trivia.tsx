@@ -172,11 +172,15 @@ export function TriviaPlayer({
                   ? trivia.winner.teamId === trivia.ownTeamId
                     ? '本队抢答成功'
                     : `${trivia.teams.find((other) => other.id === trivia.winner?.teamId)?.name ?? '其他队'}抢答成功`
-                  : pending
-                    ? '提交中…'
-                    : trivia.status === 'armed'
-                      ? '可以抢答'
-                      : '等待主持人'}
+                  : trivia.answeringTeamId
+                    ? trivia.answeringTeamId === trivia.ownTeamId
+                      ? '本队作答中'
+                      : `${trivia.teams.find((other) => other.id === trivia.answeringTeamId)?.name ?? '其他队'}作答中`
+                    : pending
+                      ? '提交中…'
+                      : trivia.status === 'armed'
+                        ? '可以抢答'
+                        : '等待主持人'}
       </p>
       <AnswerTimer trivia={trivia} clockOffset={clockOffset} />
       <button
@@ -214,12 +218,7 @@ function Board({
                   key={cell.id}
                   aria-label={label}
                   className={`jeopardy-cell ${cell.used ? 'is-used' : ''}`}
-                  disabled={
-                    disabled ||
-                    cell.used ||
-                    !cell.available ||
-                    (noFirstTeam && cell.kind !== 'adventure')
-                  }
+                  disabled={disabled || cell.used || !cell.available || noFirstTeam}
                   onClick={() => onSelect(cell.id)}
                 >
                   {formatTokens(cell.value)}
@@ -464,6 +463,7 @@ export function TriviaHost({
       ? teamChoice.id
       : String(
           trivia.winner?.teamId ??
+            trivia.answeringTeamId ??
             (trivia.answerAttempt && ['active', 'revealed'].includes(trivia.answerAttempt.status)
               ? trivia.answerAttempt.teamId
               : null) ??
@@ -635,12 +635,8 @@ export function TriviaHost({
             button('show-board', '显示题板 · 开始选题', false, {}, true)}
           {board && !selected && (
             <>
-              {trivia.answerDurationSeconds !== undefined ? (
-                <p>先选择首轮作答队伍，再打开普通题目。大冒险按挑战规则选择队伍。</p>
-              ) : (
-                <p>队伍口头选题，由主持人点击。待准备的题目暂不可选。</p>
-              )}
-              {trivia.answerDurationSeconds !== undefined && (
+              <p>先选择首轮作答队伍，再打开题目。待准备的题目暂不可选。</p>
+              {
                 <label>
                   首轮作答队伍{' '}
                   <select
@@ -656,11 +652,11 @@ export function TriviaHost({
                     ))}
                   </select>
                 </label>
-              )}
+              }
               <Board
                 board={board}
                 disabled={busy || !trivia.teams.length}
-                noFirstTeam={trivia.answerDurationSeconds !== undefined && !firstTeam}
+                noFirstTeam={!firstTeam}
                 onSelect={(id) =>
                   void host('select-cell', { cellId: id, teamId: Number(firstTeam) })
                 }
@@ -701,6 +697,13 @@ export function TriviaHost({
               button={button}
               busy={busy}
               teams={trivia.teams}
+              canRetry={
+                !board?.revealed &&
+                trivia.teams.some(
+                  (team) => !team.excluded && team.id !== trivia.adventure?.teamId,
+                ) &&
+                trivia.adventure.attempt < (trivia.controls?.attemptLimit ?? 2)
+              }
               clockOffset={clockOffset}
             />
           )}
@@ -900,6 +903,7 @@ export function TriviaDisplay({
     (team) =>
       team.id ===
       (trivia.winner?.teamId ??
+        trivia.answeringTeamId ??
         (trivia.answerAttempt?.status === 'active' ? trivia.answerAttempt.teamId : undefined)),
   );
   const winner = winningTeam?.members.find((player) => player.id === trivia.winner?.playerId);

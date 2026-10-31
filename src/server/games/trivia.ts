@@ -46,6 +46,18 @@ const boardState = (c: PhaseContext) =>
     .prepare('SELECT * FROM trivia_boards WHERE room_id=? AND phase_instance=?')
     .get(c.room.id, c.room.phase_instance) as BoardRow | undefined;
 const contentOf = (board: BoardRow): TriviaContent => JSON.parse(board.content);
+function attemptLimit(c: PhaseContext, board: BoardRow, cell: TriviaContent['cells'][number]) {
+  const cfg = c.config.trivia;
+  const values = [...new Set(contentOf(board).cells.map((clue) => clue.value))].sort(
+    (a, b) => a - b,
+  );
+  const limited =
+    cell.categoryId === 'random' ||
+    (cell.categoryId === 'geography' && values.indexOf(cell.value) < 3) ||
+    cell.adventureVariant?.startsWith('yes-no');
+  const configured = limited ? (cfg.limited_attempt_limit ?? 2) : (cfg.attempt_limit ?? 2);
+  return Math.min(configured, new Set(members(c).map((member) => member.team)).size);
+}
 export type TriviaBoard = {
   version: string;
   categories: { id: string; name: string }[];
@@ -129,6 +141,7 @@ export type TriviaProjection = {
   status: State['status'];
   winner: { playerId: string; teamId: number } | null;
   ownTeamId: number | null;
+  answeringTeamId?: number;
   answerDurationSeconds?: number;
   answerAttempt?: {
     teamId: number;
@@ -156,6 +169,7 @@ export type TriviaProjection = {
     canFinish: boolean;
     canCancel: boolean;
     attemptsUsed: number;
+    attemptLimit?: number;
     disabledReason?: string;
   };
 };
@@ -316,14 +330,18 @@ export function createTrivia(): PhaseModule {
       const adventure = getAdventure(c, board?.selected_cell ?? null);
       const previous = answerAttempt(c, current.question);
       if (!adventure && previous) {
+        const selected =
+          board && contentOf(board).cells.find((cell) => cell.id === board.selected_cell);
         requireRule(
-          previous.status === 'failed' && previous.attempt === 1,
+          selected &&
+            previous.status === 'failed' &&
+            previous.attempt < attemptLimit(c, board!, selected),
           'ATTEMPT_LIMIT',
-          '本题最多两队尝试。',
+          '本题尝试次数已用完。',
         );
         c.store.db
           .prepare(
-            "UPDATE trivia_answer_attempts SET attempt=2,team=?,deadline_at=?,status='active' WHERE room_id=? AND phase_instance=? AND question=?",
+            "UPDATE trivia_answer_attempts SET attempt=attempt+1,team=?,deadline_at=?,status='active' WHERE room_id=? AND phase_instance=? AND question=?",
           )
           .run(
             team,
@@ -339,7 +357,21 @@ export function createTrivia(): PhaseModule {
           'INVALID_ADVENTURE',
           '挑战尚未开放抢答。',
         );
-        adventure.phase = 'rules';
+        if (adventure.phase === 'steal') {
+          if (isCharades(adventure)) {
+            requireRule(
+              remaining(c, 'charades') >= settings(c, adventure).target!,
+              'QUESTION_POOL_SHORT',
+              '剩余词语不足以完成挑战；请结束本题。',
+            );
+            adventure.item = draw(c, 'charades');
+          }
+          adventure.correct = 0;
+          adventure.skipped = 0;
+          adventure.startedAt = c.now;
+          adventure.deadlineAt = c.now + settings(c, adventure).seconds * 1000;
+          adventure.phase = 'active';
+        } else adventure.phase = 'rules';
         adventure.teamId = team;
         if (adventure.attempt === 1) adventure.firstTeamId = team;
         saveAdventure(c, adventure);
@@ -469,7 +501,11 @@ export function triviaHostAction(
     }
     const result = (success: boolean) => {
       a.success = success;
-      a.phase = success || a.attempt === 1 ? 'result' : 'closed';
+      if (!success && a.teamId !== null)
+        c.store.db
+          .prepare('INSERT OR IGNORE INTO trivia_exclusions VALUES(?,?,?,?)')
+          .run(room, phase, current.question, a.teamId);
+      a.phase = success || a.attempt < attemptLimit(c, board!, selected) ? 'result' : 'closed';
       saveAdventure(c, a);
       return { success, attempt: a.attempt };
     };
@@ -510,7 +546,11 @@ export function triviaHostAction(
     }
     if (action === 'adventure-correct' || action === 'adventure-skip') {
       requireRule(
-        isCharades(a) && a.phase === 'active' && a.deadlineAt !== null && c.now < a.deadlineAt,
+        isCharades(a) &&
+          a.phase === 'active' &&
+          a.item !== null &&
+          a.deadlineAt !== null &&
+          c.now < a.deadlineAt,
         'ADVENTURE_EXPIRED',
         '挑战时间已结束。',
       );
@@ -568,18 +608,31 @@ export function triviaHostAction(
       return { replaced: true };
     }
     if (action === 'adventure-steal') {
+      requireRule(!board!.revealed, 'CELL_RESOLVED', '答案已公布，请完成本题。');
       requireRule(
-        a.phase === 'result' && a.success === false && a.attempt === 1 && a.firstTeamId !== null,
+        a.phase === 'result' &&
+          a.success === false &&
+          a.attempt < attemptLimit(c, board!, selected) &&
+          a.teamId !== null,
         'INVALID_ADVENTURE',
         '不能再次开启抢答。',
       );
       requireRule(
-        members(c).some((member) => member.team !== a.firstTeamId),
+        triviaProjection(c).teams.some((team) => !team.excluded && team.id !== a.teamId),
         'NO_ELIGIBLE_TEAMS',
         '没有其他队伍可进行第二次挑战。',
       );
+      if (isCharades(a))
+        requireRule(
+          remaining(c, 'charades') >= settings(c, a).target!,
+          'QUESTION_POOL_SHORT',
+          '剩余词语不足以完成挑战；请结束本题。',
+        );
+      c.store.db
+        .prepare('INSERT OR IGNORE INTO trivia_exclusions VALUES(?,?,?,?)')
+        .run(room, phase, current.question, a.teamId);
       a.phase = 'steal';
-      a.attempt = 2;
+      a.attempt++;
       a.teamId = null;
       a.startedAt = null;
       a.deadlineAt = null;
@@ -588,11 +641,9 @@ export function triviaHostAction(
       a.success = null;
       if (isCharades(a)) a.item = null;
       if (a.variant === 'photo-recreation')
-        a.item = selected.referenceImages?.[1] ?? selected.referenceImage ?? a.item;
+        a.item =
+          selected.referenceImages?.[(a.attempt - 1) % 2] ?? selected.referenceImage ?? a.item;
       a.displayPrompt = false;
-      c.store.db
-        .prepare('INSERT OR IGNORE INTO trivia_exclusions VALUES(?,?,?,?)')
-        .run(room, phase, current.question, a.firstTeamId);
       c.store.db
         .prepare(
           "UPDATE trivia_state SET status='idle',winner_player=NULL,winner_team=NULL WHERE room_id=? AND phase_instance=?",
@@ -671,12 +722,12 @@ export function triviaHostAction(
       'CELL_USED',
       '此题已经完成。',
     );
+    requireRule(
+      typeof data.teamId === 'number' && members(c).some((m) => m.team === data.teamId),
+      'INVALID_TEAM',
+      '请先选择首轮作答队伍。',
+    );
     if (cell.kind !== 'adventure' && c.config.trivia.answer_seconds !== undefined) {
-      requireRule(
-        typeof data.teamId === 'number' && members(c).some((m) => m.team === data.teamId),
-        'INVALID_TEAM',
-        '请先选择首轮作答队伍。',
-      );
       c.store.db
         .prepare("INSERT INTO trivia_answer_attempts VALUES(?,?,?,?,?,?,?,'active')")
         .run(
@@ -707,16 +758,23 @@ export function triviaHostAction(
         "UPDATE trivia_state SET question=question+1,status='idle',winner_player=NULL,winner_team=NULL WHERE room_id=? AND phase_instance=?",
       )
       .run(room, phase);
-    if (cell.kind === 'adventure') createAdventure(c, cell, content, random);
-    else if (c.config.trivia.answer_seconds !== undefined) {
+    if (cell.kind === 'adventure') {
+      createAdventure(c, cell, content, random);
+      const created = getAdventure(c, cell.id)!;
+      created.teamId = data.teamId;
+      created.firstTeamId = data.teamId;
+      created.phase = 'rules';
+      saveAdventure(c, created);
+    } else {
       c.store.db
         .prepare(
           "UPDATE trivia_state SET status='locked',winner_team=? WHERE room_id=? AND phase_instance=?",
         )
         .run(data.teamId as number, room, phase);
-      c.store.db
-        .prepare('UPDATE trivia_boards SET begun=1 WHERE room_id=? AND phase_instance=?')
-        .run(room, phase);
+      if (c.config.trivia.answer_seconds !== undefined)
+        c.store.db
+          .prepare('UPDATE trivia_boards SET begun=1 WHERE room_id=? AND phase_instance=?')
+          .run(room, phase);
     }
     return { selected: cell.id };
   }
@@ -738,7 +796,7 @@ export function triviaHostAction(
       .run(room, phase);
     c.store.db
       .prepare(
-        'UPDATE trivia_state SET music_playing=0,music_started_at=NULL,music_position=0 WHERE room_id=? AND phase_instance=?',
+        "UPDATE trivia_state SET status='idle',winner_player=NULL,winner_team=NULL,music_playing=0,music_started_at=NULL,music_position=0 WHERE room_id=? AND phase_instance=?",
       )
       .run(room, phase);
     return { cancelled: true };
@@ -914,9 +972,9 @@ export function triviaHostAction(
           )
           .get(room, phase, current.question) as { n: number };
         requireRule(
-          current.status !== 'locked' && attempts.n < 2,
+          current.status !== 'locked' && attempts.n < attemptLimit(c, board, selected!),
           'ATTEMPT_LIMIT',
-          '本题最多两队尝试。',
+          '本题尝试次数已用完。',
         );
       }
       requireRule(
@@ -947,10 +1005,6 @@ export function triviaHostAction(
     c.store.db
       .prepare("UPDATE trivia_state SET status='idle' WHERE room_id=? AND phase_instance=?")
       .run(room, phase);
-    if (adventure && adventure.phase === 'steal') {
-      adventure.phase = 'closed';
-      saveAdventure(c, adventure);
-    }
     return { closed: true };
   }
   if (action === 'incorrect') {
@@ -981,6 +1035,10 @@ export function triviaHostAction(
       c.store.db
         .prepare('INSERT OR IGNORE INTO trivia_exclusions VALUES(?,?,?,?)')
         .run(room, phase, current.question, current.winner_team);
+    if (board)
+      c.store.db
+        .prepare('UPDATE trivia_boards SET begun=1 WHERE room_id=? AND phase_instance=?')
+        .run(room, phase);
     c.store.db
       .prepare(
         "UPDATE trivia_state SET status='idle',winner_player=NULL,winner_team=NULL WHERE room_id=? AND phase_instance=?",
@@ -1194,7 +1252,14 @@ export function triviaProjection(
       (!!selectedCellId &&
         !board.revealed &&
         !selectedAwarded &&
-        (adventure ? adventure.phase === 'steal' : attemptsUsed < 2)));
+        (adventure
+          ? adventure.phase === 'steal'
+          : attemptsUsed <
+            attemptLimit(
+              c,
+              board,
+              contentOf(board).cells.find((cell) => cell.id === selectedCellId)!,
+            ))));
   const controls = {
     canArm,
     canCloseBuzzer: current.status === 'armed',
@@ -1229,7 +1294,25 @@ export function triviaProjection(
     canCancel:
       !!board && !!selectedCellId && !board.begun && current.status !== 'armed' && !adventure,
     attemptsUsed,
-    ...(attemptsUsed >= 2 ? { disabledReason: '本题两次机会已用完。' } : {}),
+    ...(board && selectedCellId
+      ? {
+          attemptLimit: attemptLimit(
+            c,
+            board,
+            contentOf(board).cells.find((cell) => cell.id === selectedCellId)!,
+          ),
+        }
+      : {}),
+    ...(board &&
+    selectedCellId &&
+    attemptsUsed >=
+      attemptLimit(
+        c,
+        board,
+        contentOf(board).cells.find((cell) => cell.id === selectedCellId)!,
+      )
+      ? { disabledReason: '本题尝试次数已用完。' }
+      : {}),
   };
   return {
     ...(board && !playerId ? { board: projectBoard(c, board, includeAwards) } : {}),
@@ -1289,6 +1372,9 @@ export function triviaProjection(
         ? { playerId: current.winner_player, teamId: current.winner_team }
         : null,
     ownTeamId: playerId ? (all.find((m) => m.player_id === playerId)?.team ?? null) : null,
+    ...(current.status === 'locked' && current.winner_team !== null
+      ? { answeringTeamId: current.winner_team }
+      : {}),
     defaultTeamCount: Math.min(c.config.trivia.default_team_count, players.length),
     ...(includeAwards
       ? {

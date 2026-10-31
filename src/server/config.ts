@@ -79,6 +79,8 @@ export const gameConfigSchema = z
     trivia: z
       .object({
         answer_seconds: duration.optional(),
+        attempt_limit: z.number().int().min(1).max(100).optional(),
+        limited_attempt_limit: z.number().int().min(1).max(100).optional(),
         adventure: z
           .object({
             charades_simple_seconds: duration,

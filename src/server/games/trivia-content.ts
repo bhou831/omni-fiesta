@@ -112,6 +112,15 @@ const bankSchema = z
   .strict();
 export type TriviaClue = z.infer<typeof clueSchema>;
 export type TriviaContent = z.infer<typeof bankSchema>;
+export function missingPhotoScoringPrompt(content: TriviaContent): boolean {
+  return (
+    content.mode === 'event' &&
+    content.cells.some(
+      (cell) => cell.adventureVariant === 'photo-recreation' && !cell.unavailableReason,
+    ) &&
+    !content.photoScoringPrompt?.trim()
+  );
+}
 export const DEMO_TRIVIA_BANK = projectFile('config/trivia-demo.json');
 
 export function isApprovedApplePreviewUrl(value: string): boolean {

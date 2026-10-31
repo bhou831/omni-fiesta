@@ -91,6 +91,7 @@ export function AdventureHost({
   button,
   busy,
   teams,
+  canRetry = true,
   clockOffset = 0,
 }: {
   adventure: AdventureProjection;
@@ -104,16 +105,45 @@ export function AdventureHost({
   ) => React.ReactNode;
   busy: boolean;
   teams: { id: number; name: string }[];
+  canRetry?: boolean;
   clockOffset?: number;
 }) {
   const [chosenTeam, setChosenTeam] = useState(teams[0]?.id ?? 0);
+  const [copyStatus, setCopyStatus] = useState('');
   const data = { attempt: a.attempt };
   return (
     <div className="adventure-host" lang="zh-CN">
       <AdventureStage adventure={a} teamName={teamName} clockOffset={clockOffset} />
+      {a.variant === 'photo-recreation' && a.photoScoringPrompt && (
+        <details>
+          <summary>查看照片评分提示词</summary>
+          <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{a.photoScoringPrompt}</p>
+          <button
+            type="button"
+            onClick={async () => {
+              setCopyStatus('');
+              try {
+                await navigator.clipboard.writeText(a.photoScoringPrompt!);
+                setCopyStatus('已复制。');
+              } catch {
+                setCopyStatus('复制失败，请手动选择上方文字复制。');
+              }
+            }}
+          >
+            复制提示词
+          </button>
+          <p role="status">{copyStatus}</p>
+        </details>
+      )}
       {a.variant !== 'photo-recreation' && (
         <p>题库剩余：{a.remaining ?? '—'}。已展示、跳过及换掉的题不会再次出现。</p>
       )}
+      {a.variant.startsWith('charades') &&
+        (a.phase === 'rules' || (a.phase === 'result' && !a.success)) &&
+        a.remaining !== null &&
+        a.remaining < (a.target ?? 0) && (
+          <p role="status">剩余词语不足以开始完整挑战，请结束本题。</p>
+        )}
       {a.phase === 'waiting' && (
         <div className="actions">
           <label>
@@ -147,7 +177,9 @@ export function AdventureHost({
           {button(
             'adventure-start',
             '开始计时',
-            a.variant.startsWith('charades') && a.remaining === 0,
+            a.variant.startsWith('charades') &&
+              a.remaining !== null &&
+              a.remaining < (a.target ?? 0),
             data,
             true,
           )}
@@ -170,11 +202,11 @@ export function AdventureHost({
               {button(
                 'adventure-correct',
                 '猜对 · 下一题',
-                a.remaining === 0 && a.correct + 1 < (a.target ?? 0),
+                !a.item || (a.remaining === 0 && a.correct + 1 < (a.target ?? 0)),
                 data,
                 true,
               )}
-              {button('adventure-skip', '跳过 · 下一题', a.remaining === 0, data)}
+              {button('adventure-skip', '跳过 · 下一题', !a.item || a.remaining === 0, data)}
             </>
           ) : a.variant.startsWith('yes-no') ? (
             <>
@@ -195,13 +227,22 @@ export function AdventureHost({
         <div className="actions">
           {a.success ? (
             <p>本题由 {teamName} 挑战成功。请在统一计分区确认获奖队伍。</p>
-          ) : a.attempt === 1 ? (
-            button('adventure-steal', '开启抢答 · 仅限另一队', teams.length < 2, data, true)
+          ) : canRetry ? (
+            button(
+              'adventure-steal',
+              '开启下一轮抢答',
+              teams.length < 2 ||
+                (a.variant.startsWith('charades') &&
+                  a.remaining !== null &&
+                  a.remaining < (a.target ?? 0)),
+              data,
+              true,
+            )
           ) : null}
           {button('adventure-abort', '跳过本题 · 不计分', false, data)}
         </div>
       )}
-      {a.phase === 'steal' && <p>请在“抢答与公布答案”中开启或关闭第二队抢答。</p>}
+      {a.phase === 'steal' && <p>请在“抢答与公布答案”中开启或关闭抢答。</p>}
       {a.phase !== 'won' &&
         a.phase !== 'closed' &&
         button('adventure-finish-cell', '提前结束本题 · 返回题板', false, data)}

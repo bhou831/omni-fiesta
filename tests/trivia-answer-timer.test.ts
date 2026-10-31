@@ -10,6 +10,96 @@ import { createTriviaContent, DEMO_TRIVIA_BANK } from '../src/server/games/trivi
 import type { Session } from '../src/server/core/store.js';
 
 const host: Session = { role: 'host', roomId: null, playerId: null, tokenHash: '' };
+test('limited categories and geography tier ranks permit only two teams', async (t) => {
+  for (const cellId of [
+    'geography-1',
+    'geography-2',
+    'geography-3',
+    'random-1',
+    'random-2',
+    'random-3',
+    'random-4',
+    'random-5',
+  ]) {
+    const app = createApp({
+      databasePath: ':memory:',
+      hostPassword: 'synthetic-test-password',
+      now: () => 1_000_000,
+    });
+    t.after(() => app.close());
+    const room = await seedPreviewRoom(
+      app.engine,
+      PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
+    );
+    const send = (action: string, data: Record<string, unknown> = {}) =>
+      app.engine.execute(host, room.id, {
+        type: 'phase.host',
+        phaseInstance: app.store.room(room.id).phase_instance,
+        requestId: randomUUID(),
+        payload: { action, data: { cellId, ...data } },
+      });
+    const state = () => app.engine.snapshot({ role: 'host', roomId: room.id }).trivia!;
+    send('assign', { count: 4 });
+    send('select-cell', { teamId: 1 });
+    assert.equal(state().controls?.attemptLimit, 2);
+    send('incorrect', { attempt: 1 });
+    send('arm');
+    const playerId = state().teams.find((team) => team.id === 2)!.members[0].id;
+    app.engine.execute({ role: 'player', roomId: room.id, playerId, tokenHash: '' }, room.id, {
+      type: 'phase.action',
+      phaseInstance: app.store.room(room.id).phase_instance,
+      requestId: randomUUID(),
+      payload: { action: 'buzz', data: { windowId: state().windowId } },
+    });
+    send('incorrect', { attempt: 2 });
+    assert.throws(() => send('arm'));
+    send('finish-cell');
+  }
+});
+test('four distinct teams can attempt an ordinary clue with a fresh timer each', async (t) => {
+  let now = 1_000_000;
+  const app = createApp({
+    databasePath: ':memory:',
+    hostPassword: 'synthetic-test-password',
+    now: () => now,
+  });
+  t.after(() => app.close());
+  const room = await seedPreviewRoom(
+    app.engine,
+    PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
+  );
+  const send = (action: string, data: Record<string, unknown> = {}) =>
+    app.engine.execute(host, room.id, {
+      type: 'phase.host',
+      phaseInstance: app.store.room(room.id).phase_instance,
+      requestId: randomUUID(),
+      payload: { action, data: { cellId: 'childhood-1', ...data } },
+    });
+  const state = () => app.engine.snapshot({ role: 'host', roomId: room.id }).trivia!;
+  send('assign', { count: 4 });
+  assert.throws(() => send('select-cell'));
+  send('select-cell', { teamId: 1 });
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    assert.equal(state().answerAttempt?.teamId, attempt);
+    assert.equal(state().answerAttempt?.deadlineAt, now + 90_000);
+    send('incorrect', { attempt });
+    assert.equal(state().teams.find((team) => team.id === attempt)?.excluded, true);
+    if (attempt === 4) break;
+    send('arm');
+    const windowId = state().windowId;
+    const playerId = state().teams.find((team) => team.id === attempt + 1)!.members[0].id;
+    now += 1000;
+    app.engine.execute({ role: 'player', roomId: room.id, playerId, tokenHash: '' }, room.id, {
+      type: 'phase.action',
+      phaseInstance: app.store.room(room.id).phase_instance,
+      requestId: randomUUID(),
+      payload: { action: 'buzz', data: { windowId } },
+    });
+  }
+  assert.throws(() => send('arm'));
+  send('reveal-answer');
+  send('finish-cell');
+});
 test('ordinary attempts expire atomically, exclude teams and survive restart', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'trivia-timer-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));

@@ -10,7 +10,7 @@ export type AdventureState = {
   cellId: string;
   variant: NonNullable<TriviaClue['adventureVariant']>;
   phase: 'waiting' | 'rules' | 'active' | 'result' | 'steal' | 'won' | 'closed';
-  attempt: 1 | 2;
+  attempt: number;
   teamId: number | null;
   firstTeamId: number | null;
   item: string | null;
@@ -30,6 +30,7 @@ export type AdventureProjection = AdventureState & {
   durationSeconds: number;
   target: number | null;
   remaining: number | null;
+  photoScoringPrompt?: string;
 };
 
 const key = (c: PhaseContext) => [c.room.id, c.room.phase_instance] as const;
@@ -175,6 +176,9 @@ export function projectAdventure(
     rules: content.adventureRules?.[rulesKey[a.variant]] ?? [],
     durationSeconds: seconds,
     target,
+    ...(host && a.variant === 'photo-recreation' && content.photoScoringPrompt
+      ? { photoScoringPrompt: content.photoScoringPrompt }
+      : {}),
     remaining:
       host && a.variant !== 'photo-recreation'
         ? remaining(c, isCharades(a) ? 'charades' : 'yesOrNo')

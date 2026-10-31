@@ -92,7 +92,7 @@ test('location is answered aloud and host uses ordinary wrong, second buzz, awar
     (app.store.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version,
     20,
   );
-  hostAction('select-cell');
+  hostAction('select-cell', { teamId: 1 });
   assert.equal(snapshot('display').board?.selected?.locationView?.panoId, 'test-pano');
   assert.equal(JSON.stringify(snapshot('display').board).includes('latitude'), false);
   assert.equal(JSON.stringify(snapshot('display').board).includes('longitude'), false);
@@ -124,10 +124,8 @@ test('location is answered aloud and host uses ordinary wrong, second buzz, awar
     ).status,
     404,
   );
-  hostAction('arm');
   const first = snapshot();
   const firstTeam = first.teams[0];
-  buzz(firstTeam, first.windowId);
   hostAction('incorrect');
   hostAction('arm');
   const second = snapshot();

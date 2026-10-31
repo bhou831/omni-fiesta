@@ -40,7 +40,7 @@ async function fixture(path = ':memory:', now = () => 1000000) {
       type: 'phase.host',
       phaseInstance: app.store.room(room.id).phase_instance,
       requestId,
-      payload: { action, data },
+      payload: { action, data: action === 'select-cell' ? { teamId: 1, ...data } : data },
     });
   const snapshot = (role: 'host' | 'display' | 'player' = 'host') =>
     app.engine.snapshot({
@@ -173,6 +173,7 @@ test('host selects, safely cancels, and explicitly finishes; unavailable/used/st
   f.execute('cancel-selection', { cellId });
   assert.equal(f.snapshot().board!.cells.find((c) => c.id === cellId)!.used, false);
   f.execute('select-cell', { cellId });
+  f.execute('incorrect', { cellId });
   f.execute('arm', { cellId });
   assert.throws(() => f.execute('finish-cell', { cellId }));
   const phaseInstance = f.app.store.room(f.room.id).phase_instance;
@@ -198,22 +199,19 @@ test('first buzz, stale windows, exclusion with zero penalty, all-excluded finis
   t.after(() => f.app.close());
   const { cellId } = f;
   f.execute('select-cell', { cellId });
-  f.execute('arm', { cellId });
   const first = f.snapshot();
   const p1 = first.teams[0].members[0].id,
     p2 = first.teams[1].members[0].id;
   const before = f.app.store.players(f.room.id);
-  f.buzz(p1, first.windowId);
-  assert.throws(() => f.buzz(p2, first.windowId));
-  assert.throws(() => f.execute('cancel-selection', { cellId }));
   f.execute('incorrect', { cellId });
+  assert.throws(() => f.execute('cancel-selection', { cellId }));
   f.execute('arm', { cellId });
   const second = f.snapshot();
   assert.throws(() => f.buzz(p2, first.windowId));
   assert.throws(() => f.buzz(p1, second.windowId));
   f.buzz(p2, second.windowId);
   f.execute('incorrect', { cellId });
-  assert.throws(() => f.execute('arm', { cellId }), /最多两队|所有队伍/);
+  assert.throws(() => f.execute('arm', { cellId }), /次数已用完|所有队伍/);
   assert.deepEqual(f.app.store.players(f.room.id), before);
   f.execute('finish-cell', { cellId });
   f.execute('select-cell', { cellId: 'childhood-2' });
@@ -704,23 +702,24 @@ test('nonzero-start music clip uses relative playback position through stop, res
   assert.equal(f.snapshot('display').board!.selected!.musicPlayback!.position, 0);
 });
 
-test('host controls and server cap ordinary clues at two attempts in a four-team room', async (t) => {
+test('host controls enforce the configured ordinary attempt limit', async (t) => {
   const f = await fixture();
   t.after(() => f.app.close());
   f.execute('assign', { count: 4 });
   f.execute('select-cell', { cellId: f.cellId });
-  assert.equal(f.snapshot().controls?.canArm, true);
+  assert.equal(f.snapshot().controls?.canArm, false);
   assert.equal(f.snapshot('display').controls, undefined);
-  for (const teamId of [1, 2]) {
+  f.execute('incorrect', { cellId: f.cellId });
+  for (const teamId of [2, 3, 4]) {
     f.execute('arm', { cellId: f.cellId });
     const playerId = f.snapshot().teams.find((team) => team.id === teamId)!.members[0].id;
     f.buzz(playerId, f.snapshot().windowId);
     assert.equal(f.snapshot().controls?.canMarkIncorrect, true);
     f.execute('incorrect', { cellId: f.cellId });
   }
-  assert.equal(f.snapshot().controls?.attemptsUsed, 2);
+  assert.equal(f.snapshot().controls?.attemptsUsed, 4);
   assert.equal(f.snapshot().controls?.canArm, false);
-  assert.equal(f.snapshot().controls?.disabledReason, '本题两次机会已用完。');
+  assert.equal(f.snapshot().controls?.disabledReason, '本题尝试次数已用完。');
   assert.throws(() => f.execute('arm', { cellId: f.cellId }));
   f.execute('reveal-answer', { cellId: f.cellId });
   assert.equal(f.snapshot().controls?.canReveal, false);

@@ -9,6 +9,7 @@ import { createApp } from '../src/server/app.js';
 import {
   createTriviaContent,
   DEMO_TRIVIA_BANK,
+  missingPhotoScoringPrompt,
   validateTriviaContent,
 } from '../src/server/games/trivia-content.js';
 import { PREVIEW_SCENARIOS, seedPreviewRoom } from '../scripts/preview-fixtures.js';
@@ -27,6 +28,7 @@ async function fixture() {
   );
   const content = createTriviaContent([100, 200, 300, 400, 500], DEMO_TRIVIA_BANK);
   content.mode = 'event';
+  content.photoScoringPrompt = 'Synthetic host-only clipboard fixture';
   content.adventureQuestionBank = {
     charades: Array.from({ length: 30 }, (_, i) => `Word ${i + 1}`),
     yesOrNo: ['Challenge A', 'Challenge B', 'Challenge C'],
@@ -106,13 +108,194 @@ async function fixture() {
   };
 }
 
+test('photo scoring disclosure is host-only and uses the frozen content', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  f.execute('select-cell', 'adventure-5', { teamId: 1 });
+  assert.equal(f.snapshot().adventure?.photoScoringPrompt, 'Synthetic host-only clipboard fixture');
+  assert.equal(f.snapshot('display').adventure?.photoScoringPrompt, undefined);
+  assert.equal(f.snapshot('player').adventure?.photoScoringPrompt, undefined);
+});
+
+test('event photo readiness detects a missing saved scoring prompt', () => {
+  const content = createTriviaContent([100, 200, 300, 400, 500], DEMO_TRIVIA_BANK);
+  content.mode = 'event';
+  const cell = content.cells.find((entry) => entry.id === 'adventure-5')!;
+  cell.kind = 'adventure';
+  cell.adventureVariant = 'photo-recreation';
+  cell.unavailableReason = undefined;
+  assert.equal(missingPhotoScoringPrompt(content), true);
+  content.photoScoringPrompt = 'Synthetic host-only scoring fixture';
+  assert.equal(missingPhotoScoringPrompt(content), false);
+});
+
+test('retry excludes the failed team when resuming a legacy saved failure', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  const cell = 'adventure-1';
+  f.execute('select-cell', cell, { teamId: 1 });
+  f.execute('adventure-start', cell, { attempt: 1 });
+  f.execute('adventure-fail', cell, { attempt: 1 });
+  f.app.store.db.prepare('DELETE FROM trivia_exclusions WHERE room_id=?').run(f.room.id);
+  assert.equal(f.snapshot().teams.find((team) => team.id === 1)?.excluded, false);
+  f.execute('adventure-steal', cell, { attempt: 1 });
+  assert.equal(f.snapshot().teams.find((team) => team.id === 1)?.excluded, true);
+  f.execute('arm', cell);
+  assert.throws(() => f.buzz(1));
+  f.buzz(2);
+  assert.equal(f.snapshot().adventure?.teamId, 2);
+});
+
+test('revealing a failed adventure blocks retries and leaves a finish path', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  const cell = 'adventure-1';
+  f.execute('select-cell', cell, { teamId: 1 });
+  f.execute('adventure-start', cell, { attempt: 1 });
+  f.execute('adventure-fail', cell, { attempt: 1 });
+  f.execute('reveal-answer', cell);
+  const markup = renderToStaticMarkup(
+    createElement(TriviaHost, {
+      trivia: f.snapshot(),
+      command: async () => undefined,
+      disabled: false,
+    }),
+  );
+  assert.doesNotMatch(markup, /开启下一轮抢答/);
+  assert.throws(() => f.execute('adventure-steal', cell, { attempt: 1 }));
+  assert.equal(f.snapshot().adventure?.attempt, 1);
+  f.execute('adventure-finish-cell', cell, { attempt: 1 });
+  assert.equal(f.snapshot().board?.selected, null);
+});
+
+test('both charades variants resume immediately on retry with a fresh word and deadline', async (t) => {
+  for (const cell of ['adventure-1', 'adventure-3']) {
+    const f = await fixture();
+    t.after(() => f.app.close());
+    f.execute('select-cell', cell, { teamId: 1 });
+    f.execute('adventure-start', cell, { attempt: 1 });
+    const first = f.snapshot().adventure!;
+    f.execute('adventure-fail', cell, { attempt: 1 });
+    f.execute('adventure-steal', cell, { attempt: 1 });
+    f.execute('arm', cell);
+    f.setNow(1_010_000);
+    f.buzz(2);
+    const retry = f.snapshot().adventure!;
+    assert.equal(retry.phase, 'active');
+    assert.equal(retry.teamId, 2);
+    assert.equal(retry.startedAt, 1_010_000);
+    assert.equal(retry.deadlineAt, 1_010_000 + retry.durationSeconds * 1000);
+    assert.notEqual(retry.item, first.item);
+    assert.equal(f.snapshot('display').adventure?.item, retry.item);
+    assert.equal(f.snapshot('player').adventure?.item, null);
+    assert.throws(() => f.execute('adventure-start', cell, { attempt: 2 }));
+    assert.throws(() => f.execute('adventure-correct', cell, { attempt: 1 }));
+    assert.equal(f.snapshot().adventure?.deadlineAt, retry.deadlineAt);
+    f.execute('adventure-correct', cell, { attempt: 2 });
+    assert.equal(f.snapshot().adventure?.correct, 1);
+    assert.notEqual(f.snapshot().adventure?.item, retry.item);
+  }
+});
+
+test('four different teams can attempt charades without reusing an item', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  const cell = 'adventure-1';
+  f.execute('assign', cell, { count: 4 });
+  assert.throws(() => f.execute('select-cell', cell));
+  f.execute('select-cell', cell, { teamId: 1 });
+  f.execute('adventure-start', cell, { attempt: 1 });
+  const seen = new Set<string>();
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const state = f.snapshot().adventure!;
+    assert.equal(state.teamId, attempt);
+    assert.ok(state.item && !seen.has(state.item));
+    seen.add(state.item!);
+    f.execute('adventure-fail', cell, { attempt });
+    assert.equal(f.snapshot().teams.find((team) => team.id === attempt)?.excluded, true);
+    if (attempt === 4) break;
+    f.execute('adventure-steal', cell, { attempt });
+    f.execute('arm', cell);
+    assert.throws(() => f.buzz(attempt));
+    f.buzz(attempt + 1);
+    assert.equal(f.snapshot().adventure?.phase, 'active');
+  }
+  assert.equal(f.snapshot().adventure?.phase, 'closed');
+  assert.throws(() => f.execute('adventure-steal', cell, { attempt: 4 }));
+  f.execute('finish-cell', cell);
+});
+
+test('four photo attempts reuse the two frozen references in order', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  const cell = 'adventure-5';
+  f.execute('assign', cell, { count: 4 });
+  f.execute('select-cell', cell, { teamId: 1 });
+  f.execute('adventure-start', cell, { attempt: 1 });
+  const refs: (string | null)[] = [];
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    refs.push(f.snapshot().adventure!.item);
+    f.execute('adventure-photo-fail', cell, { attempt });
+    if (attempt === 4) break;
+    f.execute('adventure-steal', cell, { attempt });
+    f.execute('arm', cell);
+    f.buzz(attempt + 1);
+  }
+  assert.notEqual(refs[0], refs[1]);
+  assert.equal(refs[2], refs[0]);
+  assert.equal(refs[3], refs[1]);
+  assert.equal(f.snapshot().adventure?.phase, 'closed');
+});
+
+test('both Yes or No variants stop after two distinct teams', async (t) => {
+  for (const cell of ['adventure-2', 'adventure-4']) {
+    const f = await fixture();
+    t.after(() => f.app.close());
+    f.execute('assign', cell, { count: 4 });
+    f.execute('select-cell', cell, { teamId: 1 });
+    assert.equal(f.snapshot().controls?.attemptLimit, 2);
+    f.execute('adventure-start', cell, { attempt: 1 });
+    f.execute('adventure-fail', cell, { attempt: 1 });
+    f.execute('adventure-steal', cell, { attempt: 1 });
+    f.execute('arm', cell);
+    f.buzz(2);
+    f.execute('adventure-fail', cell, { attempt: 2 });
+    assert.equal(f.snapshot().adventure?.phase, 'closed');
+    assert.throws(() => f.execute('adventure-steal', cell, { attempt: 2 }));
+  }
+});
+
+test('an exhausted charades pool prevents retry and leaves a visible finish path', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  const cell = 'adventure-1';
+  f.execute('select-cell', cell, { teamId: 1 });
+  f.execute('adventure-start', cell, { attempt: 1 });
+  f.app.store.db
+    .prepare(
+      "UPDATE trivia_adventure_pools SET items='[]',cursor=0 WHERE room_id=? AND name='charades'",
+    )
+    .run(f.room.id);
+  f.execute('adventure-fail', cell, { attempt: 1 });
+  assert.throws(() => f.execute('adventure-steal', cell, { attempt: 1 }));
+  const markup = renderToStaticMarkup(
+    createElement(TriviaHost, {
+      trivia: f.snapshot(),
+      command: async () => undefined,
+      disabled: false,
+    }),
+  );
+  assert.match(markup, /剩余词语不足/);
+  f.execute('adventure-finish-cell', cell, { attempt: 1 });
+  assert.equal(f.snapshot().board?.selected, null);
+});
+
 test('charades rules, server timer, unique draws and explicit award survive the host flow', async (t) => {
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-1';
-  f.execute('select-cell', cell);
-  assert.equal(f.snapshot().adventure?.phase, 'waiting');
-  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+  assert.throws(() => f.execute('select-cell', cell));
+  f.execute('select-cell', cell, { teamId: 1 });
   assert.equal(f.snapshot().adventure?.phase, 'rules');
   assert.equal(f.snapshot('player').adventure?.item, null);
   assert.equal(f.snapshot('display').adventure?.item, null);
@@ -143,8 +326,7 @@ test('first failure gives one other team a fresh full attempt, then closes with 
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-3';
-  f.execute('select-cell', cell);
-  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+  f.execute('select-cell', cell, { teamId: 1 });
   f.execute('adventure-start', cell, { attempt: 1 });
   const firstWord = f.snapshot().adventure!.item;
   f.setNow(1_120_000);
@@ -156,12 +338,12 @@ test('first failure gives one other team a fresh full attempt, then closes with 
   f.execute('arm', cell);
   assert.throws(() => f.buzz(1));
   f.buzz(2);
-  assert.equal(f.snapshot().adventure?.phase, 'rules');
+  assert.equal(f.snapshot().adventure?.phase, 'active');
   assert.equal(f.snapshot('display').winner?.teamId, 2);
   const tv = renderToStaticMarkup(createElement(TriviaDisplay, { trivia: f.snapshot('display') }));
   assert.match(tv, /抢答成功/);
   assert.match(tv, new RegExp(f.snapshot('display').teams[1].members[0].name));
-  f.execute('adventure-start', cell, { attempt: 2 });
+  assert.throws(() => f.execute('adventure-start', cell, { attempt: 2 }));
   assert.equal(f.snapshot().adventure?.deadlineAt, 1_240_000);
   assert.notEqual(f.snapshot().adventure?.item, firstWord);
   f.execute('adventure-fail', cell, { attempt: 2 });
@@ -174,7 +356,7 @@ test('first failure gives one other team a fresh full attempt, then closes with 
   );
 });
 
-test('every adventure confirms the accepted steal on phones through rules and active play', async (t) => {
+test('every adventure confirms the accepted steal on phones during active play', async (t) => {
   for (let i = 1; i <= 5; i++) {
     const f = await fixture();
     t.after(() => f.app.close());
@@ -189,8 +371,7 @@ test('every adventure confirms the accepted steal on phones through rules and ac
         createElement(TriviaPlayer, { trivia, command: async () => {}, disabled: false, closed }),
       );
     };
-    f.execute('select-cell', cell);
-    f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+    f.execute('select-cell', cell, { teamId: 1 });
     assert.match(phone(f.snapshot().teams[0].members[0].id), /请听规则/);
     f.execute('adventure-start', cell, { attempt: 1 });
     f.setNow(1_200_000);
@@ -211,9 +392,6 @@ test('every adventure confirms the accepted steal on phones through rules and ac
       assert.match(phone(winner.members[0].id, true), /本轮结束/);
       assert.doesNotMatch(phone(winner.members[0].id, true), /本队抢答成功/);
     };
-    assert.equal(f.snapshot().adventure?.phase, 'rules');
-    checkWinner();
-    f.execute('adventure-start', cell, { attempt: 2 });
     assert.equal(f.snapshot().adventure?.phase, 'active');
     checkWinner();
     f.setNow(1_400_000);
@@ -229,8 +407,7 @@ test('Yes or No consent replacement consumes a prompt; second team retries the s
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-2';
-  f.execute('select-cell', cell);
-  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+  f.execute('select-cell', cell, { teamId: 1 });
   const first = f.snapshot().adventure!.item;
   f.execute('adventure-replace', cell, { attempt: 1 });
   const second = f.snapshot().adventure!.item;
@@ -251,7 +428,6 @@ test('Yes or No consent replacement consumes a prompt; second team retries the s
   f.execute('arm', cell);
   f.buzz(2);
   assert.equal(f.snapshot().adventure?.item, second);
-  f.execute('adventure-start', cell, { attempt: 2 });
   f.execute('adventure-success', cell, { attempt: 2 });
   assert.equal(f.snapshot().teams[1].score, 0);
   f.execute('adventure-award', cell, { attempt: 2, teamId: 2 });
@@ -262,9 +438,8 @@ test('photo recreation accepts early host judgement and awards the selected team
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-5';
-  f.execute('select-cell', cell);
+  f.execute('select-cell', cell, { teamId: 1 });
   assert.throws(() => f.execute('arm', cell));
-  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
   assert.equal(f.snapshot('display').adventure?.item, null);
   f.execute('adventure-start', cell, { attempt: 1 });
   assert.equal(f.snapshot('display').adventure?.item, '/adventure/photo-recreation-attempt-1.png');
@@ -284,8 +459,7 @@ test('photo failure rotates to the second image and permits only the other team'
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-5';
-  f.execute('select-cell', cell);
-  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+  f.execute('select-cell', cell, { teamId: 1 });
   f.execute('adventure-start', cell, { attempt: 1 });
   f.execute('adventure-photo-fail', cell, { attempt: 1 });
   f.execute('adventure-steal', cell, { attempt: 1 });
@@ -294,7 +468,6 @@ test('photo failure rotates to the second image and permits only the other team'
   f.execute('arm', cell);
   assert.throws(() => f.buzz(1));
   f.buzz(2);
-  f.execute('adventure-start', cell, { attempt: 2 });
   assert.equal(f.snapshot('display').adventure?.item, '/adventure/photo-recreation-attempt-2.png');
   assert.equal(f.snapshot().adventure?.deadlineAt, 1_120_000);
   assert.throws(() => f.execute('adventure-photo-fail', cell, { attempt: 1 }));
@@ -318,8 +491,7 @@ for (const action of ['adventure-photo-success', 'adventure-photo-fail'] as cons
       const f = await fixture();
       t.after(() => f.app.close());
       const cell = 'adventure-5';
-      f.execute('select-cell', cell);
-      f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+      f.execute('select-cell', cell, { teamId: 1 });
       assert.throws(() => f.execute(action, cell, { attempt: 1 }));
       f.execute('adventure-start', cell, { attempt: 1 });
       assert.throws(() => f.execute(action, cell, { attempt: 2 }));
@@ -349,8 +521,7 @@ test('photo host judging buttons are enabled while the countdown is running', as
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-5';
-  f.execute('select-cell', cell);
-  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+  f.execute('select-cell', cell, { teamId: 1 });
   f.execute('adventure-start', cell, { attempt: 1 });
   const html = renderToStaticMarkup(
     createElement(AdventureHost, {
@@ -406,8 +577,7 @@ test('a frozen one-image photo room remains playable', async (t) => {
   f.app.store.db
     .prepare('UPDATE trivia_boards SET content=? WHERE room_id=?')
     .run(JSON.stringify(frozen), f.room.id);
-  f.execute('select-cell', 'adventure-5');
-  f.execute('adventure-choose-team', 'adventure-5', { attempt: 1, teamId: 1 });
+  f.execute('select-cell', 'adventure-5', { teamId: 1 });
   f.execute('adventure-start', 'adventure-5', { attempt: 1 });
   assert.equal(f.snapshot('display').adventure?.item, '/adventure/sample-pose.png');
   f.setNow(1_120_000);
@@ -420,8 +590,7 @@ test('host may pass a failed challenge without inviting every team', async (t) =
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-4';
-  f.execute('select-cell', cell);
-  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 2 });
+  f.execute('select-cell', cell, { teamId: 2 });
   f.execute('adventure-start', cell, { attempt: 1 });
   f.execute('adventure-fail', cell, { attempt: 1 });
   f.execute('adventure-abort', cell, { attempt: 1 });
@@ -438,8 +607,7 @@ test('host can end an active adventure early and return to the trivia board', as
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-1';
-  f.execute('select-cell', cell);
-  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
+  f.execute('select-cell', cell, { teamId: 1 });
   f.execute('adventure-start', cell, { attempt: 1 });
   f.execute('adventure-finish-cell', cell, { attempt: 1 });
   assert.equal(f.snapshot().board?.selected, null);
@@ -454,12 +622,11 @@ test('shared award validates adventure success, credits once, and undo reopens c
   const f = await fixture();
   t.after(() => f.app.close());
   const cell = 'adventure-2';
-  f.execute('select-cell', cell);
+  f.execute('select-cell', cell, { teamId: 1 });
   assert.equal(f.snapshot().controls?.canAward, false);
   assert.equal(f.snapshot('display').controls, undefined);
   assert.equal(f.snapshot('player').controls, undefined);
   assert.throws(() => f.execute('award', cell, { teamId: 1, amount: 200 }));
-  f.execute('adventure-choose-team', cell, { attempt: 1, teamId: 1 });
   f.execute('adventure-start', cell, { attempt: 1 });
   f.execute('adventure-success', cell, { attempt: 1 });
   assert.deepEqual(f.snapshot().controls?.awardableTeamIds, [1]);
@@ -483,7 +650,7 @@ test('all five adventure variants render the same host decision sections', async
   t.after(() => f.app.close());
   for (let i = 1; i <= 5; i++) {
     const cell = `adventure-${i}`;
-    f.execute('select-cell', cell);
+    f.execute('select-cell', cell, { teamId: 1 });
     const markup = renderToStaticMarkup(
       createElement(TriviaHost, {
         trivia: f.snapshot(),

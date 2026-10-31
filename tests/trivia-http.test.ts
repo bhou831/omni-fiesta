@@ -55,7 +55,7 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
     requestId: randomUUID(),
     phaseInstance: app.store.room(room.id).phase_instance,
     type: 'phase.host',
-    payload: { action, data },
+    payload: { action, data: action === 'select-cell' ? { teamId: 1, ...data } : data },
   });
   const tv = io(base, {
     autoConnect: false,
@@ -114,10 +114,18 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
   const reconnected = next(tv, (s) => !!s.trivia?.board?.selected);
   tv.connect();
   assert.equal((await reconnected).trivia!.board!.selected!.id, 'childhood-1');
+  assert.equal((await request('host', hostCookie, command('incorrect'))).status, 200);
   assert.equal((await request('host', hostCookie, command('arm'))).status, 200);
   const windowId = (await request('player', playerCookie)).data.trivia.windowId;
-  const otherId = app.store.players(room.id).find((p) => p.id !== room.playerId)!.id;
-  const otherCookie = `of_player=${app.store.session('player', Date.now(), null, otherId, room.id)}`;
+  const eligible = (await request('host', hostCookie)).data.trivia.teams.find(
+    (team: { id: number }) => team.id === 2,
+  ).members;
+  const cookies = eligible
+    .slice(0, 2)
+    .map(
+      (player: { id: string }) =>
+        `of_player=${app.store.session('player', Date.now(), null, player.id, room.id)}`,
+    );
   const buzz = () => ({
     requestId: randomUUID(),
     phaseInstance: app.store.room(room.id).phase_instance,
@@ -125,8 +133,8 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
     payload: { action: 'buzz', data: { windowId } },
   });
   const race = await Promise.all([
-    request('player', playerCookie, buzz()),
-    request('player', otherCookie, buzz()),
+    request('player', cookies[0], buzz()),
+    request('player', cookies[1], buzz()),
   ]);
   assert.equal(race.filter((result) => result.status === 200).length, 1);
   assert.equal(race.filter((result) => result.data.code === 'BUZZER_CLOSED').length, 1);
@@ -178,13 +186,17 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
   assert.equal((await request('host', hostCookie, command('finish-cell'))).status, 200);
   await finished;
   const changed = sync(
-    (s) => s.trivia?.question === 2 && s.trivia.status === 'idle' && !s.trivia.winner,
+    (s) => s.trivia?.question === 2 && s.trivia.status === 'locked' && !s.trivia.winner,
   );
   assert.equal(
     (await request('host', hostCookie, command('select-cell', { cellId: 'childhood-2' }))).status,
     200,
   );
   await changed;
+  assert.equal(
+    (await request('host', hostCookie, command('incorrect', { cellId: 'childhood-2' }))).status,
+    200,
+  );
   assert.equal(
     (await request('host', hostCookie, command('arm', { cellId: 'childhood-2' }))).status,
     200,
@@ -194,7 +206,7 @@ test('trivia HTTP and socket snapshots protect hidden content, authorize host ac
   const locked = sync((s) => s.trivia?.windowId === nextWindow && s.trivia?.status === 'locked');
   const newBuzz = buzz();
   newBuzz.payload.data.windowId = nextWindow;
-  assert.equal((await request('player', playerCookie, newBuzz)).status, 200);
+  assert.equal((await request('player', cookies[0], newBuzz)).status, 200);
   await locked;
 });
 
@@ -242,7 +254,7 @@ test('selected synthetic music is served only to authenticated host or TV and ne
     requestId: randomUUID(),
     phaseInstance: app.store.room(room.id).phase_instance,
     type: 'phase.host',
-    payload: { action: 'select-cell', data: { cellId: cell.id } },
+    payload: { action: 'select-cell', data: { cellId: cell.id, teamId: 1 } },
   });
   const path = `${base}/api/rooms/${room.code}/trivia-audio/${cell.id}`;
   assert.equal((await fetch(path)).status, 401);
@@ -328,7 +340,7 @@ test('selected synthetic music is served only to authenticated host or TV and ne
       requestId: randomUUID(),
       phaseInstance: app.store.room(room.id).phase_instance,
       type: 'phase.host',
-      payload: { action: 'select-cell', data: { cellId: nextCell.id } },
+      payload: { action: 'select-cell', data: { cellId: nextCell.id, teamId: 1 } },
     });
     const response = await fetch(`${base}/api/rooms/${room.code}/trivia-audio/${nextCell.id}`, {
       headers: { Cookie: hostCookie },

@@ -103,6 +103,8 @@ costume:
 
 trivia:
   answer_seconds: 90
+  attempt_limit: 4
+  limited_attempt_limit: 2
   adventure:
     charades_simple_seconds: 120
     charades_simple_target: 6
