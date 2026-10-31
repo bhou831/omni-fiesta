@@ -126,8 +126,8 @@ export async function seedPreviewRoom(
       ['childhood-3', 1],
       ['childhood-4', 3],
     ] as const) {
-      hostAction('select-cell', { cellId });
-      hostAction('award', { cellId, teamId, amount: Number(cellId.slice(-1)) * 100 });
+      hostAction('select-cell', { cellId, teamId });
+      hostAction('award', { cellId, teamId, amount: Number(cellId.slice(-1)) * 100, attempt: 1 });
       hostAction('finish-cell', { cellId });
     }
   }
