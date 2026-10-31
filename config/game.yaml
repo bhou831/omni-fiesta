@@ -125,12 +125,12 @@ slots:
   max_spins_per_player: 3
   draw_mode: independent
   outcomes:
+    - gross_payout_tokens: 1000
+      probability: 0.05
     - gross_payout_tokens: 500
-      probability: 0.10
-    - gross_payout_tokens: 300
       probability: 0.20
-    - gross_payout_tokens: 100
-      probability: 0.30
+    - gross_payout_tokens: 200
+      probability: 0.35
     - gross_payout_tokens: 0
       probability: 0.40
 

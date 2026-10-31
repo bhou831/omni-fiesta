@@ -58,7 +58,7 @@ Only those four action sessions have countdowns. Advancing to a timed stage plac
 
 Current configuration grants each player 1,000 tokens once, allows an investment of at most 1,000, and locks the invested amount. The configured return multiplier is currently 100. These adjustable defaults come from `config/game.yaml`; existing rooms retain their saved settings. Investment payout cannot fall below zero; maximum loss is the amount actually invested. Gains are uncapped.
 
-Each slot spin costs 200. Independent gross payouts are 500 with 10% probability, 300 with 20%, 100 with 30%, and zero with 40%. There are no winner quotas. At most three accepted spins per player; a player must afford each spin at the time of purchase.
+Each slot spin costs 200. Independent gross payouts are 1000 with 5% probability, 500 with 20%, 200 with 35%, and zero with 40%. There are no winner quotas. At most three accepted spins per player; a player must afford each spin at the time of purchase. Existing rooms retain their saved configuration.
 
 Costume prizes are 1,000, 800, and 500 **per player** in the top three **distinct vote totals**. Every player tied in a prize group receives that place's full award; prizes are never divided by group size. For example, five players tied for first each receive 1,000, and a single player in the next distinct vote group receives 800. The lowest group still splits a 500-token penalty using `floor(500 / group_size)` only if that group receives no top-three prize. Cap each person's deduction at their spendable balance; locked investments are untouched. Penalty division remainder and uncollectible penalties are not redistributed.
 

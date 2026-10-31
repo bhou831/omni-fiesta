@@ -63,21 +63,22 @@ function setup(samples: bigint[] = []) {
 
 test('slot weights and boundaries exactly follow configured probabilities', () => {
   const slots = loadConfig().slots;
-  assert.deepEqual(slotWeights(slots), [1n, 2n, 3n, 4n]);
+  assert.deepEqual(slotWeights(slots), [5n, 20n, 35n, 40n]);
   for (const [sample, gross] of [
-    [0n, 500],
-    [1n, 300],
-    [2n, 300],
-    [3n, 100],
-    [5n, 100],
-    [6n, 0],
-    [9n, 0],
+    [0n, 1000],
+    [4n, 1000],
+    [5n, 500],
+    [24n, 500],
+    [25n, 200],
+    [59n, 200],
+    [60n, 0],
+    [99n, 0],
   ] as const)
     assert.equal(
       drawSlotOutcome(slots, () => sample),
       gross,
     );
-  assert.throws(() => drawSlotOutcome(slots, () => 10n));
+  assert.throws(() => drawSlotOutcome(slots, () => 100n));
   const fine = {
     ...slots,
     outcomes: [
@@ -89,7 +90,7 @@ test('slot weights and boundaries exactly follow configured probabilities', () =
 });
 
 test('accepted spin is charged and saved once; retry survives closure and reconnect', (t) => {
-  const f = setup([6n]);
+  const f = setup([60n]);
   t.after(() => f.store.close());
   const spin = f.command();
   const first = f.engine.execute(f.player, f.room.id, spin);
@@ -115,13 +116,13 @@ test('accepted spin is charged and saved once; retry survives closure and reconn
 });
 
 test('distinct requests cannot overspend or exceed attempt limit', (t) => {
-  const f = setup([6n, 6n, 6n, 6n]);
+  const f = setup([60n, 60n, 60n, 60n]);
   t.after(() => f.store.close());
   for (let i = 0; i < 3; i++) f.engine.execute(f.player, f.room.id, f.command());
   assert.equal(f.store.player(f.joined.playerId).spendable, 400);
   assert.throws(() => f.engine.execute(f.player, f.room.id, f.command()));
   assert.equal(f.draws(), 3);
-  const other = setup([6n]);
+  const other = setup([60n]);
   t.after(() => other.store.close());
   other.store.transaction(() =>
     other.store.adjust(
@@ -148,7 +149,7 @@ test('competing spin commands serialize and failed persistence rolls back chargi
   );
   assert.equal(results.filter((result) => result.status === 'fulfilled').length, 3);
   assert.equal(f.draws(), 3);
-  assert.equal(f.store.player(f.joined.playerId).spendable, 1900);
+  assert.equal(f.store.player(f.joined.playerId).spendable, 3400);
   assert.equal(
     slotsPlayerState(f.engine.context(f.store.room(f.room.id)), f.joined.playerId).spins.length,
     3,

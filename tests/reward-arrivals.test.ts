@@ -36,6 +36,12 @@ test('a 100-token slot payout triggers a private saved cue despite the 200-token
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'slots')!,
   );
+  // Exercise an older saved room whose positive return is below the spin cost.
+  const savedConfig = JSON.parse(app.store.room(room.id).config);
+  savedConfig.slots.outcomes[2].gross_payout_tokens = 100;
+  app.store.db
+    .prepare('UPDATE rooms SET config=? WHERE id=?')
+    .run(JSON.stringify(savedConfig), room.id);
   app.engine.modules.set(
     'slots',
     createSlotsModule((max) => (max * 35n) / 100n),

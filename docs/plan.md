@@ -1,5 +1,9 @@
 # Implementation plan
 
+## Slot payout configuration update
+
+New rooms use a 200-token spin cost and gross payouts of 1000/500/200/0 with probabilities 5/20/35/40 percent. The expected net is +20 tokens per spin. Existing rooms retain their saved configuration. Updated deterministic draw boundaries and retained an older saved-room payout fixture. Format check, typecheck, production build, and all 195 tests passed, including HTTP/WebSocket tests with loopback access.
+
 ## 童年DNA 300 video clue (2026-10-30)
 
 Added the supplied 14-second clip to the 300-point 童年DNA clue. Converted the HEVC source to browser-compatible H.264 MP4 and reduced it from 21.5 MB to 3.5 MB. The event-bank schema validates local `/trivia/*.mp4` assets; the selected video path is included in host and public-display snapshots and omitted from player snapshots. Host and TV render native controls; playback is started on the display itself. Updated both the tracked event bank and ignored local private bank and bumped their content version. Existing rooms keep their frozen clue board; create a new party to load the clip.
