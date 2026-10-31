@@ -1,12 +1,19 @@
-import React, { useEffect, useRef, useState, type CSSProperties } from 'react';
+import React, { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { TriviaBoard, TriviaProjection } from '../server/games/trivia.js';
 import type { CommandSender } from '../shared/contracts.js';
 import { formatTokens } from './format.js';
+import { AdventureHost, AdventureStage } from './TriviaAdventure.js';
+import { TriviaLocation, type TriviaLocationView } from './TriviaLocation.js';
+import { TriviaVideo } from './TriviaVideo.js';
+import { TriviaCountdown, useTriviaRemaining } from './TriviaCountdown.js';
+import { triviaPlaybackPosition } from './trivia-playback.js';
 
 export type TriviaViewProps = {
   trivia: TriviaProjection;
   command: CommandSender;
   disabled: boolean;
+  clockOffset?: number;
+  audioUrl?: string;
 };
 /** Decorative only: it never opens the real buzzer or shows a saved clue. */
 function JeopardyIntroArt() {
@@ -67,18 +74,64 @@ function TeamList({ trivia }: { trivia: TriviaProjection }) {
   );
 }
 function BuzzStatus({ trivia }: { trivia: TriviaProjection }) {
-  const team = trivia.teams.find((t) => t.id === trivia.winner?.teamId);
+  const team = trivia.teams.find(
+    (t) =>
+      t.id ===
+      (trivia.winner?.teamId ??
+        (trivia.answerAttempt?.status === 'active' ? trivia.answerAttempt.teamId : undefined)),
+  );
   const winner = team?.members.find((p) => p.id === trivia.winner?.playerId);
   return (
     <p role="status">
-      {winner
-        ? `${winner.emoji} ${winner.name} 为${team!.name}抢答成功，请口头回答。`
-        : trivia.status === 'armed'
-          ? '抢答已开启'
-          : trivia.teams.length
-            ? '看大屏幕，等待主持人。'
-            : '等待主持人分队。'}
+      {team && !winner && trivia.answerAttempt?.status === 'active'
+        ? `${team.name}正在作答。`
+        : winner
+          ? `${winner.emoji} ${winner.name} 为${team!.name}抢答成功，请口头回答。`
+          : trivia.status === 'armed'
+            ? '抢答已开启'
+            : trivia.teams.length
+              ? '看大屏幕，等待主持人。'
+              : '等待主持人分队。'}
     </p>
+  );
+}
+function AnswerTimer({
+  trivia,
+  clockOffset = 0,
+  includeAdventure = false,
+}: {
+  trivia: TriviaProjection;
+  clockOffset?: number;
+  includeAdventure?: boolean;
+}) {
+  if (!trivia.timer || (trivia.adventure && !includeAdventure)) return null;
+  return (
+    <TriviaCountdown {...trivia.timer} clockOffset={clockOffset} className="trivia-answer-timer" />
+  );
+}
+function TriviaTimerControls({
+  timer,
+  controls,
+  button,
+  clockOffset,
+}: {
+  timer: NonNullable<TriviaProjection['timer']>;
+  controls: TriviaProjection['controls'];
+  button: React.ComponentProps<typeof AdventureHost>['button'];
+  clockOffset: number;
+}) {
+  const remaining = useTriviaRemaining({ ...timer, clockOffset });
+  const expired = remaining === null || remaining <= 0;
+  const data = { attempt: timer.attempt, timerRevision: timer.revision };
+  return (
+    <div className="control-group" aria-label="计时控制">
+      <p>计时控制 · 本轮时限 {timer.durationSeconds} 秒</p>
+      <div className="actions">
+        {button('timer-pause', '暂停计时', expired || !controls?.canPauseTimer, data)}
+        {button('timer-resume', '继续计时', expired || !controls?.canResumeTimer, data)}
+        {button('timer-restart', '重新计时', expired || !controls?.canRestartTimer, data)}
+      </div>
+    </div>
   );
 }
 export function TriviaPlayer({
@@ -86,6 +139,7 @@ export function TriviaPlayer({
   command,
   disabled,
   closed = false,
+  clockOffset = 0,
 }: TriviaViewProps & { closed?: boolean }) {
   const team = trivia.teams.find((t) => t.id === trivia.ownTeamId);
   const [pending, setPending] = useState(false);
@@ -117,18 +171,36 @@ export function TriviaPlayer({
       <p role="status" aria-live="polite">
         {closed
           ? '本轮结束'
-          : team?.excluded
-            ? '本题已答错，等待下一题'
-            : trivia.winner
-              ? trivia.winner.teamId === trivia.ownTeamId
-                ? '本队抢答成功'
-                : `${trivia.teams.find((other) => other.id === trivia.winner?.teamId)?.name ?? '其他队'}抢答成功`
-              : pending
-                ? '提交中…'
-                : trivia.status === 'armed'
-                  ? '可以抢答'
-                  : '等待主持人'}
+          : trivia.adventure &&
+              trivia.status !== 'armed' &&
+              trivia.adventure.phase !== 'waiting' &&
+              trivia.adventure.phase !== 'steal' &&
+              !(
+                trivia.winner &&
+                (trivia.adventure.phase === 'rules' || trivia.adventure.phase === 'active')
+              )
+            ? `${trivia.adventure.title} · ${trivia.adventure.phase === 'rules' ? '请听规则' : trivia.adventure.phase === 'active' ? '挑战进行中' : trivia.adventure.success ? '挑战成功' : '挑战结束'}`
+            : team?.excluded
+              ? '本题已答错，等待下一题'
+              : trivia.answerAttempt?.status === 'active'
+                ? trivia.answerAttempt.teamId === trivia.ownTeamId
+                  ? '本队作答中'
+                  : `${trivia.teams.find((other) => other.id === trivia.answerAttempt?.teamId)?.name ?? '其他队'}作答中`
+                : trivia.winner
+                  ? trivia.winner.teamId === trivia.ownTeamId
+                    ? '本队抢答成功'
+                    : `${trivia.teams.find((other) => other.id === trivia.winner?.teamId)?.name ?? '其他队'}抢答成功`
+                  : trivia.answeringTeamId
+                    ? trivia.answeringTeamId === trivia.ownTeamId
+                      ? '本队作答中'
+                      : `${trivia.teams.find((other) => other.id === trivia.answeringTeamId)?.name ?? '其他队'}作答中`
+                    : pending
+                      ? '提交中…'
+                      : trivia.status === 'armed'
+                        ? '可以抢答'
+                        : '等待主持人'}
       </p>
+      <AnswerTimer trivia={trivia} clockOffset={clockOffset} includeAdventure />
       <button
         className="button primary trivia-buzzer"
         disabled={!canBuzz}
@@ -143,10 +215,12 @@ function Board({
   board,
   onSelect,
   disabled,
+  noFirstTeam = false,
 }: {
   board: TriviaBoard;
   onSelect?: (id: string) => void;
   disabled?: boolean;
+  noFirstTeam?: boolean;
 }) {
   return (
     <div className="jeopardy-grid" aria-label="五类五级题板">
@@ -162,7 +236,7 @@ function Board({
                   key={cell.id}
                   aria-label={label}
                   className={`jeopardy-cell ${cell.used ? 'is-used' : ''}`}
-                  disabled={disabled || cell.used || !cell.available}
+                  disabled={disabled || cell.used || !cell.available || noFirstTeam}
                   onClick={() => onSelect(cell.id)}
                 >
                   {formatTokens(cell.value)}
@@ -185,7 +259,19 @@ function Board({
   );
 }
 /** The server supplies role-safe fields; the TV leads with the prompt or revealed answer. */
-function Question({ board, host = false }: { board: TriviaBoard; host?: boolean }) {
+function Question({
+  board,
+  host = false,
+  clockOffset = 0,
+  disabled,
+  onHost,
+}: {
+  board: TriviaBoard;
+  host?: boolean;
+  clockOffset?: number;
+  disabled?: boolean;
+  onHost?: (action: string, data?: Record<string, unknown>) => Promise<void>;
+}) {
   const clue = board.selected;
   if (!clue) return null;
   const revealed = !host && !!clue.answer;
@@ -199,6 +285,23 @@ function Question({ board, host = false }: { board: TriviaBoard; host?: boolean 
         分
       </p>
       <h2 className="trivia-prompt">{clue.publicPrompt}</h2>
+      {clue.questionImage && (
+        <img
+          className="trivia-question-image"
+          src={clue.questionImage}
+          alt="题目图片：摩尔庄园角色"
+        />
+      )}
+      {clue.questionVideo && (
+        <TriviaVideo
+          src={clue.questionVideo}
+          playback={clue.videoPlayback ?? { playing: false, position: 0, changedAt: 0 }}
+          host={host}
+          clockOffset={clockOffset}
+          disabled={disabled}
+          onHost={onHost}
+        />
+      )}
       {clue.answer && (
         <div className="trivia-answer">
           <strong>{host ? '主持人答案（私密）' : '答案'}</strong>
@@ -209,7 +312,169 @@ function Question({ board, host = false }: { board: TriviaBoard; host?: boolean 
     </article>
   );
 }
-export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
+function MusicClip({
+  url,
+  start,
+  end,
+  playing,
+  position,
+  changedAt,
+  clockOffset = 0,
+  track,
+  storeUrl,
+  host,
+  onHost,
+  cellId,
+  disabled,
+}: {
+  url: string;
+  start: number;
+  end: number;
+  playing: boolean;
+  position: number;
+  changedAt: number;
+  clockOffset?: number;
+  track?: NonNullable<TriviaBoard['selected']>['musicTrack'];
+  storeUrl?: string;
+  host?: boolean;
+  onHost?: (action: string, data?: Record<string, unknown>) => Promise<void>;
+  cellId?: string;
+  disabled?: boolean;
+}) {
+  const ref = useRef<HTMLAudioElement>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const duration = end - start;
+  const remaining =
+    useTriviaRemaining({
+      deadlineAt: changedAt + Math.max(0, duration - position) * 1000,
+      pausedRemainingMs: playing ? null : Math.max(0, duration - position) * 1000,
+      clockOffset,
+    }) ?? 0;
+  const playbackActive = playing && remaining > 0;
+  const syncPlayback = (soundEnabled = enabled) => {
+    const audio = ref.current;
+    if (!audio || audio.readyState === 0) return;
+    const target = triviaPlaybackPosition(
+      { playing, position, changedAt },
+      Date.now(),
+      clockOffset,
+      duration,
+    );
+    audio.currentTime = start + target;
+    if (playing && target < duration && soundEnabled) {
+      void audio
+        .play()
+        .then(() => setBlocked(false))
+        .catch(() => setBlocked(true));
+    } else audio.pause();
+  };
+  useEffect(syncPlayback, [
+    url,
+    playing,
+    playbackActive,
+    position,
+    changedAt,
+    clockOffset,
+    enabled,
+    start,
+    end,
+  ]);
+  const enableSound = () => {
+    setEnabled(true);
+    syncPlayback(true);
+  };
+  return (
+    <section className="trivia-music-playback" aria-label="听歌识曲播放">
+      <audio
+        ref={ref}
+        preload="metadata"
+        aria-label="听歌识曲片段"
+        onLoadedMetadata={() => syncPlayback()}
+        onTimeUpdate={() => {
+          if (ref.current && ref.current.currentTime >= end) ref.current.pause();
+        }}
+        src={url}
+      />
+      {host && onHost && cellId && (
+        <div className="trivia-music-host-controls">
+          <button
+            className="button primary"
+            disabled={disabled}
+            onClick={() => void onHost(playbackActive ? 'music-stop' : 'music-start', { cellId })}
+          >
+            {playbackActive ? '结束播放' : '播放试听'}
+          </button>
+          <button className="button secondary" disabled={enabled && !blocked} onClick={enableSound}>
+            {enabled ? '本机声音已启用' : '启用本机声音'}
+          </button>
+        </div>
+      )}
+      {(!enabled || blocked) && !host && (
+        <button className="button secondary" onClick={enableSound}>
+          启用大屏声音
+        </button>
+      )}
+      {blocked && <p role="status">浏览器拦截了自动播放，请点“启用大屏声音”。</p>}
+      <p role="status">
+        {playbackActive
+          ? `主持人正在播放 · 约 ${Math.ceil(remaining / 1000)} 秒`
+          : position > 0 || (playing && remaining <= 0)
+            ? '试听已暂停'
+            : '等待主持人播放'}
+      </p>
+      {storeUrl ? (
+        <>
+          <p>Preview provided courtesy of iTunes.</p>
+          <p>
+            <a href={storeUrl} target="_blank" rel="noreferrer">
+              在 Apple Music 查看此曲
+            </a>
+          </p>
+          {track && (
+            <p>
+              {track.title} · {track.artist} — {track.album}
+            </p>
+          )}
+        </>
+      ) : (
+        <p>演示音频</p>
+      )}
+    </section>
+  );
+}
+function TriviaQuestionPanel({ children }: { children: ReactNode }) {
+  return (
+    <fieldset className="control-group">
+      <legend>题目</legend>
+      {children}
+    </fieldset>
+  );
+}
+function TriviaBuzzerAndReveal({ children }: { children: ReactNode }) {
+  return (
+    <fieldset className="control-group">
+      <legend>抢答与公布答案</legend>
+      {children}
+    </fieldset>
+  );
+}
+function TriviaScoreAndCorrections({ children }: { children: ReactNode }) {
+  return (
+    <fieldset className="control-group">
+      <legend>记分与修正</legend>
+      {children}
+    </fieldset>
+  );
+}
+export function TriviaHost({
+  trivia,
+  command,
+  disabled,
+  clockOffset = 0,
+  audioUrl,
+}: TriviaViewProps) {
+  const [firstTeam, setFirstTeam] = useState('');
   const [count, setCount] = useState(String(trivia.teams.length || trivia.defaultTeamCount || 1));
   const [teamChoice, setTeamChoice] = useState({ context: '', id: '' });
   const [amount, setAmount] = useState('100');
@@ -231,7 +496,15 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
   const team =
     teamChoice.context === teamContext && trivia.teams.some((t) => String(t.id) === teamChoice.id)
       ? teamChoice.id
-      : String(trivia.winner?.teamId ?? trivia.teams[0]?.id ?? '');
+      : String(
+          trivia.winner?.teamId ??
+            trivia.answeringTeamId ??
+            (trivia.answerAttempt && ['active', 'revealed'].includes(trivia.answerAttempt.status)
+              ? trivia.answerAttempt.teamId
+              : null) ??
+            (trivia.adventure?.success ? trivia.adventure.teamId : null) ??
+            '',
+        );
   const awardSignature = board ? (awardCellId ?? '') : `${trivia.question}:${team}:${amount}`;
   const alreadyAwarded =
     (board
@@ -254,9 +527,14 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
     try {
       const receipt = await command('phase.host', {
         action,
-        data: { ...(selected ? { cellId: selected.id } : {}), ...data },
+        data: {
+          ...(selected ? { cellId: selected.id } : {}),
+          ...(trivia.answerAttempt ? { attempt: trivia.answerAttempt.attempt } : {}),
+          ...data,
+        },
       });
       if (!receipt) return;
+      if (action === 'select-cell') setFirstTeam('');
       if (action === 'award' && typeof receipt.result.awardId === 'string')
         setAcknowledgedAward({ signature: awardSignature, id: receipt.result.awardId });
       if (action === 'undo-award') setAcknowledgedAward(null);
@@ -265,6 +543,8 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
         'show-board': '题板已显示在大屏幕。',
         'set-demo-mode': data.demo ? '演示模式已开启，类别已隐藏。' : '已切换到本机正式题库。',
         'select-cell': '题目已选定。',
+        'video-start': '大屏视频播放已保存。',
+        'video-stop': '大屏视频已暂停。',
         'cancel-selection': '已返回题板，此格仍可选择。',
         arm: '抢答已开启。',
         'close-buzzer': '抢答已关闭。',
@@ -274,9 +554,23 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
         'reveal-answer': '答案已在大屏幕公布。',
         'finish-cell': '本题已完成。',
         'new-question': '新题已准备。',
+        'adventure-start': '计时已开始。',
+        'adventure-correct': '已记录猜对。',
+        'adventure-skip': '已跳过。',
+        'adventure-steal': '第二队可以抢答。',
+        'adventure-award': '已给挑战队伍计分。',
+        'adventure-finish-cell': '本题已提前结束，已返回题板。',
+        'timer-pause': '计时已暂停。',
+        'timer-resume': '计时已继续。',
+        'timer-restart': '已按本轮时限重新计时，挑战进度不变。',
       };
       setFeedback(messages[action] ?? '操作已保存。');
-      if (action === 'select-cell' || action === 'finish-cell' || action === 'award')
+      if (
+        action === 'select-cell' ||
+        action === 'finish-cell' ||
+        action === 'adventure-finish-cell' ||
+        action === 'award'
+      )
         setCorrection('');
     } finally {
       lock.current = false;
@@ -299,238 +593,329 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
     </button>
   );
   const eligible = trivia.teams.filter((t) => !t.excluded);
+  const controls = trivia.controls;
   return (
     <section lang="zh-CN" className="host-game-controls trivia-host">
-      <p className="trivia-bank-label" role="status">
-        {trivia.bankLabel}
-      </p>
-      {trivia.bankSwitch && (
-        <div className="trivia-mode-control">
-          <label className="trivia-mode-switch">
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label="演示模式"
-              checked={!!trivia.demo}
-              disabled={
-                busy ||
-                !trivia.bankSwitch.allowed ||
-                (!!trivia.demo && !trivia.bankSwitch.eventAvailable)
-              }
-              onChange={(event) =>
-                void host('set-demo-mode', {
-                  demo: event.target.checked,
-                  expectedBankVersion: board?.version,
-                })
-              }
-            />
-            <span>
-              演示模式 <strong>{trivia.demo ? '开启' : '关闭'}</strong>
-            </span>
-          </label>
-          <p className="fine-print">开启：示例题，类别 1–5。关闭：本机正式题库。首次选题后锁定。</p>
-          {!trivia.bankSwitch.allowed && (
-            <p className="fine-print">本轮已经选题或结束，切换题库请新建派对。</p>
-          )}
-          {trivia.demo && !trivia.bankSwitch.eventAvailable && (
-            <p className="fine-print">本机未找到正式题库，暂时只能使用演示模式。</p>
-          )}
-        </div>
-      )}
-      <p className="host-action-feedback" role="status" aria-live="polite">
-        {feedback ? `✓ ${feedback}` : pending ? '保存中…' : ''}
-      </p>
-      {board && !trivia.teams.length && (
-        <div className="trivia-start-card">
-          <strong>{trivia.demo ? '演示题板已就绪' : 'Trivia 题板已就绪'}</strong>
-          <p>先分队，然后在题板上选题。</p>
-          {button('assign', '开始 Trivia · 随机分队', false, { count: Number(count) }, true)}
-        </div>
-      )}
-      <fieldset className="control-group">
-        <legend>1 · 分队</legend>
-        <label>
-          队伍数量{' '}
-          <input
-            type="number"
-            min="1"
-            value={count}
-            disabled={busy || trivia.question > 0}
-            onChange={(e) => setCount(e.target.value)}
-          />
-        </label>{' '}
-        {button('assign', '随机分队', trivia.question > 0, { count: Number(count) })}
-        <details>
-          <summary>查看队伍与成员</summary>
-          <TeamList trivia={trivia} />
-        </details>
-      </fieldset>
-      <fieldset className="control-group">
-        <legend>2 · 选题与抢答</legend>
-        {board &&
-          trivia.teams.length > 0 &&
-          !board.started &&
-          !selected &&
-          button('show-board', '显示题板 · 开始选题', false, {}, true)}
-        {board && !selected && (
-          <>
-            <p>队伍口头选题，由主持人点击。待准备的题目暂不可选。</p>
-            <Board
-              board={board}
-              disabled={busy || !trivia.teams.length}
-              onSelect={(id) => void host('select-cell', { cellId: id })}
-            />
-          </>
-        )}
-        {board && selected && <Question board={board} host />}
-        {!board &&
-          button('new-question', '下一题', !trivia.teams.length || trivia.status === 'armed')}
-        <BuzzStatus trivia={trivia} />
-        {(!board || selected) && (
-          <>
-            <p>可抢答：{eligible.map((t) => t.name).join('、') || '无。可公布答案并完成本题。'}</p>
-            <div className="actions">
-              {button(
-                'arm',
-                '开启抢答',
-                !trivia.question ||
-                  trivia.status !== 'idle' ||
-                  !eligible.length ||
-                  !!board?.revealed ||
-                  (!!board && history.some((a) => !a.undone && a.cellId === selected?.id)),
-                {},
-                true,
-              )}
-              {button('close-buzzer', '关闭抢答', trivia.status !== 'armed')}
-              {button(
-                'incorrect',
-                '答错 · 不扣分',
-                trivia.status !== 'locked' ||
-                  !!board?.revealed ||
-                  (!!board && history.some((a) => !a.undone && a.cellId === selected?.id)),
-              )}
-              {board && (
-                <>
-                  {button('reveal-answer', '公布答案', board.revealed)}
-                  {button('cancel-selection', '选错了 · 返回且保留此格', !board.canCancel)}
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </fieldset>
-      <fieldset className="control-group">
-        <legend>3 · 计分与修正</legend>
-        {correction && (
-          <p>
-            正在修正：{board?.categories.find((c) => c.id === awardCell?.categoryId)?.name} ·{' '}
-            {awardCell?.value} 分{' '}
-            <button className="button secondary" disabled={busy} onClick={() => setCorrection('')}>
-              取消修正
-            </button>
-          </p>
-        )}
-        <label>
-          获奖队伍{' '}
-          <select
-            disabled={busy}
-            value={team}
-            onChange={(e) => setTeamChoice({ context: teamContext, id: e.target.value })}
-          >
-            {trivia.teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>{' '}
-        {board ? (
-          <p>每名队员获得 {awardCell ? formatTokens(awardCell.value) : '—'} 分。答错不扣分。</p>
-        ) : (
-          <label>
-            每名队员奖励{' '}
-            <input
-              type="number"
-              min="1"
-              value={amount}
-              disabled={busy}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </label>
-        )}
-        {button(
-          'award',
-          alreadyAwarded
-            ? '本题已计分'
-            : `答对 · 奖励${trivia.teams.find((t) => String(t.id) === team)?.name ?? '全队'}每人`,
-          !trivia.teams.length ||
-            alreadyAwarded ||
-            (!!board && (!awardCell || trivia.status === 'armed')),
-          {
-            teamId: Number(team),
-            amount: board ? awardCell?.value : Number(amount),
-            ...(awardCell ? { cellId: awardCell.id } : {}),
-          },
-        )}
-        {board && selected && !correction && (
-          <div className="actions">
-            {button(
-              'finish-cell',
-              alreadyAwarded ? '完成本题 · 返回题板' : '不计分 · 完成本题',
-              trivia.status === 'armed',
+      <div className="trivia-setup">
+        <p className="trivia-bank-label" role="status">
+          {trivia.bankLabel}
+        </p>
+        {trivia.bankSwitch && (
+          <div className="trivia-mode-control">
+            <label className="trivia-mode-switch">
+              <input
+                type="checkbox"
+                role="switch"
+                aria-label="演示模式"
+                checked={!!trivia.demo}
+                disabled={
+                  busy ||
+                  !trivia.bankSwitch.allowed ||
+                  (!!trivia.demo && !trivia.bankSwitch.eventAvailable)
+                }
+                onChange={(event) =>
+                  void host('set-demo-mode', {
+                    demo: event.target.checked,
+                    expectedBankVersion: board?.version,
+                  })
+                }
+              />
+              <span>
+                演示模式 <strong>{trivia.demo ? '开启' : '关闭'}</strong>
+              </span>
+            </label>
+            <p className="fine-print">
+              开启：示例题，类别 1–5。关闭：本机正式题库。首次选题后锁定。
+            </p>
+            {!trivia.bankSwitch.allowed && (
+              <p className="fine-print">本轮已经选题或结束，切换题库请新建派对。</p>
+            )}
+            {trivia.demo && !trivia.bankSwitch.eventAvailable && (
+              <p className="fine-print">本机未找到正式题库，暂时只能使用演示模式。</p>
             )}
           </div>
         )}
-        {!!history.length && (
-          <div className="award-history">
-            <h4>计分与撤销记录</h4>
-            <ul>
-              {history.map((a) => (
-                <li key={a.id}>
-                  <div>
-                    <strong>
-                      {trivia.teams.find((t) => t.id === a.teamId)?.name} · 每人 +
-                      {formatTokens(a.amount)}
-                    </strong>
-                    <span>
-                      {a.cellId
-                        ? `${board?.categories.find((c) => c.id === board.cells.find((cell) => cell.id === a.cellId)?.categoryId)?.name} · ${a.amount} 分`
-                        : a.question === null
-                          ? '早期计分'
-                          : `第 ${a.question} 题`}{' '}
-                      · {a.undone ? '已撤销' : '已计分'}
-                    </span>
-                  </div>
-                  <button
-                    className="button secondary"
-                    disabled={busy || a.undone}
-                    onClick={() => void host('undo-award', { awardId: a.id })}
-                  >
-                    {a.undone ? '已撤销' : '撤销计分'}
-                  </button>
-                  {a.undone &&
-                    a.cellId &&
-                    !history.some((other) => other.cellId === a.cellId && !other.undone) && (
-                      <button
-                        className="button secondary"
-                        disabled={busy}
-                        onClick={() => {
-                          setCorrection(a.cellId!);
-                          setTeamChoice({
-                            context: `${trivia.question}:${trivia.windowId}:${trivia.winner?.teamId ?? ''}:${a.cellId}`,
-                            id: String(a.teamId),
-                          });
-                        }}
-                      >
-                        重新计分此题
-                      </button>
-                    )}
-                </li>
-              ))}
-            </ul>
+        <p className="host-action-feedback" role="status" aria-live="polite">
+          {feedback ? `✓ ${feedback}` : pending ? '保存中…' : ''}
+        </p>
+        {board && !trivia.teams.length && (
+          <div className="trivia-start-card">
+            <strong>{trivia.demo ? '演示题板已就绪' : 'Trivia 题板已就绪'}</strong>
+            <p>先分队，然后在题板上选题。</p>
+            {button('assign', '开始 Trivia · 随机分队', false, { count: Number(count) }, true)}
           </div>
         )}
-      </fieldset>
+        <fieldset className="control-group">
+          <legend>1 · 分队</legend>
+          <label>
+            队伍数量{' '}
+            <input
+              type="number"
+              min="1"
+              value={count}
+              disabled={busy || trivia.question > 0}
+              onChange={(e) => setCount(e.target.value)}
+            />
+          </label>{' '}
+          {button('assign', '随机分队', trivia.question > 0, { count: Number(count) })}
+          <details>
+            <summary>查看队伍与成员</summary>
+            <TeamList trivia={trivia} />
+          </details>
+        </fieldset>
+      </div>
+      <div className="trivia-gameplay">
+        <TriviaQuestionPanel>
+          {board &&
+            trivia.teams.length > 0 &&
+            !board.started &&
+            !selected &&
+            button('show-board', '显示题板 · 开始选题', false, {}, true)}
+          {board && !selected && (
+            <>
+              <p>先选择首轮作答队伍，再打开题目。待准备的题目暂不可选。</p>
+              {
+                <label>
+                  首轮作答队伍{' '}
+                  <select
+                    value={firstTeam}
+                    onChange={(e) => setFirstTeam(e.target.value)}
+                    disabled={busy}
+                  >
+                    <option value="">请选择队伍</option>
+                    {trivia.teams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              }
+              <Board
+                board={board}
+                disabled={busy || !trivia.teams.length}
+                noFirstTeam={!firstTeam}
+                onSelect={(id) =>
+                  void host('select-cell', { cellId: id, teamId: Number(firstTeam) })
+                }
+              />
+            </>
+          )}
+          {board && selected && !trivia.adventure && (
+            <Question board={board} host clockOffset={clockOffset} onHost={host} disabled={busy} />
+          )}
+          {selected?.kind === 'music' &&
+            selected.musicClip &&
+            audioUrl &&
+            selected.musicPlayback && (
+              <>
+                <MusicClip
+                  url={audioUrl}
+                  start={selected.musicClip.start}
+                  end={selected.musicClip.end}
+                  playing={selected.musicPlayback.playing}
+                  position={selected.musicPlayback.position}
+                  changedAt={selected.musicPlayback.changedAt}
+                  clockOffset={clockOffset}
+                  track={selected.musicTrack}
+                  storeUrl={selected.musicStoreUrl}
+                  host
+                  onHost={host}
+                  cellId={selected.id}
+                  disabled={busy || (alreadyAwarded && !selected.musicPlayback.playing)}
+                />
+                <p className="fine-print">
+                  无需等待试听结束；可以随时抢答、公布答案、计分或完成本题。
+                </p>
+              </>
+            )}
+          {trivia.adventure && (
+            <AdventureHost
+              adventure={trivia.adventure}
+              teamName={trivia.teams.find((t) => t.id === trivia.adventure?.teamId)?.name}
+              button={button}
+              busy={busy}
+              teams={trivia.teams}
+              canRetry={
+                !board?.revealed &&
+                trivia.teams.some(
+                  (team) => !team.excluded && team.id !== trivia.adventure?.teamId,
+                ) &&
+                trivia.adventure.attempt < (trivia.controls?.attemptLimit ?? 2)
+              }
+              clockOffset={clockOffset}
+            />
+          )}
+          {!board &&
+            button('new-question', '下一题', !trivia.teams.length || trivia.status === 'armed')}
+          <AnswerTimer trivia={trivia} clockOffset={clockOffset} />
+          {trivia.timer && (
+            <TriviaTimerControls
+              timer={trivia.timer}
+              controls={controls}
+              button={button}
+              clockOffset={clockOffset}
+            />
+          )}
+          <BuzzStatus trivia={trivia} />
+        </TriviaQuestionPanel>
+        <TriviaBuzzerAndReveal>
+          {(!board || selected) && (
+            <>
+              <p>
+                {controls?.disabledReason ??
+                  `可抢答：${eligible.map((t) => t.name).join('、') || '无。'}`}
+              </p>
+              <div className="actions">
+                {button('arm', '开启抢答', !controls?.canArm, {}, true)}
+                {button('close-buzzer', '关闭抢答', !controls?.canCloseBuzzer)}
+                {button('incorrect', '答错 · 不扣分', !controls?.canMarkIncorrect)}
+                {board && (
+                  <>
+                    {button('reveal-answer', '公布答案', !controls?.canReveal)}
+                    {button('cancel-selection', '选错了 · 返回且保留此格', !controls?.canCancel)}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </TriviaBuzzerAndReveal>
+        <TriviaScoreAndCorrections>
+          {trivia.adventure && (
+            <p>当前大冒险由挑战队伍作答；请在上方确认结果并计分，或选择抢答／跳过。</p>
+          )}
+          {correction && (
+            <p>
+              正在修正：{board?.categories.find((c) => c.id === awardCell?.categoryId)?.name} ·{' '}
+              {awardCell?.value} 分{' '}
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={() => setCorrection('')}
+              >
+                取消修正
+              </button>
+            </p>
+          )}
+          <label>
+            获奖队伍{' '}
+            <select
+              disabled={busy || (!!trivia.adventure && !correction && !controls?.canAward)}
+              value={team}
+              onChange={(e) => setTeamChoice({ context: teamContext, id: e.target.value })}
+            >
+              <option value="" disabled>
+                选择获奖队伍
+              </option>
+              {trivia.teams.map((t) => (
+                <option
+                  key={t.id}
+                  value={t.id}
+                  disabled={
+                    (!correction &&
+                      !!trivia.adventure &&
+                      !controls?.awardableTeamIds.includes(t.id)) ||
+                    (!correction &&
+                      !!trivia.answerAttempt &&
+                      ['active', 'revealed'].includes(trivia.answerAttempt.status) &&
+                      t.id !== trivia.answerAttempt.teamId)
+                  }
+                >
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>{' '}
+          {board ? (
+            <p>每名队员获得 {awardCell ? formatTokens(awardCell.value) : '—'} 分。答错不扣分。</p>
+          ) : (
+            <label>
+              每名队员奖励{' '}
+              <input
+                type="number"
+                min="1"
+                value={amount}
+                disabled={busy}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </label>
+          )}
+          {button(
+            'award',
+            alreadyAwarded
+              ? '本题已计分'
+              : `答对 · 奖励${trivia.teams.find((t) => String(t.id) === team)?.name ?? '全队'}每人`,
+            !trivia.teams.length ||
+              !team ||
+              (!!trivia.adventure && !correction && !controls?.canAward) ||
+              alreadyAwarded ||
+              (!!board && (!awardCell || (correction ? false : !controls?.canAward))),
+            {
+              teamId: Number(team),
+              amount: board ? awardCell?.value : Number(amount),
+              ...(awardCell ? { cellId: awardCell.id } : {}),
+            },
+          )}
+          {board && selected && !correction && (
+            <div className="actions">
+              {button(
+                'finish-cell',
+                alreadyAwarded ? '完成本题 · 返回题板' : '不计分 · 完成本题',
+                !controls?.canFinish,
+              )}
+            </div>
+          )}
+          {!!history.length && (
+            <div className="award-history">
+              <h4>计分与撤销记录</h4>
+              <ul>
+                {history.map((a) => (
+                  <li key={a.id}>
+                    <div>
+                      <strong>
+                        {trivia.teams.find((t) => t.id === a.teamId)?.name} · 每人 +
+                        {formatTokens(a.amount)}
+                      </strong>
+                      <span>
+                        {a.cellId
+                          ? `${board?.categories.find((c) => c.id === board.cells.find((cell) => cell.id === a.cellId)?.categoryId)?.name} · ${a.amount} 分`
+                          : a.question === null
+                            ? '早期计分'
+                            : `第 ${a.question} 题`}{' '}
+                        · {a.undone ? '已撤销' : '已计分'}
+                      </span>
+                    </div>
+                    <button
+                      className="button secondary"
+                      disabled={busy || a.undone}
+                      onClick={() => void host('undo-award', { awardId: a.id })}
+                    >
+                      {a.undone ? '已撤销' : '撤销计分'}
+                    </button>
+                    {a.undone &&
+                      a.cellId &&
+                      !history.some((other) => other.cellId === a.cellId && !other.undone) && (
+                        <button
+                          className="button secondary"
+                          disabled={busy}
+                          onClick={() => {
+                            setCorrection(a.cellId!);
+                            setTeamChoice({
+                              context: `${trivia.question}:${trivia.windowId}:${trivia.winner?.teamId ?? ''}:${a.cellId}`,
+                              id: String(a.teamId),
+                            });
+                          }}
+                        >
+                          重新计分此题
+                        </button>
+                      )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </TriviaScoreAndCorrections>
+      </div>
       {!!board?.review?.length && (
         <details className="trivia-review">
           <summary>待确认内容与音乐候选（仅主持人可见）</summary>
@@ -552,14 +937,31 @@ export function TriviaHost({ trivia, command, disabled }: TriviaViewProps) {
 export function TriviaDisplay({
   trivia,
   closed = false,
+  clockOffset = 0,
+  audioUrl,
 }: {
   trivia: TriviaProjection;
   closed?: boolean;
+  clockOffset?: number;
+  audioUrl?: string;
 }) {
   const board = trivia.board;
-  const winningTeam = trivia.teams.find((team) => team.id === trivia.winner?.teamId);
+  const winningTeam = trivia.teams.find(
+    (team) =>
+      team.id ===
+      (trivia.winner?.teamId ??
+        trivia.answeringTeamId ??
+        (trivia.answerAttempt?.status === 'active' ? trivia.answerAttempt.teamId : undefined)),
+  );
   const winner = winningTeam?.members.find((player) => player.id === trivia.winner?.playerId);
-  const answering = !closed && trivia.status === 'locked' && !!winningTeam && !board?.revealed;
+  const answering =
+    !closed &&
+    trivia.status === 'locked' &&
+    !!winningTeam &&
+    !board?.revealed &&
+    (!trivia.adventure ||
+      trivia.adventure.phase === 'rules' ||
+      trivia.adventure.phase === 'active');
   const showingGroups = !!board && !board.started && !board.selected && !closed;
   return (
     <section
@@ -570,15 +972,27 @@ export function TriviaDisplay({
         <div className="trivia-landing">
           <div className="trivia-introduction">
             <div className="trivia-intro-copy">
-              <h2>组队，选题，抢答。</h2>
+              <h2>
+                {trivia.answerDurationSeconds !== undefined
+                  ? '组队，选题，作答。'
+                  : '组队，选题，抢答。'}
+              </h2>
               <ol className="trivia-intro-rules">
                 <li>
                   <strong>选题</strong>
-                  <span>队伍选类别与分值，主持人打开题目。</span>
+                  <span>
+                    {trivia.answerDurationSeconds !== undefined
+                      ? '队伍选类别与分值，主持人选择首轮队伍并打开题目。'
+                      : '队伍选类别与分值，主持人打开题目。'}
+                  </span>
                 </li>
                 <li>
                   <strong>抢答</strong>
-                  <span>抢答开启后按手机，最快的队伍口头回答。</span>
+                  <span>
+                    {trivia.answerDurationSeconds !== undefined
+                      ? '首队作答失败后，主持人可开放其他队抢答。'
+                      : '抢答开启后按手机，最快的队伍口头回答。'}
+                  </span>
                 </li>
                 <li>
                   <strong>计分</strong>
@@ -624,10 +1038,44 @@ export function TriviaDisplay({
         </div>
       ) : board ? (
         <>
-          <div className="trivia-display-focus">
-            {board.selected ? <Question board={board} /> : <Board board={board} />}
+          <div
+            className={`trivia-display-focus ${board.selected?.kind === 'location' ? 'has-location' : ''}`}
+          >
+            {trivia.adventure ? (
+              <AdventureStage
+                adventure={trivia.adventure}
+                teamName={trivia.teams.find((t) => t.id === trivia.adventure?.teamId)?.name}
+                clockOffset={clockOffset}
+              />
+            ) : board.selected ? (
+              <>
+                <Question board={board} clockOffset={clockOffset} />
+                {board.selected.kind === 'location' && board.selected.locationView && (
+                  <TriviaLocation scene={board.selected.locationView as TriviaLocationView} />
+                )}
+                {board.selected.kind === 'music' &&
+                  board.selected.musicClip &&
+                  board.selected.musicPlayback &&
+                  audioUrl && (
+                    <MusicClip
+                      url={audioUrl}
+                      start={board.selected.musicClip.start}
+                      end={board.selected.musicClip.end}
+                      playing={board.selected.musicPlayback.playing}
+                      position={board.selected.musicPlayback.position}
+                      changedAt={board.selected.musicPlayback.changedAt}
+                      clockOffset={clockOffset}
+                      track={board.selected.musicTrack}
+                      storeUrl={board.selected.musicStoreUrl}
+                    />
+                  )}
+              </>
+            ) : (
+              <Board board={board} />
+            )}
           </div>
           <footer className="trivia-display-strip">
+            <AnswerTimer trivia={trivia} clockOffset={clockOffset} />
             <p
               className={`trivia-display-status ${answering ? 'is-answering' : ''}`}
               role="status"
@@ -637,8 +1085,6 @@ export function TriviaDisplay({
               <span className="trivia-status-dot" aria-hidden="true" />
               {closed ? (
                 '本轮结束'
-              ) : board.revealed ? (
-                '答案已公布'
               ) : answering ? (
                 <>
                   <strong>{winningTeam.name}</strong>
@@ -647,8 +1093,26 @@ export function TriviaDisplay({
                       {winner.emoji} {winner.name}
                     </span>
                   )}
-                  <span className="sr-only">抢答成功</span>
+                  {winner && <span className="sr-only">抢答成功</span>}
                 </>
+              ) : trivia.adventure ? (
+                trivia.adventure.phase === 'active' ? (
+                  '挑战进行中'
+                ) : trivia.adventure.phase === 'won' ? (
+                  '挑战成功'
+                ) : trivia.adventure.phase === 'result' ? (
+                  '可开启抢答'
+                ) : trivia.adventure.phase === 'closed' ? (
+                  '挑战结束'
+                ) : trivia.adventure.phase === 'rules' ? (
+                  '准备挑战'
+                ) : trivia.adventure.phase === 'steal' && trivia.status === 'armed' ? (
+                  '抢答开启'
+                ) : (
+                  '等待主持人'
+                )
+              ) : board.revealed ? (
+                '答案已公布'
               ) : trivia.status === 'armed' ? (
                 '抢答开启'
               ) : !trivia.teams.length ? (

@@ -13,7 +13,7 @@ import type { Command } from '../src/shared/contracts.js';
 
 test('scoreboard follows persisted awards once per team, excludes undo, shares ties and exposes no private data', async (t) => {
   const app = createApp({ databasePath: ':memory:', hostPassword: 'score-test-password' });
-  t.after(() => app.store.close());
+  t.after(() => app.close());
   const room = await seedPreviewRoom(
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
@@ -39,8 +39,8 @@ test('scoreboard follows persisted awards once per team, excludes undo, shares t
     });
   command('phase.host', 'assign', { count: 5 });
   const award = (teamId: number, amount: number, cellId: string) => {
-    command('phase.host', 'select-cell', { cellId });
-    const result = command('phase.host', 'award', { teamId, amount, cellId });
+    command('phase.host', 'select-cell', { cellId, teamId });
+    const result = command('phase.host', 'award', { teamId, amount, cellId, attempt: 1 });
     command('phase.host', 'finish-cell', { cellId });
     return result;
   };
@@ -85,7 +85,7 @@ test('scoreboard follows persisted awards once per team, excludes undo, shares t
 
 test('scoreboard preview includes five teams and zero scores together', async (t) => {
   const app = createApp({ databasePath: ':memory:', hostPassword: 'score-test-password' });
-  t.after(() => app.store.close());
+  t.after(() => app.close());
   const room = await seedPreviewRoom(
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'trivia-scoreboard')!,
@@ -111,9 +111,9 @@ test('scoreboard and reward cues survive restart without recreating awards', asy
   const viewer = { role: 'player' as const, roomId: room.id, playerId: room.playerId };
   const before = app.engine.snapshot(viewer);
   const count = app.store.db.prepare('SELECT COUNT(*) AS n FROM ledger').get()!.n;
-  app.store.close();
+  await app.close();
   const restarted = createApp(options);
-  t.after(() => restarted.store.close());
+  t.after(() => restarted.close());
   const after = restarted.engine.snapshot(viewer);
   assert.deepEqual(after.triviaScoreboard, before.triviaScoreboard);
   assert.deepEqual(after.self!.rewardCue, before.self!.rewardCue);

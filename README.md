@@ -62,7 +62,7 @@ For practice through the normal host interface, **Manage parties → Test tools*
 
 - **Rules and rewards:** edit [config/game.yaml](config/game.yaml) for token amounts, timers, investment settings, prizes, and odds. New rooms use the updated settings; existing rooms keep their saved configuration.
 - **Live investments:** set `COINGECKO_API_KEY` in your private `.env`, then run `just market-check` to check the five configured assets.
-- **Your Jeopardy questions:** a demo bank is included. Set `TRIVIA_BANK_FILE` in `.env` to your private JSON file, then validate with `npm run trivia:check`. See [question banks and the host demo switch](docs/games/trivia.md#demo-versus-event-content-2026-10-29) before starting a new party.
+- **Your Jeopardy questions:** a demo bank is included. The real event bank is tracked at `config/trivia-event.json`; select it as host before the first clue, then validate with `TRIVIA_BANK_FILE=config/trivia-event.json npm run trivia:check`. See [question banks and the host demo switch](docs/games/trivia.md#demo-versus-event-content-2026-10-29) before starting a new party.
 - **Saved parties:** progress is stored in `data/party.sqlite` by default. Keep the database and `.env` when restarting the server.
 
 ## Useful commands

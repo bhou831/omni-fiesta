@@ -70,6 +70,25 @@ test('TV board highlights the buzzing team and member and dims excluded teams', 
   assert.match(html, /Sam 为Team 1抢答成功/);
 });
 
+test('TV question renders a playable video clue from the saved media path', () => {
+  const html = renderToStaticMarkup(
+    createElement(TriviaDisplay, {
+      trivia: {
+        ...trivia,
+        board: {
+          ...board,
+          selected: {
+            ...board.selected!,
+            questionVideo: '/trivia/childhood-300.mp4',
+          },
+        },
+      },
+    }),
+  );
+  assert.match(html, /<video[^>]*src="\/trivia\/childhood-300\.mp4"/);
+  assert.match(html, /playsInline=""/);
+});
+
 const board: NonNullable<TriviaProjection['board']> = {
   version: 'display-test',
   categories: [{ id: 'sample', name: '类别 1' }],

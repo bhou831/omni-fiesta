@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Why the party server kept restarting</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #faf9f6; color: #222; font: 17px/1.6 system-ui, sans-serif; }
+    main { max-width: 850px; margin: 0 auto; padding: 60px 24px 90px; }
+    .eyebrow { color: #777; font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; }
+    h1 { font-size: clamp(2.2rem, 6vw, 3.7rem); line-height: 1.08; letter-spacing: -.04em; margin: .3em 0; }
+    h2 { margin-top: 2.5em; font-size: 1.4rem; }
+    .lead { color: #555; font-size: 1.2rem; max-width: 700px; }
+    .callout { padding: 20px 24px; background: #f2ece7; border-left: 3px solid #c27e68; margin: 30px 0; }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 22px 0; }
+    .step { background: white; border: 1px solid #dedbd5; padding: 18px; border-radius: 8px; }
+    .step strong { display: block; margin-bottom: 6px; }
+    code { font-family: ui-monospace, monospace; font-size: .88em; overflow-wrap: anywhere; }
+    pre { background: #262626; color: #f5f2eb; padding: 18px; border-radius: 8px; overflow-x: auto; font-size: .9rem; }
+    pre code { overflow-wrap: normal; }
+    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+    th, td { border-bottom: 1px solid #ddd9d2; text-align: left; vertical-align: top; padding: 12px 8px; }
+    th { color: #666; font-size: .85rem; }
+    .note { color: #666; font-size: .9rem; }
+    a { color: #545c68; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Omni Fiesta · incident note · October 30, 2026</div>
+  <h1>Why the party server kept restarting</h1>
+  <p class="lead">A database upgrade was skipped because two branches had assigned the same version number to different changes. When Trivia needed a missing table, the server crashed and restarted.</p>
+  <div class="callout"><strong>What this affected:</strong> active connections could drop whenever the server crashed. The stored party data was not intentionally erased. The fix is a normal, additive database migration; there is no need to create a new room to apply it.</div>
+
+  <h2>What we observed</h2>
+  <p>The Lightsail service logs showed repeated failures and a restart counter of 55. The full error named the missing table:</p>
+  <pre><code>Error: no such table: trivia_adventures</code></pre>
+  <p>The stack trace led from a timer-driven state broadcast to the Trivia state projection, which tried to read that table. A successful <code>/api/health</code> response only showed the server was alive at that moment; it did not exercise that database query.</p>
+
+  <h2>How we diagnosed it</h2>
+  <div class="steps">
+    <div class="step"><strong>1. Identify the release</strong>The installed revision was <code>bf7134b</code>, from the adventure feature branch.</div>
+    <div class="step"><strong>2. Inspect the database</strong>Read-only checks showed schema version <code>16</code> and neither adventure table present.</div>
+    <div class="step"><strong>3. Compare migrations</strong>The feature branch created those tables only when upgrading from a version below <code>15</code>. Another branch had already used version 15 for a different ledger change.</div>
+  </div>
+  <p>The evidence matches a version collision: once a database said it was version 15 or later, the feature branch assumed its version-15 work had already run. Its version-16 update could then run without creating the adventure tables. The checks show the resulting state; they do not independently establish every earlier deployment step.</p>
+
+  <h2>Why a version number matters</h2>
+  <p>The app records a single database schema version. On startup it runs upgrades for versions the database has not yet reached. That works when each version represents the same change everywhere. Here, two branches independently gave different changes the same number:</p>
+  <table>
+    <thead><tr><th>History</th><th>Version 15 meant</th></tr></thead>
+    <tbody>
+      <tr><td>Main branch</td><td>Add a nullable reward marker to the ledger.</td></tr>
+      <tr><td>Adventure branch</td><td>Create tables for adventure state and item pools.</td></tr>
+    </tbody>
+  </table>
+  <p>Knowing only “version 15” therefore did not tell the app which changes were actually present. An earlier feature revision had also used version 17, so the repair uses version 18.</p>
+
+  <h2>The fix</h2>
+  <p>Commit <code>9480781</code> adds a version-18 migration. It checks whether the ledger marker exists and adds it if needed; it also creates both adventure tables if missing. Existing tables and their contents are retained. The migration and version update run together in a database transaction.</p>
+  <p>When the updated app starts against the affected version-16 database, it should apply this repair automatically. The deployment script stops the service and creates a database backup before installing and starting the release. A future integration into main must preserve the repaired migration and schema version.</p>
+
+  <h2>What was tested</h2>
+  <p>Tests simulated both branch histories at versions 15, 16 and 17. They checked that the missing schema was added, existing adventure state was retained, and a room, player balance and ledger entry survived the migration and a restart. The full suite passed 146 tests with local port access; formatting, type checking and the production build also passed.</p>
+  <p class="note">These are local test results. The fix was pushed to <code>feature/adventure-trivia</code>; a successful Lightsail deployment and live verification have not been independently observed here. After deployment, open the affected room and monitor the service logs for further errors.</p>
+</main>
+</body>
+</html>
