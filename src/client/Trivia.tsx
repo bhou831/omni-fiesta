@@ -212,6 +212,13 @@ function Question({ board, host = false }: { board: TriviaBoard; host?: boolean 
         分
       </p>
       <h2 className="trivia-prompt">{clue.publicPrompt}</h2>
+      {clue.questionImage && (
+        <img
+          className="trivia-question-image"
+          src={clue.questionImage}
+          alt="题目图片：摩尔庄园角色"
+        />
+      )}
       {clue.answer && (
         <div className="trivia-answer">
           <strong>{host ? '主持人答案（私密）' : '答案'}</strong>

@@ -155,9 +155,10 @@
       "categoryId": "childhood",
       "value": 500,
       "kind": "text",
-      "publicPrompt": "经典版《摩尔庄园》中，想成为 SMC 警官，需要收集四种特殊材料。请至少说出其中一种。",
-      "hostAnswer": "稀有矿石、魔幻水晶、沙之微粒、化学加热剂。",
-      "hostNotes": "任意一种即可得分。"
+      "publicPrompt": "图片里是摩尔庄园里的哪个角色？（答出名字或者职责即可）",
+      "questionImage": "/trivia/childhood-5-mole.png",
+      "hostAnswer": "菩提大伯。",
+      "hostNotes": "答出以下任一名称或职责即可：菩提大伯、拉姆学院校长、前皇家骑士团团长、SMC 拉姆小导师。"
     },
     {
       "id": "music-1",

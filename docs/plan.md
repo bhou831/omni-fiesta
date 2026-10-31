@@ -1,5 +1,9 @@
 # Implementation plan
 
+## 童年DNA image clue (2026-10-30)
+
+Updated the 500-point event clue to ask which 摩尔庄园 character appears in the supplied picture. The host accepts 菩提大伯 or any of the supplied roles: 拉姆学院校长、前皇家骑士团团长、SMC 拉姆小导师. Added the picture as `public/trivia/childhood-5-mole.png`; the host and TV show it with the clue, while player snapshots remain question-free. Updated both the tracked deployment bank and the ignored local private bank. Existing rooms retain their frozen trivia board; use a new room to load this content.
+
 ## Event bank checked into Git (2026-10-30)
 
 By explicit user request, the real event question bank now lives at `config/trivia-event.json` in the repository. The server default event-bank path and setup guidance point to that file. It contains the real prompts and host answers, so anyone with repository access can read them; the application still sends role-filtered snapshots and does not bundle the JSON into the public website. Earlier entries below describe the previous ignored-file arrangement and are historical.

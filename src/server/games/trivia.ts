@@ -55,6 +55,7 @@ export type TriviaBoard = {
     categoryId: string;
     value: number;
     publicPrompt: string;
+    questionImage?: string;
     answer?: string;
     hostNotes?: string;
     kind?: TriviaContent['cells'][number]['kind'];
@@ -1145,6 +1146,7 @@ function projectBoard(c: PhaseContext, board: BoardRow, host: boolean): TriviaBo
           categoryId: clue.categoryId,
           value: clue.value,
           publicPrompt: clue.publicPrompt,
+          ...(clue.questionImage ? { questionImage: clue.questionImage } : {}),
           ...(host || board.revealed ? { answer: clue.hostAnswer } : {}),
           ...(host ? { hostNotes: clue.hostNotes } : {}),
           kind: clue.kind,

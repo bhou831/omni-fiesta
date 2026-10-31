@@ -35,6 +35,10 @@ const clueSchema = z
       ])
       .optional(),
     referenceImage: z.string().trim().min(1).max(2000).optional(),
+    questionImage: z
+      .string()
+      .regex(/^\/trivia\/[a-z0-9-]+\.(?:png|jpe?g|webp)$/)
+      .optional(),
     referenceImages: z
       .tuple([
         z.string().regex(/^\/adventure\/[a-z0-9-]+\.png$/),
@@ -176,6 +180,10 @@ export function validateTriviaContent(content: unknown): asserts content is Triv
     )
   )
     throw new Error('Photo recreation reference image is missing.');
+  if (
+    bank.cells.some((c) => c.questionImage && !existsSync(projectFile(`public${c.questionImage}`)))
+  )
+    throw new Error('Trivia question image is missing.');
   if (
     bank.cells.some(
       (c) => c.musicAudio && c.musicAudio.clipEndSeconds <= c.musicAudio.clipStartSeconds,
