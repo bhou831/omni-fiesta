@@ -1,6 +1,9 @@
 /** Validate without printing questions, answers, links or candidate song names. */
 import { loadConfig } from '../src/server/config.js';
-import { createTriviaContent } from '../src/server/games/trivia-content.js';
+import {
+  createTriviaContent,
+  missingPhotoScoringPrompt,
+} from '../src/server/games/trivia-content.js';
 const values = loadConfig().trivia.board_values;
 if (!values) throw new Error('Board values are not configured.');
 const content = createTriviaContent(values);
@@ -11,3 +14,7 @@ console.log(
   `Retained music candidates: ${content.cells.flatMap((cell) => cell.musicCandidates ?? []).length}`,
 );
 console.log('New rooms freeze this bank when trivia opens. Existing boards do not change.');
+if (missingPhotoScoringPrompt(content)) {
+  console.error('Not ready: the host-only photo scoring prompt is missing.');
+  process.exitCode = 1;
+}

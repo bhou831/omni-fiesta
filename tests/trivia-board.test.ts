@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createElement } from 'react';
@@ -12,20 +12,23 @@ import {
   createTriviaContent,
   validateTriviaContent,
   DEMO_TRIVIA_BANK,
+  isApprovedApplePreviewUrl,
 } from '../src/server/games/trivia-content.js';
 import { PREVIEW_SCENARIOS, seedPreviewRoom } from '../scripts/preview-fixtures.js';
 import { TriviaDisplay, TriviaPlayer } from '../src/client/Trivia.js';
 
 const host: Session = { role: 'host', roomId: null, playerId: null, tokenHash: '' };
-async function fixture(path = ':memory:') {
+async function fixture(path = ':memory:', now = () => 1000000) {
   const app = createApp({
     databasePath: path,
     hostPassword: 'board-test-password',
-    now: () => 1000000,
+    now,
   });
   const room = await seedPreviewRoom(
     app.engine,
     PREVIEW_SCENARIOS.find((s) => s.key === 'trivia')!,
+    false,
+    true,
   );
   const execute = (
     action: string,
@@ -37,7 +40,7 @@ async function fixture(path = ':memory:') {
       type: 'phase.host',
       phaseInstance: app.store.room(room.id).phase_instance,
       requestId,
-      payload: { action, data },
+      payload: { action, data: action === 'select-cell' ? { teamId: 1, ...data } : data },
     });
   const snapshot = (role: 'host' | 'display' | 'player' = 'host') =>
     app.engine.snapshot({
@@ -65,6 +68,61 @@ test('demo content validates 25 playable slots and stays separate from custom ev
     ['类别 1', '类别 2', '类别 3', '类别 4', '类别 5'],
   );
   assert.equal(content.cells.flatMap((c) => c.musicCandidates ?? []).length, 0);
+  const music = content.cells.filter((c) => c.kind === 'music');
+  assert.equal(music.length, 5);
+  assert.ok(music.every((c) => c.categoryId === 'music' && c.musicAudio && c.hostAnswer));
+  const fixtureNames = music.map((c) => c.musicAudio!.file!);
+  assert.equal(new Set(fixtureNames).size, 5);
+  const fixtureBytes = fixtureNames.map((name) => {
+    const path = new URL(`../fixtures/${name}`, import.meta.url);
+    assert.ok(statSync(path).size > 44);
+    return readFileSync(path).toString('hex');
+  });
+  assert.equal(new Set(fixtureBytes).size, 5);
+  assert.ok(music.every((c) => c.hostNotes === undefined));
+  assert.equal(
+    isApprovedApplePreviewUrl(
+      'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/example.m4a',
+    ),
+    true,
+  );
+  for (const url of [
+    'https://audio-ssl.itunes.apple.com.evil.example/itunes-assets/AudioPreview/v4/a.m4a',
+    'https://audio-ssl.itunes.apple.com:8443/itunes-assets/AudioPreview/v4/a.m4a',
+    'https://user@audio-ssl.itunes.apple.com/itunes-assets/AudioPreview/v4/a.m4a',
+    'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview-Evil/a.m4a',
+  ])
+    assert.equal(isApprovedApplePreviewUrl(url), false, url);
+  assert.throws(() =>
+    validateTriviaContent({
+      ...content,
+      cells: content.cells.map((c) =>
+        c.id === music[0].id
+          ? {
+              ...c,
+              musicAudio: { file: 'demo-twinkle.wav', clipStartSeconds: 5, clipEndSeconds: 4 },
+            }
+          : c,
+      ),
+    }),
+  );
+  assert.throws(() =>
+    validateTriviaContent({
+      ...content,
+      cells: content.cells.map((c) =>
+        c.id === music[0].id
+          ? {
+              ...c,
+              musicAudio: {
+                url: 'https://example.com/audio.m4a',
+                clipStartSeconds: 0,
+                clipEndSeconds: 8,
+              },
+            }
+          : c,
+      ),
+    }),
+  );
   assert.throws(() => createTriviaContent([100, 100, 200, 300, 400]));
   assert.throws(() =>
     validateTriviaContent({ ...content, cells: [...content.cells.slice(1), content.cells[1]] }),
@@ -115,6 +173,7 @@ test('host selects, safely cancels, and explicitly finishes; unavailable/used/st
   f.execute('cancel-selection', { cellId });
   assert.equal(f.snapshot().board!.cells.find((c) => c.id === cellId)!.used, false);
   f.execute('select-cell', { cellId });
+  f.execute('incorrect', { cellId });
   f.execute('arm', { cellId });
   assert.throws(() => f.execute('finish-cell', { cellId }));
   const phaseInstance = f.app.store.room(f.room.id).phase_instance;
@@ -140,22 +199,19 @@ test('first buzz, stale windows, exclusion with zero penalty, all-excluded finis
   t.after(() => f.app.close());
   const { cellId } = f;
   f.execute('select-cell', { cellId });
-  f.execute('arm', { cellId });
   const first = f.snapshot();
   const p1 = first.teams[0].members[0].id,
     p2 = first.teams[1].members[0].id;
   const before = f.app.store.players(f.room.id);
-  f.buzz(p1, first.windowId);
-  assert.throws(() => f.buzz(p2, first.windowId));
-  assert.throws(() => f.execute('cancel-selection', { cellId }));
   f.execute('incorrect', { cellId });
+  assert.throws(() => f.execute('cancel-selection', { cellId }));
   f.execute('arm', { cellId });
   const second = f.snapshot();
   assert.throws(() => f.buzz(p2, first.windowId));
   assert.throws(() => f.buzz(p1, second.windowId));
   f.buzz(p2, second.windowId);
   f.execute('incorrect', { cellId });
-  assert.throws(() => f.execute('arm', { cellId }), /所有队伍/);
+  assert.throws(() => f.execute('arm', { cellId }), /次数已用完|所有队伍/);
   assert.deepEqual(f.app.store.players(f.room.id), before);
   f.execute('finish-cell', { cellId });
   f.execute('select-cell', { cellId: 'childhood-2' });
@@ -257,12 +313,95 @@ test('frozen clues, selection, reveal and used cells survive restart and a v12 m
   await app.close();
   const store = new Store(path);
   t.after(() => store.close());
-  assert.equal(store.db.prepare('PRAGMA user_version').get()!.user_version, 15);
+  assert.equal(store.db.prepare('PRAGMA user_version').get()!.user_version, 21);
   assert.equal(
     store.db.prepare('SELECT question FROM trivia_state WHERE room_id=?').get(f.room.id)!.question,
     1,
   );
   assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM trivia_boards').get()!.n, 0);
+});
+
+test('v15 adds host-controlled music playback state without changing trivia rows', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'trivia-music-migration-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, 'room.sqlite');
+  const f = await fixture(path);
+  const { room, cellId } = f;
+  f.execute('select-cell', { cellId });
+  f.app.store.db.exec(
+    'ALTER TABLE trivia_state DROP COLUMN music_playing; ALTER TABLE trivia_state DROP COLUMN music_started_at; ALTER TABLE trivia_state DROP COLUMN music_position; PRAGMA user_version=15',
+  );
+  await f.app.close();
+  const app = createApp({ databasePath: path, hostPassword: 'board-test-password' });
+  t.after(() => app.close());
+  assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 21);
+  assert.equal(
+    app.store.db.prepare('SELECT question FROM trivia_state WHERE room_id=?').get(room.id)!
+      .question,
+    1,
+  );
+  const columns = new Set(
+    (app.store.db.prepare('PRAGMA table_info(trivia_state)').all() as { name: string }[]).map(
+      (x) => x.name,
+    ),
+  );
+  assert.ok(columns.has('music_playing'));
+  assert.ok(columns.has('music_started_at'));
+  assert.ok(columns.has('music_position'));
+});
+
+test('host music playback survives reconnect and restart, then cancellation clears it', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'trivia-music-playback-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, 'room.sqlite');
+  const f = await fixture(path);
+  const musicCellId = createTriviaContent([100, 200, 300, 400, 500], DEMO_TRIVIA_BANK).cells.find(
+    (cell) => cell.kind === 'music',
+  )!.id;
+  f.execute('select-cell', { cellId: musicCellId });
+  f.execute('music-start', { cellId: musicCellId });
+  assert.equal(f.snapshot('display').board?.selected?.musicPlayback?.playing, true);
+  await f.app.close();
+  const app = createApp({
+    databasePath: path,
+    hostPassword: 'board-test-password',
+    now: () => 1_000_000,
+  });
+  t.after(() => app.close());
+  assert.equal(
+    app.engine.snapshot({ role: 'display', roomId: f.room.id }).trivia?.board?.selected
+      ?.musicPlayback?.playing,
+    true,
+  );
+  app.engine.execute(host, f.room.id, {
+    type: 'phase.host',
+    phaseInstance: app.store.room(f.room.id).phase_instance,
+    requestId: randomUUID(),
+    payload: { action: 'cancel-selection', data: { cellId: musicCellId } },
+  });
+  const cancelled = app.engine.snapshot({ role: 'display', roomId: f.room.id }).trivia?.board;
+  assert.equal(cancelled?.selected, null);
+  const playback = app.store.db
+    .prepare('SELECT music_playing,music_position FROM trivia_state WHERE room_id=?')
+    .get(f.room.id) as { music_playing: number; music_position: number };
+  assert.equal(playback.music_playing, 0);
+  assert.equal(playback.music_position, 0);
+});
+
+test('music playback preserves elapsed time when the injected clock starts at zero', async (t) => {
+  const clock = { value: 0 };
+  const f = await fixture(':memory:', () => clock.value);
+  t.after(() => f.app.close());
+  const musicCellId = createTriviaContent([100, 200, 300, 400, 500], DEMO_TRIVIA_BANK).cells.find(
+    (cell) => cell.kind === 'music',
+  )!.id;
+  f.execute('select-cell', { cellId: musicCellId });
+  f.execute('music-start', { cellId: musicCellId });
+  clock.value = 1_400;
+  f.execute('music-stop', { cellId: musicCellId });
+  assert.ok(
+    Math.abs((f.snapshot('display').board?.selected?.musicPlayback?.position ?? 0) - 1.4) < 0.001,
+  );
 });
 
 test('custom banks validate without exposing data and a selected room keeps its frozen bank', async (t) => {
@@ -275,6 +414,7 @@ test('custom banks validate without exposing data and a selected room keeps its 
   bank.version = 'custom-test-1';
   bank.cells[0].hostAnswer = 'PRIVATE TEST ANSWER';
   bank.cells[0].hostNotes = 'PRIVATE TEST NOTES';
+  bank.cells[0].questionVideo = '/trivia/childhood-300.mp4';
   bank.cells.find((c) => c.id === 'music-1')!.musicCandidates = Array.from(
     { length: 9 },
     (_, i) => `PRIVATE TEST SONG ${i + 1}`,
@@ -298,6 +438,8 @@ test('custom banks validate without exposing data and a selected room keeps its 
   bank.cells[0].hostAnswer = 'CHANGED TEST ANSWER';
   writeFileSync(file, JSON.stringify(bank));
   assert.equal(f.snapshot().board!.selected!.answer, 'PRIVATE TEST ANSWER');
+  assert.equal(f.snapshot().board!.selected!.questionVideo, '/trivia/childhood-300.mp4');
+  assert.equal(f.snapshot('display').board!.selected!.questionVideo, '/trivia/childhood-300.mp4');
   assert.equal(f.snapshot().demo, false);
   assert.doesNotMatch(
     JSON.stringify(f.snapshot('display')),
@@ -307,6 +449,12 @@ test('custom banks validate without exposing data and a selected room keeps its 
     JSON.stringify(f.snapshot('player')),
     /PRIVATE TEST ANSWER|PRIVATE TEST NOTES|PRIVATE TEST SONG/,
   );
+  assert.equal(f.snapshot('player').board, undefined);
+  assert.doesNotMatch(JSON.stringify(f.snapshot('player')), /childhood-300\.mp4/);
+  const displayHtml = renderToStaticMarkup(
+    createElement(TriviaDisplay, { trivia: f.snapshot('display') }),
+  );
+  assert.match(displayHtml, /<video[^>]*src="\/trivia\/childhood-300\.mp4"/);
   assert.equal(f.snapshot().board!.review![0].musicCandidates!.length, 9);
   f.execute('reveal-answer', { cellId: f.cellId });
   assert.equal(f.snapshot('display').board!.selected!.answer, 'PRIVATE TEST ANSWER');
@@ -498,7 +646,7 @@ for (const original of ['upstream-reveals-v13', 'local-trivia-v13'] as const)
     await f.app.close();
     const app = createApp({ databasePath: path, hostPassword: 'board-test-password' });
     t.after(() => app.close());
-    assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 15);
+    assert.equal(app.store.db.prepare('PRAGMA user_version').get()!.user_version, 21);
     for (const name of [
       'trivia_boards',
       'trivia_cells',
@@ -526,3 +674,55 @@ for (const original of ['upstream-reveals-v13', 'local-trivia-v13'] as const)
       assert.equal(restored.awardHistory![0].cellId, null);
     }
   });
+
+test('nonzero-start music clip uses relative playback position through stop, resume and replay', async (t) => {
+  const clock = { value: 1_000_000 };
+  const f = await fixture(':memory:', () => clock.value);
+  t.after(() => f.app.close());
+  const board = f.app.store.db
+    .prepare('SELECT content FROM trivia_boards WHERE room_id=?')
+    .get(f.room.id) as { content: string };
+  const content = JSON.parse(board.content);
+  const cell = content.cells.find((entry: { kind: string }) => entry.kind === 'music');
+  cell.musicAudio.clipStartSeconds = 5;
+  cell.musicAudio.clipEndSeconds = 9;
+  f.app.store.db
+    .prepare('UPDATE trivia_boards SET content=? WHERE room_id=?')
+    .run(JSON.stringify(content), f.room.id);
+  f.execute('select-cell', { cellId: cell.id });
+  f.execute('music-start', { cellId: cell.id });
+  clock.value += 1_500;
+  f.execute('music-stop', { cellId: cell.id });
+  assert.ok(Math.abs(f.snapshot('display').board!.selected!.musicPlayback!.position - 1.5) < 0.001);
+  f.execute('music-start', { cellId: cell.id });
+  clock.value += 2_500;
+  assert.equal(f.snapshot('display').board!.selected!.musicPlayback!.playing, false);
+  assert.equal(f.snapshot('display').board!.selected!.musicPlayback!.position, 4);
+  f.execute('music-start', { cellId: cell.id });
+  assert.equal(f.snapshot('display').board!.selected!.musicPlayback!.position, 0);
+});
+
+test('host controls enforce the configured ordinary attempt limit', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  f.execute('assign', { count: 4 });
+  f.execute('select-cell', { cellId: f.cellId });
+  assert.equal(f.snapshot().controls?.canArm, false);
+  assert.equal(f.snapshot('display').controls, undefined);
+  f.execute('incorrect', { cellId: f.cellId });
+  for (const teamId of [2, 3, 4]) {
+    f.execute('arm', { cellId: f.cellId });
+    const playerId = f.snapshot().teams.find((team) => team.id === teamId)!.members[0].id;
+    f.buzz(playerId, f.snapshot().windowId);
+    assert.equal(f.snapshot().controls?.canMarkIncorrect, true);
+    f.execute('incorrect', { cellId: f.cellId });
+  }
+  assert.equal(f.snapshot().controls?.attemptsUsed, 4);
+  assert.equal(f.snapshot().controls?.canArm, false);
+  assert.equal(f.snapshot().controls?.disabledReason, '本题尝试次数已用完。');
+  assert.throws(() => f.execute('arm', { cellId: f.cellId }));
+  f.execute('reveal-answer', { cellId: f.cellId });
+  assert.equal(f.snapshot().controls?.canReveal, false);
+  f.execute('finish-cell', { cellId: f.cellId });
+  assert.equal(f.snapshot().board?.selected, null);
+});

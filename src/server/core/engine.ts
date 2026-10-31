@@ -101,19 +101,25 @@ export class Engine {
   expire(roomId: string): boolean {
     return this.store.transaction(() => {
       const room = this.store.room(roomId);
-      if (room.status !== 'open' || room.deadline_at === null || this.now() < room.deadline_at)
-        return false;
-      this.modules.get(room.phase)?.close?.(this.context(room));
-      this.store.db
-        .prepare("UPDATE rooms SET status='closed',version=version+1 WHERE id=?")
-        .run(roomId);
-      return true;
+      if (room.status !== 'open') return false;
+      if (room.deadline_at !== null && this.now() >= room.deadline_at) {
+        this.modules.get(room.phase)?.close?.(this.context(room));
+        this.store.db
+          .prepare("UPDATE rooms SET status='closed',version=version+1 WHERE id=?")
+          .run(roomId);
+        return true;
+      }
+      if (this.modules.get(room.phase)?.reconcile?.(this.context(room))) {
+        this.store.db.prepare('UPDATE rooms SET version=version+1 WHERE id=?').run(roomId);
+        return true;
+      }
+      return false;
     });
   }
   expireAll(): string[] {
     const due = this.store.db
       .prepare(
-        "SELECT id FROM rooms WHERE status='open' AND deadline_at IS NOT NULL AND deadline_at<=? AND NOT EXISTS (SELECT 1 FROM archived_rooms WHERE room_id=rooms.id)",
+        "SELECT id FROM rooms WHERE status='open' AND ((deadline_at IS NOT NULL AND deadline_at<=?) OR phase='trivia') AND NOT EXISTS (SELECT 1 FROM archived_rooms WHERE room_id=rooms.id)",
       )
       .all(this.now()) as { id: string }[];
     return due.filter((room) => this.expire(room.id)).map((room) => room.id);

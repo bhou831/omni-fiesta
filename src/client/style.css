@@ -3918,6 +3918,23 @@ button.jeopardy-cell:not(:disabled):hover {
   margin: 0;
   overflow-wrap: anywhere;
 }
+.trivia-question-image {
+  display: block;
+  width: auto;
+  max-width: min(100%, 520px);
+  max-height: 380px;
+  object-fit: contain;
+  margin: 24px auto 0;
+  border-radius: 8px;
+}
+.trivia-question-video {
+  display: block;
+  width: min(100%, 760px);
+  max-height: 48vh;
+  margin: 24px auto 0;
+  border-radius: 8px;
+  background: #000;
+}
 .trivia-answer {
   border-top: 1px solid var(--line);
   padding-top: 16px;
@@ -4073,6 +4090,16 @@ button.jeopardy-cell:not(:disabled):hover {
   letter-spacing: 0.015em;
   line-height: 1.55;
   text-wrap: balance;
+}
+.has-jeopardy .trivia-question-image {
+  max-width: min(100%, 560px);
+  max-height: 42vh;
+  margin-top: 28px;
+}
+.has-jeopardy .trivia-question-video {
+  width: min(100%, 860px);
+  max-height: 46vh;
+  margin-top: 28px;
 }
 .has-jeopardy .trivia-question.is-medium .trivia-prompt {
   font-size: 60px;
@@ -4407,4 +4434,165 @@ button.jeopardy-cell:not(:disabled):hover {
   .reward-coins i {
     animation: none;
   }
+}
+.adventure-reference {
+  display: block;
+  max-width: min(100%, 760px);
+  max-height: 50vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin: 1rem auto;
+}
+
+.adventure-timer {
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin: 0.5rem 0;
+}
+
+.trivia-location {
+  width: min(1120px, 100%);
+  min-width: 0;
+  margin: clamp(12px, 2vh, 28px) auto 0;
+  display: grid;
+  gap: 12px;
+  color: #171717;
+  text-align: left;
+}
+.trivia-location-map {
+  width: 100%;
+  height: clamp(300px, 42vh, 540px);
+  min-height: 260px;
+  overflow: hidden;
+  background: #f0efeb;
+  border: 1px solid #c9c7c0;
+  border-radius: 10px;
+}
+.trivia-location-message {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.trivia-location-attribution {
+  justify-self: end;
+  font-size: 0.75rem;
+}
+@media (max-width: 720px) {
+  .trivia-location-map {
+    height: 44vh;
+    min-height: 220px;
+  }
+}
+
+/* Trivia host setup spans the page; gameplay columns have room for the board. */
+.trivia-setup,
+.trivia-gameplay,
+.trivia-gameplay > fieldset {
+  min-width: 0;
+}
+.trivia-setup {
+  display: grid;
+  gap: 16px;
+}
+.trivia-gameplay {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.trivia-host {
+  grid-template-columns: minmax(0, 1fr);
+  container-type: inline-size;
+}
+@container (min-width: 1150px) {
+  .trivia-gameplay {
+    grid-template-columns: minmax(460px, 1.3fr) repeat(2, minmax(300px, 1fr));
+  }
+}
+.trivia-host .jeopardy-grid {
+  gap: 6px;
+}
+.trivia-host .jeopardy-column h3 {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.trivia-host .control-group {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Scaled TV stage only; host and player typography stay independent. */
+.trivia-display-focus .adventure-stage {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  text-align: center;
+  gap: clamp(8px, calc(1.2 * var(--vh)), 14px);
+}
+.trivia-display-focus .adventure-stage h2,
+.trivia-display-focus .adventure-stage h3,
+.trivia-display-focus .adventure-stage p {
+  margin: 0;
+}
+.trivia-display-focus .adventure-stage h2 {
+  font-size: clamp(28px, calc(2.3 * var(--vw)), 44px);
+}
+.trivia-display-focus .adventure-stage ol {
+  max-width: min(100%, 1200px);
+  margin: 0 auto;
+  padding-left: 1.5em;
+  text-align: left;
+  font-size: clamp(22px, calc(1.8 * var(--vw)), 34px);
+  line-height: 1.55;
+}
+.trivia-display-focus .adventure-stage li + li {
+  margin-top: 0.35em;
+}
+.trivia-display-focus .adventure-reference {
+  max-width: min(100%, 1100px);
+  max-height: calc(43 * var(--vh));
+  margin: 0 auto;
+}
+.trivia-display-focus .trivia-location {
+  width: min(1400px, 100%);
+  margin-top: calc(1 * var(--vh));
+  gap: 4px;
+}
+.trivia-display-focus .trivia-location-map {
+  height: clamp(300px, calc(48 * var(--vh)), 550px);
+}
+
+.trivia-display-focus .adventure-stage {
+  max-height: 100%;
+  overflow-y: auto;
+}
+.trivia-display-focus.has-location {
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
+  overflow-y: auto;
+}
+.trivia-display-focus.has-location .trivia-question {
+  padding: 0;
+}
+.trivia-display-focus.has-location .trivia-location {
+  min-height: 0;
+  grid-template-rows: minmax(220px, 1fr) auto auto;
+}
+.trivia-display-focus.has-location .trivia-location-map {
+  height: 100%;
+  min-height: 220px;
+}
+
+.trivia-answer-timer {
+  margin: 0;
+  font-size: 1.4em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.trivia-display-strip .trivia-answer-timer {
+  font-size: clamp(28px, calc(2.2 * var(--vw)), 42px);
 }

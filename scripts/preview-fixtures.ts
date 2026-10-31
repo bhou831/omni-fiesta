@@ -27,11 +27,13 @@ export async function seedPreviewRoom(
   engine: Engine,
   scenario: PreviewScenario,
   legacyTrivia = false,
+  legacyAnswerFlow = false,
 ) {
   const { store } = engine;
   const now = engine.now();
   const config = loadConfig();
   if (legacyTrivia) delete config.trivia.board_values;
+  if (legacyAnswerFlow) delete config.trivia.answer_seconds;
   // Generous inspection windows belong only to these disposable fixture rooms.
   for (const key of Object.keys(config.timers) as (keyof typeof config.timers)[])
     config.timers[key] = 900;
@@ -124,8 +126,8 @@ export async function seedPreviewRoom(
       ['childhood-3', 1],
       ['childhood-4', 3],
     ] as const) {
-      hostAction('select-cell', { cellId });
-      hostAction('award', { cellId, teamId, amount: Number(cellId.slice(-1)) * 100 });
+      hostAction('select-cell', { cellId, teamId });
+      hostAction('award', { cellId, teamId, amount: Number(cellId.slice(-1)) * 100, attempt: 1 });
       hostAction('finish-cell', { cellId });
     }
   }

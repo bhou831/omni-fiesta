@@ -2,6 +2,7 @@ import express, { type Request, type Response } from 'express';
 import { createServer } from 'node:http';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { resolve } from 'node:path';
+import { createReadStream, realpathSync, statSync } from 'node:fs';
 import { Server, type Socket } from 'socket.io';
 import { z } from 'zod';
 import { EMOJIS, type Command } from '../shared/contracts.js';
@@ -13,6 +14,7 @@ import { GameError, requireRule } from './core/errors.js';
 import { prepareMarket } from './games/prepare-market.js';
 import { createPartyModules } from './games/index.js';
 import { coinGeckoProvider, fixtureProvider, type MarketProvider } from './games/market.js';
+import { isApprovedApplePreviewUrl } from './games/trivia-content.js';
 
 function cookies(header?: string): Record<string, string> {
   const result: Record<string, string> = {};
@@ -216,6 +218,12 @@ export function createApp(options: AppOptions) {
       }, 16),
     );
   }
+  function synchronizedSnapshot(authorizedViewer: Viewer) {
+    const version = store.room(authorizedViewer.roomId).version;
+    const snapshot = engine.snapshot(authorizedViewer);
+    if (snapshot.room.version !== version) broadcast(authorizedViewer.roomId);
+    return snapshot;
+  }
   const attempts = new Map<string, { count: number; until: number }>();
   app.post('/api/login', (req, res) => {
     const key = req.ip ?? req.socket.remoteAddress ?? 'unknown';
@@ -360,7 +368,123 @@ export function createApp(options: AppOptions) {
   });
   app.get('/api/rooms/:code/state', (req, res) => {
     const room = store.roomByCode(codeSchema.parse(req.params.code));
-    res.json(engine.snapshot(viewer(req, room.id)));
+    const authorizedViewer = viewer(req, room.id);
+    res.json(synchronizedSnapshot(authorizedViewer));
+  });
+  app.get('/api/rooms/:code/trivia-audio/:cellId', (req, res) => {
+    const room = store.roomByCode(codeSchema.parse(req.params.code));
+    const token = typeof req.query.displayToken === 'string' ? req.query.displayToken : undefined;
+    if (token !== undefined) displayViewer(req.headers.cookie, room.id, token);
+    else needSession(req, 'host');
+    requireRule(
+      room.phase === 'trivia' && room.status === 'open',
+      'AUDIO_UNAVAILABLE',
+      'This clip is unavailable.',
+      404,
+    );
+    const row = store.db
+      .prepare(
+        'SELECT content,selected_cell FROM trivia_boards WHERE room_id=? AND phase_instance=?',
+      )
+      .get(room.id, room.phase_instance) as
+      { content: string; selected_cell: string | null } | undefined;
+    requireRule(
+      row?.selected_cell === req.params.cellId,
+      'AUDIO_UNAVAILABLE',
+      'This clip is unavailable.',
+      404,
+    );
+    let bank: {
+      mode: string;
+      cells: { id: string; kind: string; musicAudio?: { file?: string; url?: string } }[];
+    };
+    try {
+      bank = JSON.parse(row.content);
+    } catch {
+      return res.sendStatus(404);
+    }
+    const clue = bank.cells.find((cell) => cell.id === row.selected_cell);
+    requireRule(
+      clue?.kind === 'music' && clue.musicAudio,
+      'AUDIO_UNAVAILABLE',
+      'This clip is unavailable.',
+      404,
+    );
+    if (clue.musicAudio.url) {
+      let url: URL;
+      try {
+        url = new URL(clue.musicAudio.url);
+      } catch {
+        return res.sendStatus(404);
+      }
+      requireRule(
+        isApprovedApplePreviewUrl(url.toString()),
+        'AUDIO_UNAVAILABLE',
+        'This clip is unavailable.',
+        404,
+      );
+      res.setHeader('Cache-Control', 'private, no-store');
+      return res.redirect(302, url.toString());
+    }
+    let path: string;
+    let size: number;
+    try {
+      const root = realpathSync(
+        bank.mode === 'demo' ? resolve('fixtures') : resolve('private/trivia-media'),
+      );
+      path = realpathSync(resolve(root, clue.musicAudio.file!));
+      requireRule(
+        path.startsWith(`${root}/`),
+        'AUDIO_UNAVAILABLE',
+        'This clip is unavailable.',
+        404,
+      );
+      size = statSync(path).size;
+      requireRule(size > 0, 'AUDIO_UNAVAILABLE', 'This clip is unavailable.', 404);
+    } catch {
+      return res.sendStatus(404);
+    }
+    let start = 0;
+    let end = size - 1;
+    const range = req.headers.range;
+    if (range) {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+      if (!match || size === 0 || (!match[1] && !match[2])) {
+        res.setHeader('Content-Range', `bytes */${size}`);
+        return res.sendStatus(416);
+      }
+      if (!match[1]) {
+        const suffixLength = Number(match[2]);
+        if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) {
+          res.setHeader('Content-Range', `bytes */${size}`);
+          return res.sendStatus(416);
+        }
+        start = Math.max(0, size - suffixLength);
+      } else {
+        start = Number(match[1]);
+        end = match[2] ? Number(match[2]) : size - 1;
+      }
+      if (
+        !Number.isSafeInteger(start) ||
+        !Number.isSafeInteger(end) ||
+        start < 0 ||
+        start >= size ||
+        end < start
+      ) {
+        res.setHeader('Content-Range', `bytes */${size}`);
+        return res.sendStatus(416);
+      }
+      end = Math.min(end, size - 1);
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+    }
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Content-Length', end - start + 1);
+    res.setHeader('Cache-Control', 'private, no-store');
+    const stream = createReadStream(path, { start, end });
+    stream.on('error', () => res.destroy());
+    stream.pipe(res);
   });
   app.post('/api/rooms/:code/market/:kind', async (req, res) => {
     needSession(req, 'host');
@@ -384,9 +508,12 @@ export function createApp(options: AppOptions) {
     const role = z.enum(['host', 'player']).parse(req.query.role ?? 'player');
     const session = needSession(req, role);
     const command = commandSchema.parse(req.body) as Command;
-    const result = engine.execute(session, room.id, command);
-    broadcast(room.id);
-    res.json(result);
+    try {
+      const result = engine.execute(session, room.id, command);
+      res.json(result);
+    } finally {
+      broadcast(room.id);
+    }
   });
   app.post('/api/rooms/:code/display-link', (req, res) => {
     needSession(req, 'host');
@@ -464,7 +591,8 @@ export function createApp(options: AppOptions) {
     if (currentViewer.role === 'player') engine.presence(currentViewer.playerId, 1);
     socket.on('sync', () => {
       try {
-        socket.emit('state', engine.snapshot(socket.data.authorize()));
+        const authorizedViewer = socket.data.authorize() as Viewer;
+        socket.emit('state', synchronizedSnapshot(authorizedViewer));
       } catch {
         socket.disconnect();
       }

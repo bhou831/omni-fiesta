@@ -102,6 +102,17 @@ costume:
   no_votes_policy: no_awards_or_penalties
 
 trivia:
+  answer_seconds: 90
+  attempt_limit: 4
+  limited_attempt_limit: 2
+  adventure:
+    charades_simple_seconds: 120
+    charades_simple_target: 6
+    yes_no_simple_seconds: 180
+    charades_complex_seconds: 120
+    charades_complex_target: 8
+    yes_no_hard_seconds: 120
+    photo_recreation_seconds: 120
   # Draft tiers for local review; confirm before party use.
   board_values: [100, 200, 300, 400, 500]
   default_team_count: 4

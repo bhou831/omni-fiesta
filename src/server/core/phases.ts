@@ -16,6 +16,7 @@ export interface PhaseModule {
   id: Stage;
   durationSeconds(config: GameConfig): number | null;
   open?(context: PhaseContext): void;
+  reconcile?(context: PhaseContext): boolean;
   action(
     context: PhaseContext,
     playerId: string,

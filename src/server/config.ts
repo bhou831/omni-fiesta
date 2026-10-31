@@ -78,6 +78,23 @@ export const gameConfigSchema = z
       .strict(),
     trivia: z
       .object({
+        answer_seconds: duration.optional(),
+        attempt_limit: z.number().int().min(1).max(100).optional(),
+        limited_attempt_limit: z.number().int().min(1).max(100).optional(),
+        adventure: z
+          .object({
+            charades_simple_seconds: duration,
+            charades_simple_target: z.number().int().positive(),
+            yes_no_simple_seconds: duration,
+            charades_complex_seconds: duration,
+            charades_complex_target: z.number().int().positive(),
+            yes_no_hard_seconds: duration,
+            photo_recreation_seconds: duration,
+            // Old saved rooms may still carry this setting; judging no longer reads it.
+            photo_success_score: z.number().int().min(0).max(100).optional(),
+          })
+          .strict()
+          .optional(),
         // Absent in saved pre-board rooms: preserve their numbered-question flow.
         board_values: z
           .array(z.number().int().positive().max(Number.MAX_SAFE_INTEGER))

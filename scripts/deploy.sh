@@ -22,6 +22,15 @@ fi
 revision=$(git rev-parse HEAD)
 echo "Building release $revision"
 npm ci
+# Vite embeds this browser key during the client build. systemd's EnvironmentFile
+# applies only when the server starts, which is too late for the TV bundle.
+maps_key=$(sudo sed -n 's/^VITE_GOOGLE_MAPS_API_KEY=//p' /etc/omni-fiesta.env | tail -n 1)
+if [[ -z "$maps_key" ]]; then
+  echo 'Set VITE_GOOGLE_MAPS_API_KEY in /etc/omni-fiesta.env before building the TV.' >&2
+  exit 1
+fi
+export VITE_GOOGLE_MAPS_API_KEY="$maps_key"
+unset maps_key
 npm run build
 
 stage="/opt/omni-fiesta-stage-$$"
@@ -29,7 +38,7 @@ previous="/opt/omni-fiesta-previous-$$"
 backup="/var/lib/omni-fiesta/backups/party-$(date -u +%Y%m%dT%H%M%SZ)-$$.sqlite"
 sudo mkdir "$stage"
 trap 'sudo rm -rf "$stage"' EXIT
-sudo cp -a dist node_modules config package.json package-lock.json "$stage/"
+sudo cp -a dist node_modules config fixtures package.json package-lock.json "$stage/"
 printf '%s\n' "$revision" | sudo tee "$stage/REVISION" >/dev/null
 sudo chown -R root:root "$stage"
 

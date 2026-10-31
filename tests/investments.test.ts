@@ -316,7 +316,7 @@ test('version-10 databases keep their single position when upgraded to per-asset
   store.close();
   store = new Store(path);
   t.after(() => store.close());
-  assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 15);
+  assert.equal(store.db.prepare('PRAGMA user_version').get()?.user_version, 21);
   assert.deepEqual(
     store.db
       .prepare('SELECT asset_id,principal FROM investments WHERE player_id=?')

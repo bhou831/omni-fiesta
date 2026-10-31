@@ -8,6 +8,7 @@ import { requireRule } from './errors.js';
 import { costumeSchema } from '../games/costume.js';
 import { slotsSchema } from '../games/slots.js';
 import { TRIVIA_SCHEMA, TRIVIA_RECEIPTS_SCHEMA, TRIVIA_BOARD_SCHEMA } from '../games/trivia.js';
+import { TRIVIA_ADVENTURE_SCHEMA } from '../games/trivia-adventure.js';
 import { somebodyCallingSchema } from '../games/somebody-calling.js';
 import { powerballSchema } from '../games/powerball.js';
 
@@ -56,7 +57,7 @@ export class Store {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     const schemaVersion = Number(this.db.prepare('PRAGMA user_version').get()?.user_version);
-    if (schemaVersion > 15) {
+    if (schemaVersion > 21) {
       this.db.close();
       throw new Error(
         'Database schema is newer than this application. Use the matching application version.',
@@ -138,8 +139,61 @@ export class Store {
         .all()
         .some((column) => column.name === 'reward_kind');
       this.db.exec(
-        `BEGIN IMMEDIATE; ${hasRewardKind ? '' : 'ALTER TABLE ledger ADD COLUMN reward_kind TEXT;'} PRAGMA user_version=15; COMMIT;`,
+        `BEGIN IMMEDIATE; ${TRIVIA_ADVENTURE_SCHEMA} ${hasRewardKind ? '' : 'ALTER TABLE ledger ADD COLUMN reward_kind TEXT;'} PRAGMA user_version=15; COMMIT;`,
       );
+    }
+    if (schemaVersion < 16) {
+      const columns = new Set(
+        (this.db.prepare('PRAGMA table_info(trivia_state)').all() as { name: string }[]).map(
+          (column) => column.name,
+        ),
+      );
+      this.db.exec('BEGIN IMMEDIATE;');
+      if (!columns.has('music_playing'))
+        this.db.exec(
+          'ALTER TABLE trivia_state ADD COLUMN music_playing INTEGER NOT NULL DEFAULT 0;',
+        );
+      if (!columns.has('music_started_at'))
+        this.db.exec('ALTER TABLE trivia_state ADD COLUMN music_started_at INTEGER;');
+      if (!columns.has('music_position'))
+        this.db.exec('ALTER TABLE trivia_state ADD COLUMN music_position REAL NOT NULL DEFAULT 0;');
+      this.db.exec('PRAGMA user_version=16; COMMIT;');
+    }
+    // Version 15 was independently used for rewards on main and adventure tables here.
+    // Version 17 was also used by an earlier geography revision. Repair either history.
+    if (schemaVersion < 18) {
+      const hasRewardKind = this.db
+        .prepare('PRAGMA table_info(ledger)')
+        .all()
+        .some((column) => column.name === 'reward_kind');
+      this.db.exec(
+        `BEGIN IMMEDIATE; ${TRIVIA_ADVENTURE_SCHEMA} ${hasRewardKind ? '' : 'ALTER TABLE ledger ADD COLUMN reward_kind TEXT;'} PRAGMA user_version=18; COMMIT;`,
+      );
+    }
+    if (schemaVersion < 19)
+      this.db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE IF NOT EXISTS trivia_answer_attempts (
+          room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL,
+          question INTEGER NOT NULL, cell_id TEXT NOT NULL, attempt INTEGER NOT NULL,
+          team INTEGER NOT NULL, deadline_at INTEGER NOT NULL, status TEXT NOT NULL,
+          PRIMARY KEY(room_id,phase_instance,question)
+        );
+        PRAGMA user_version=19; COMMIT;`);
+    if (schemaVersion < 20)
+      this.db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE IF NOT EXISTS trivia_video_playback (
+          room_id TEXT NOT NULL REFERENCES rooms(id), phase_instance INTEGER NOT NULL,
+          question INTEGER NOT NULL, playing INTEGER NOT NULL DEFAULT 0,
+          position REAL NOT NULL DEFAULT 0, started_at INTEGER,
+          PRIMARY KEY(room_id,phase_instance,question)
+        );
+        PRAGMA user_version=20; COMMIT;`);
+    if (schemaVersion < 21) {
+      const columns = this.db.prepare('PRAGMA table_info(trivia_answer_attempts)').all();
+      this.db.exec(`BEGIN IMMEDIATE;
+        ${columns.some((column) => column.name === 'paused_remaining_ms') ? '' : 'ALTER TABLE trivia_answer_attempts ADD COLUMN paused_remaining_ms INTEGER;'}
+        ${columns.some((column) => column.name === 'timer_revision') ? '' : 'ALTER TABLE trivia_answer_attempts ADD COLUMN timer_revision INTEGER NOT NULL DEFAULT 0;'}
+        PRAGMA user_version=21; COMMIT;`);
     }
   }
 
